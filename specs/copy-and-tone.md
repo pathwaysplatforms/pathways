@@ -57,4 +57,4 @@ Never use exclamation marks. Never use passive voice.
 ✓ "We will ask you a few questions to understand your situation."
 ✓ "This usually takes about 3 minutes."
 ✗ "Please complete the following form."
-✗ "Fill in your details to get started."
+✗ "Fill in your details to get started."ls

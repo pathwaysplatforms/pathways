@@ -9,40 +9,37 @@ Do NOT build any features. Only setup.
 ### 1. Next.js project
 - Next.js 14 with App Router
 - TypeScript strict mode (tsconfig: strict: true, noImplicitAny: true)
-- Tailwind CSS
+- Tailwind CSS v4
 - ESLint + Prettier configured
 
 ### 2. Dependencies to install
 - @supabase/supabase-js @supabase/ssr
-- pino pino-pretty (logging)
-- zod (validation)
-- vitest @vitest/ui happy-dom (unit/integration testing)
-- @playwright/test (E2E testing)
-- openai (for embeddings + TTS)
+- pino pino-pretty
+- zod
+- vitest @vitest/ui happy-dom @vitest/coverage-v8
+- @playwright/test
+- openai
+- @anthropic-ai/sdk
+- @sentry/nextjs
+- pino
 
-### Sentry setup (include in session 1)
-Install: @sentry/nextjs
-Run: npx @sentry/wizard@latest -i nextjs
-This creates sentry.client.config.ts and sentry.server.config.ts automatically.
-Add SENTRY_DSN to .env.example and .env.local (get from sentry.io free project).
-Do not configure any Sentry features beyond basic error capture for now.
-
-### 3. Environment setup
-Create .env.example with every variable documented:
+### 3. Environment variables
+All config via environment variables. Names to use throughout:
 - NEXT_PUBLIC_SUPABASE_URL
 - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 - SUPABASE_SECRET_KEY
 - OPENAI_API_KEY
 - ANTHROPIC_API_KEY
 - DEEPGRAM_API_KEY
+- SENTRY_DSN
 - LOG_LEVEL (default: info)
 
 ### 4. Logger (src/lib/logger.ts)
 Pino logger with:
-- JSON output in production
-- Pretty output in development
-- Base fields: service='pathways-api', env, version
-- Export: logger and a createRequestLogger(correlationId) function
+- JSON output in production, pretty output in development
+- Base fields: service='pathways', env, version
+- Export: logger and createRequestLogger(correlationId) function
+- Export type: RequestLogger
 
 ### 5. Error classes (src/lib/errors.ts)
 Typed error hierarchy:
@@ -52,65 +49,116 @@ Typed error hierarchy:
 - NotFoundError extends PathwaysError (404)
 - DatabaseError extends PathwaysError (500)
 
-### 6. Supabase client (src/lib/supabase/)
-- client.ts: browser client
-- server.ts: server component client (uses cookies)
-- admin.ts: service role client (server only, never exposed to browser)
-- types.ts: placeholder for generated database types
+### 6. Supabase clients (src/lib/supabase/)
+- client.ts: browser client using NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+- server.ts: server component client using cookies
+- admin.ts: service role client using SUPABASE_SECRET_KEY (server only)
+- types.ts: placeholder export for generated database types
 
 ### 7. Vitest config (vitest.config.ts)
 - environment: happy-dom
+- globals: true
 - setupFiles: tests/setup.ts
-- coverage enabled
+- include: src/**/*.test.ts and src/**/*.test.tsx
+- coverage provider: v8
 
-### 8. Playwright config (playwright.config.ts)
+### 8. Vitest integration config (vitest.integration.config.ts)
+- environment: node
+- include: tests/integration/**/*.test.ts
+- testTimeout: 30000
+- hookTimeout: 30000
+
+### 9. Package.json scripts
+"typecheck": "tsc --noEmit"
+"lint": "eslint . --max-warnings 0"
+"test:unit": "vitest run"
+"test:integration": "vitest run --config vitest.integration.config.ts"
+"test:all": "vitest run && vitest run --config vitest.integration.config.ts"
+"test:watch": "vitest"
+"test:coverage": "vitest run --coverage"
+"test:e2e": "playwright test"
+
+### 10. Playwright config (playwright.config.ts)
 - baseURL: http://localhost:3000
 - chromium only for now
+- testDir: tests/e2e
 
-### 9. GitHub Actions (.github/workflows/ci.yml)
-Trigger: push to main and develop, all PRs
+### 11. Tests setup file (tests/setup.ts)
+- afterEach: vi.clearAllMocks()
+- vi.spyOn console.error to suppress in tests
+
+### 12. Integration tests setup (tests/integration/setup.ts)
+- Export supabase test client pointing at local instance
+- Export cleanupTestData(table, condition) helper
+
+### 13. GitHub Actions (.github/workflows/ci.yml)
+Trigger: push to main and develop, all pull_requests
+Environment variables:
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 Steps:
-- Install deps
-- Type check (tsc --noEmit)
-- Lint
-- Unit tests (vitest run)
-- Build check (next build)
+  1. actions/checkout@v4
+  2. actions/setup-node@v4 node 20
+  3. npm ci
+  4. npm run typecheck
+  5. npm run lint
+  6. npm run test:unit
+  7. supabase/setup-cli@v1
+  8. supabase start
+  9. npm run test:integration
+  10. npm run build
 
-### 10. Folder structure
-Create all folders from the structure in CLAUDE.md including empty index files
-so the structure is visible in git.
+### 14. Folder structure to create
+src/
+  lib/
+    supabase/
+  modules/
+    auth/
+    voice/
+    pathways/
+    documents/
+    ai/
+  app/
+    auth/
+      login/
+      callback/
+    onboarding/
+      voice/
+      review/
+      matches/
+    dashboard/
+    pathways/
+    applications/
+    admin/
+  types/
+  components/
+    ui/
+tests/
+  unit/
+  integration/
+  e2e/
+specs/
+supabase/
+  migrations/
+
+### 15. Sentry setup
+Install @sentry/nextjs
+Create sentry.client.config.ts and sentry.server.config.ts
+Basic error capture only, no additional features
 
 ## Tests to write alongside setup
-- tests/unit/logger.test.ts: verify logger outputs correct JSON fields
-- tests/unit/errors.test.ts: verify each error class has correct statusCode
-
-### Additional setup tasks for session 1
-
-Create .github/workflows/ci.yml with the full CI pipeline as specified in 
-the development guide. Use npm run test:unit and npm run test:integration 
-as the test commands.
-
-Create vitest.config.ts and vitest.integration.config.ts as specified.
-
-Create tests/setup.ts with mock reset and console.error suppression.
-
-Create tests/integration/setup.ts:
-- Import createClient from @supabase/supabase-js
-- Export a testSupabase client pointing at process.env.SUPABASE_URL
-  (which will be the local instance in CI and locally)
-- Export a helper: cleanupTestData(table, condition) that deletes test 
-  rows after each integration test
-
-Add all scripts to package.json as specified.
-
-After completing setup, run:
-  npm run typecheck   → must pass
-  npm run test:unit   → must pass (only setup tests exist at this point)
-  npm run lint        → must pass
-Report the results.
+- src/lib/__tests__/logger.test.ts: verify logger outputs correct fields
+- src/lib/__tests__/errors.test.ts: verify each error class has correct
+  statusCode and code field
 
 ## Definition of done
-- `npx tsc --noEmit` passes with zero errors
-- `npx vitest run` passes
-- `npx next build` succeeds
-- All folders exist as defined in CLAUDE.md
+- npx tsc --noEmit passes with zero errors
+- npm run test:unit passes
+- npm run lint passes
+- npm run build succeeds
+- All folders exist as defined above
+- Output the contents of .env.example so developer can verify all
+  variables are documented
