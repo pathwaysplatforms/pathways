@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Environment (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+.env.keys
+
+# Next.js
+.next/
+out/
+
+# Build / typecheck
+build/
+dist/
+*.tsbuildinfo
+
+# Testing
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.vitest/
+
+# Vercel
+.vercel
+
+# Sentry
+.sentryclirc
+
+# Supabase local (see also supabase/.gitignore)
+supabase/.branches
+supabase/.temp
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+*~
+
+# Misc
+*.pem
+.turbo
