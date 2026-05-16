@@ -1,9 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://localhost:54321";
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? "placeholder";
-const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY ?? "placeholder";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL ?? "http://127.0.0.1:54321";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY ?? "placeholder";
+const SUPABASE_SECRET_KEY = process.env.SUPABASE_LOCAL_SECRET_KEY ?? "placeholder";
 
 const TEST_PASSWORD = "TestPassword123!";
 
@@ -79,9 +79,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await adminClient.from("applications").delete().eq("id", applicationAId);
-  await adminClient.auth.admin.deleteUser(userAId);
-  await adminClient.auth.admin.deleteUser(userBId);
+  // Delete in FK-safe order: application → profiles → auth users
+  if (applicationAId) await adminClient.from("applications").delete().eq("id", applicationAId);
+  if (profileAId) await adminClient.from("profiles").delete().eq("id", profileAId);
+  if (profileBId) await adminClient.from("profiles").delete().eq("id", profileBId);
+  if (userAId) await adminClient.auth.admin.deleteUser(userAId);
+  if (userBId) await adminClient.auth.admin.deleteUser(userBId);
 });
 
 describe("profiles isolation", () => {
@@ -107,11 +110,14 @@ describe("profiles isolation", () => {
 
   it("a user cannot update another user's profile", async () => {
     const client = await signInAs(emailB);
-    const { error } = await client
+    // RLS silently blocks the update — 0 rows affected, no error
+    const { data, error } = await client
       .from("profiles")
       .update({ full_name: "Attacker" })
-      .eq("id", profileAId);
-    expect(error).not.toBeNull();
+      .eq("id", profileAId)
+      .select("id");
+    expect(error).toBeNull();
+    expect(data).toHaveLength(0);
   });
 });
 
@@ -175,7 +181,7 @@ describe("audit_log access control", () => {
   });
 
   it("audit_log cannot be inserted by the anon role", async () => {
-    const anonClient = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { error } = await anonClient.from("audit_log").insert({
       action: "test.action",
       entity_type: "profile",
@@ -194,10 +200,11 @@ describe("pathways access control", () => {
   });
 
   it("pathways are not readable by the anon role", async () => {
-    const anonClient = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // RLS has no SELECT policy for anon — PostgREST returns [] + 200, not an error
+    const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data, error } = await anonClient.from("pathways").select("id");
-    expect(error).not.toBeNull();
-    expect(data).toBeNull();
+    expect(error).toBeNull();
+    expect(data).toHaveLength(0);
   });
 
   it("pathways are not mutable by a regular authenticated user", async () => {

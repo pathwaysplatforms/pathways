@@ -34,7 +34,476 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      application_documents: {
+        Row: {
+          ai_analysis: Json | null
+          application_id: string
+          file_size_bytes: number
+          id: string
+          mime_type: string
+          original_filename: string
+          rejection_reason: string | null
+          requirement_id: string
+          status: string
+          storage_path: string
+          uploaded_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          application_id: string
+          file_size_bytes: number
+          id?: string
+          mime_type: string
+          original_filename: string
+          rejection_reason?: string | null
+          requirement_id: string
+          status?: string
+          storage_path: string
+          uploaded_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          ai_analysis?: Json | null
+          application_id?: string
+          file_size_bytes?: number
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          rejection_reason?: string | null
+          requirement_id?: string
+          status?: string
+          storage_path?: string
+          uploaded_at?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_documents_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "document_requirements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      applications: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          pathway_id: string
+          profile_id: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          pathway_id: string
+          profile_id: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          pathway_id?: string
+          profile_id?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_pathway_id_fkey"
+            columns: ["pathway_id"]
+            isOneToOne: false
+            referencedRelation: "pathways"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_log: {
+        Row: {
+          action: string
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          profile_id: string | null
+        }
+        Insert: {
+          action: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          profile_id?: string | null
+        }
+        Update: {
+          action?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      countries: {
+        Row: {
+          id: string
+          is_active: boolean
+          iso_code: string
+          name: string
+          region: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          iso_code: string
+          name: string
+          region: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          iso_code?: string
+          name?: string
+          region?: string
+        }
+        Relationships: []
+      }
+      document_requirements: {
+        Row: {
+          description: string
+          document_type: string
+          id: string
+          is_mandatory: boolean
+          name: string
+          pathway_id: string
+          sort_order: number
+          validation_rules: Json | null
+          validity_period: string | null
+        }
+        Insert: {
+          description: string
+          document_type: string
+          id?: string
+          is_mandatory?: boolean
+          name: string
+          pathway_id: string
+          sort_order?: number
+          validation_rules?: Json | null
+          validity_period?: string | null
+        }
+        Update: {
+          description?: string
+          document_type?: string
+          id?: string
+          is_mandatory?: boolean
+          name?: string
+          pathway_id?: string
+          sort_order?: number
+          validation_rules?: Json | null
+          validity_period?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_requirements_pathway_id_fkey"
+            columns: ["pathway_id"]
+            isOneToOne: false
+            referencedRelation: "pathways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pathway_categories: {
+        Row: {
+          description: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          description: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          description?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
+      pathway_steps: {
+        Row: {
+          description: string
+          estimated_duration: string
+          id: string
+          is_optional: boolean
+          pathway_id: string
+          step_number: number
+          title: string
+        }
+        Insert: {
+          description: string
+          estimated_duration: string
+          id?: string
+          is_optional?: boolean
+          pathway_id: string
+          step_number: number
+          title: string
+        }
+        Update: {
+          description?: string
+          estimated_duration?: string
+          id?: string
+          is_optional?: boolean
+          pathway_id?: string
+          step_number?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pathway_steps_pathway_id_fkey"
+            columns: ["pathway_id"]
+            isOneToOne: false
+            referencedRelation: "pathways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pathways: {
+        Row: {
+          additional_rules: Json | null
+          category_id: string
+          country_id: string
+          created_at: string
+          description: string
+          embedding: string | null
+          english_min_score: string | null
+          fee_gbp: number
+          id: string
+          is_active: boolean
+          min_salary_gbp: number
+          min_years_experience: number
+          official_name: string
+          processing_time_max: string
+          processing_time_min: string
+          requires_degree: boolean
+          requires_english_test: boolean
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          additional_rules?: Json | null
+          category_id: string
+          country_id: string
+          created_at?: string
+          description: string
+          embedding?: string | null
+          english_min_score?: string | null
+          fee_gbp: number
+          id?: string
+          is_active?: boolean
+          min_salary_gbp?: number
+          min_years_experience?: number
+          official_name: string
+          processing_time_max: string
+          processing_time_min: string
+          requires_degree?: boolean
+          requires_english_test?: boolean
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          additional_rules?: Json | null
+          category_id?: string
+          country_id?: string
+          created_at?: string
+          description?: string
+          embedding?: string | null
+          english_min_score?: string | null
+          fee_gbp?: number
+          id?: string
+          is_active?: boolean
+          min_salary_gbp?: number
+          min_years_experience?: number
+          official_name?: string
+          processing_time_max?: string
+          processing_time_min?: string
+          requires_degree?: boolean
+          requires_english_test?: boolean
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pathways_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "pathway_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pathways_country_id_fkey"
+            columns: ["country_id"]
+            isOneToOne: false
+            referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          annual_salary_gbp: number | null
+          auth_user_id: string
+          created_at: string
+          current_country: string | null
+          degree_field: string | null
+          degree_level: string | null
+          email: string | null
+          english_level: string | null
+          full_name: string | null
+          has_criminal_record: boolean | null
+          has_degree: boolean | null
+          has_dependents: boolean | null
+          id: string
+          is_admin: boolean
+          marital_status: string | null
+          nationality: string | null
+          occupation: string | null
+          onboarding_status: string
+          updated_at: string
+          voice_session_data: Json | null
+          years_experience: number | null
+        }
+        Insert: {
+          annual_salary_gbp?: number | null
+          auth_user_id: string
+          created_at?: string
+          current_country?: string | null
+          degree_field?: string | null
+          degree_level?: string | null
+          email?: string | null
+          english_level?: string | null
+          full_name?: string | null
+          has_criminal_record?: boolean | null
+          has_degree?: boolean | null
+          has_dependents?: boolean | null
+          id?: string
+          is_admin?: boolean
+          marital_status?: string | null
+          nationality?: string | null
+          occupation?: string | null
+          onboarding_status?: string
+          updated_at?: string
+          voice_session_data?: Json | null
+          years_experience?: number | null
+        }
+        Update: {
+          annual_salary_gbp?: number | null
+          auth_user_id?: string
+          created_at?: string
+          current_country?: string | null
+          degree_field?: string | null
+          degree_level?: string | null
+          email?: string | null
+          english_level?: string | null
+          full_name?: string | null
+          has_criminal_record?: boolean | null
+          has_degree?: boolean | null
+          has_dependents?: boolean | null
+          id?: string
+          is_admin?: boolean
+          marital_status?: string | null
+          nationality?: string | null
+          occupation?: string | null
+          onboarding_status?: string
+          updated_at?: string
+          voice_session_data?: Json | null
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
+      voice_sessions: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          extracted_data: Json | null
+          id: string
+          profile_id: string
+          status: string
+          transcript: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          extracted_data?: Json | null
+          id?: string
+          profile_id: string
+          status?: string
+          transcript?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          extracted_data?: Json | null
+          id?: string
+          profile_id?: string
+          status?: string
+          transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
