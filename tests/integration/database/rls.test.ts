@@ -1,9 +1,18 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL ?? "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY ?? "placeholder";
-const SUPABASE_SECRET_KEY = process.env.SUPABASE_LOCAL_SECRET_KEY ?? "placeholder";
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL ??
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??
+  "http://127.0.0.1:54321";
+const SUPABASE_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  "placeholder";
+const SUPABASE_SECRET_KEY =
+  process.env.SUPABASE_LOCAL_SECRET_KEY ??
+  process.env.SUPABASE_SECRET_KEY ??
+  "placeholder";
 
 const TEST_PASSWORD = "TestPassword123!";
 

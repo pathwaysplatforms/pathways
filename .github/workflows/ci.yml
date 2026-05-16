@@ -45,6 +45,15 @@ jobs:
       - name: Start Supabase
         run: supabase start
 
+      - name: Export local Supabase credentials
+        run: |
+          STATUS=$(supabase status --output env 2>/dev/null)
+          ANON_KEY=$(echo "$STATUS" | grep '^ANON_KEY=' | cut -d= -f2-)
+          SECRET_KEY=$(echo "$STATUS" | grep '^SERVICE_ROLE_KEY=' | cut -d= -f2-)
+          echo "NEXT_PUBLIC_SUPABASE_LOCAL_URL=http://127.0.0.1:54321" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY=${ANON_KEY}" >> $GITHUB_ENV
+          echo "SUPABASE_LOCAL_SECRET_KEY=${SECRET_KEY}" >> $GITHUB_ENV
+
       - name: Integration tests
         run: npm run test:integration
 
