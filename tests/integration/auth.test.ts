@@ -2,18 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL ??
-  process.env.NEXT_PUBLIC_SUPABASE_URL ??
-  "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL || "http://127.0.0.1:54321";
 const DEFAULT_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7UFwicknvljLQ12D_NYDggkjjdhfnlpTLCs";
 const DEFAULT_SERVICE_ROLE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SB38";
 
 const SUPABASE_SECRET_KEY =
-  process.env.SUPABASE_LOCAL_SECRET_KEY ??
-  process.env.SUPABASE_SECRET_KEY ??
-  DEFAULT_SERVICE_ROLE_KEY;
+  process.env.SUPABASE_LOCAL_SECRET_KEY || DEFAULT_SERVICE_ROLE_KEY;
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
 const TEST_PASSWORD = "TestPassword123!";
@@ -117,9 +113,7 @@ describe("HTTP route protection (requires dev server)", () => {
 
     // Sign in to get a session token
     const anonKey =
-      process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-      DEFAULT_ANON_KEY;
+      process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY || DEFAULT_ANON_KEY;
     const anonClient = createClient(SUPABASE_URL, anonKey);
     const { data: signInData } = await anonClient.auth.signInWithPassword({
       email: testEmail,

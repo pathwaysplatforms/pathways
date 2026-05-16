@@ -2,17 +2,13 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL ??
-  process.env.NEXT_PUBLIC_SUPABASE_URL ??
-  "http://127.0.0.1:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_URL || "http://127.0.0.1:54321";
 const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  "placeholder";
+  process.env.NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7UFwicknvljLQ12D_NYDggkjjdhfnlpTLCs";
 const SUPABASE_SECRET_KEY =
-  process.env.SUPABASE_LOCAL_SECRET_KEY ??
-  process.env.SUPABASE_SECRET_KEY ??
-  "placeholder";
+  process.env.SUPABASE_LOCAL_SECRET_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SB38";
 
 const TEST_PASSWORD = "TestPassword123!";
 
