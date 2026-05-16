@@ -15,7 +15,8 @@ const SERVICE_KEY =
   process.env.SUPABASE_SECRET_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SB38";
 
-const clientOptions = { realtime: { transport: ws } };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const clientOptions = { realtime: { transport: ws as any } };
 
 export const testSupabase = createClient(SUPABASE_URL, ANON_KEY, clientOptions);
 

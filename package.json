@@ -27,6 +27,7 @@
     "pino-pretty": "^11",
     "react": "^18",
     "react-dom": "^18",
+    "ws": "^8.20.1",
     "zod": "^3"
   },
   "devDependencies": {
@@ -34,6 +35,7 @@
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^2",
     "@vitest/ui": "^2",
     "autoprefixer": "^10",
