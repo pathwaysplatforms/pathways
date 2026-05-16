@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -44,6 +44,15 @@ jobs:
 
       - name: Start Supabase
         run: supabase start
+
+      - name: Export local Supabase JWT credentials
+        run: |
+          STATUS=$(supabase status --output json 2>/dev/null)
+          ANON_KEY=$(echo "$STATUS" | jq -r '.ANON_KEY')
+          SERVICE_KEY=$(echo "$STATUS" | jq -r '.SERVICE_ROLE_KEY')
+          echo "NEXT_PUBLIC_SUPABASE_LOCAL_URL=http://127.0.0.1:54321" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_LOCAL_PUBLISHABLE_KEY=${ANON_KEY}" >> $GITHUB_ENV
+          echo "SUPABASE_LOCAL_SECRET_KEY=${SERVICE_KEY}" >> $GITHUB_ENV
 
       - name: Integration tests
         run: npm run test:integration
