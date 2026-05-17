@@ -117,12 +117,34 @@ export function ReviewClient({ extracted }: ReviewClientProps) {
     setValues((prev) => ({ ...prev, [key]: value }));
   };
 
+  const buildUpdates = (vals: Record<string, string>): Record<string, unknown> => {
+    const boolFields = ["has_degree", "has_criminal_record", "has_dependents"] as const;
+    const numFields = ["years_experience", "annual_salary_gbp"] as const;
+    const updates: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(vals)) {
+      if (v === "" || v === null) continue;
+      if ((boolFields as readonly string[]).includes(k)) {
+        updates[k] = v === "true";
+      } else if ((numFields as readonly string[]).includes(k)) {
+        const n = Number(v);
+        if (!Number.isNaN(n)) updates[k] = n;
+      } else {
+        updates[k] = v;
+      }
+    }
+    return updates;
+  };
+
   const handleConfirm = async () => {
     setSubmitting(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/voice/confirm", { method: "POST" });
+      const res = await fetch("/api/voice/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: buildUpdates(values) }),
+      });
       if (!res.ok) {
         const data = (await res.json()) as { error?: { message?: string } };
         throw new Error(data.error?.message ?? "Confirmation failed");

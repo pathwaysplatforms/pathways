@@ -2,51 +2,28 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import SiriOrb from "@/components/smooth-ui/siri-orb";
+import dynamic from "next/dynamic";
 import type { Message } from "@/modules/voice/types";
+
+// SSR disabled — the orb injects a <style> tag that causes a hydration mismatch when server-rendered
+const SiriOrb = dynamic(() => import("@/components/smooth-ui/siri-orb"), { ssr: false });
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
-const ORB_CONFIGS: Record<
-  OrbState,
-  { colors: { bg: string; c1: string; c2: string; c3: string }; animationDuration: number }
-> = {
-  idle: {
-    colors: {
-      bg: "oklch(95% 0.02 264.695)",
-      c1: "oklch(80% 0.05 240)",
-      c2: "oklch(85% 0.04 220)",
-      c3: "oklch(82% 0.05 260)",
-    },
-    animationDuration: 24,
-  },
-  listening: {
-    colors: {
-      bg: "oklch(95% 0.02 240)",
-      c1: "oklch(72% 0.18 235)",
-      c2: "oklch(78% 0.14 210)",
-      c3: "oklch(75% 0.16 255)",
-    },
-    animationDuration: 12,
-  },
-  thinking: {
-    colors: {
-      bg: "oklch(95% 0.02 280)",
-      c1: "oklch(70% 0.18 290)",
-      c2: "oklch(76% 0.15 310)",
-      c3: "oklch(74% 0.17 270)",
-    },
-    animationDuration: 5,
-  },
-  speaking: {
-    colors: {
-      bg: "oklch(95% 0.02 320)",
-      c1: "oklch(72% 0.18 345)",
-      c2: "oklch(78% 0.14 210)",
-      c3: "oklch(75% 0.16 280)",
-    },
-    animationDuration: 9,
-  },
+// Pathways brand palette — sourced from PathwaysOrb.tsx in the reference implementation
+const BRAND_ORB_COLORS = {
+  bg: "#0F0D1E", // deep dark navy — orb interior base
+  c1: "#534AB7", // primary violet
+  c2: "#1D9E75", // accent teal
+  c3: "#8B7CF8", // lighter purple
+};
+
+// Animation durations per state — sourced from ORB_ANIMATION_DURATION in PathwaysOrb.tsx
+const ORB_CONFIGS: Record<OrbState, { colors: typeof BRAND_ORB_COLORS; animationDuration: number }> = {
+  idle:      { colors: BRAND_ORB_COLORS, animationDuration: 18 },
+  listening: { colors: BRAND_ORB_COLORS, animationDuration: 6 },
+  thinking:  { colors: BRAND_ORB_COLORS, animationDuration: 12 },
+  speaking:  { colors: BRAND_ORB_COLORS, animationDuration: 8 },
 };
 
 const STATUS_TEXT: Record<OrbState, string> = {
@@ -56,10 +33,24 @@ const STATUS_TEXT: Record<OrbState, string> = {
   speaking: "Speaking…",
 };
 
-const SILENCE_THRESHOLD_MS = 1500;
-const SILENCE_AMPLITUDE_THRESHOLD = 0.02;
+const SILENCE_THRESHOLD_MS = 1200;
+const SILENCE_AMPLITUDE_THRESHOLD = 0.015;
 
-/** Voice conversation client — manages Deepgram WebSocket, orb state, and turn processing. */
+function getSupportedMimeType(): string {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/ogg",
+    "audio/mp4",
+  ];
+  for (const type of candidates) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return "";
+}
+
+/** Voice conversation client — amplitude-based silence detection, record → transcribe → turn. */
 export function VoiceClient() {
   const router = useRouter();
   const [orbState, setOrbState] = useState<OrbState>("idle");
@@ -70,22 +61,19 @@ export function VoiceClient() {
   const sessionStartMsRef = useRef<number>(0);
   const historyRef = useRef<Message[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const deepgramWsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const animFrameRef = useRef<number | null>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const currentTranscriptRef = useRef<string>("");
-  const isSpeakingRef = useRef(false);
+  // Prevents a second transcription from firing while one turn is already in flight
+  const isProcessingTurnRef = useRef(false);
 
   const cleanup = useCallback(() => {
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (mediaRecorderRef.current?.state !== "inactive") {
       mediaRecorderRef.current?.stop();
-    }
-    if (deepgramWsRef.current?.readyState === WebSocket.OPEN) {
-      deepgramWsRef.current.close();
     }
     if (audioContextRef.current?.state !== "closed") {
       audioContextRef.current?.close();
@@ -119,10 +107,10 @@ export function VoiceClient() {
 
   const sendTurn = useCallback(
     async (transcript: string) => {
-      if (!sessionIdRef.current || !transcript.trim()) return;
+      if (!sessionIdRef.current) return;
 
       setOrbState("thinking");
-      currentTranscriptRef.current = "";
+      audioChunksRef.current = [];
 
       try {
         const res = await fetch("/api/voice/turn", {
@@ -138,176 +126,325 @@ export function VoiceClient() {
           }),
         });
 
-        if (!res.ok) {
+        if (!res.ok || !res.body) {
           throw new Error(`Turn request failed: ${res.status}`);
         }
 
-        const data = (await res.json()) as {
-          message: string;
-          complete: boolean;
-          audioBase64: string;
+        // Consume the SSE stream, playing audio chunks as they arrive
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        let complete = false;
+        let agentMessage = "";
+
+        // Sequential playback queue — drains automatically as chunks arrive
+        const audioQueue: string[] = [];
+        let isPlaying = false;
+
+        const drainQueue = async () => {
+          if (isPlaying) return;
+          isPlaying = true;
+          while (audioQueue.length > 0) {
+            const chunk = audioQueue.shift();
+            if (chunk) {
+              setOrbState("speaking");
+              await playAudio(chunk);
+            }
+          }
+          isPlaying = false;
         };
 
-        historyRef.current = [
-          ...historyRef.current,
-          { role: "user", content: transcript.trim() },
-          { role: "assistant", content: data.message },
-        ];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        setOrbState("speaking");
-        await playAudio(data.audioBase64);
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
 
-        if (data.complete) {
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (!json) continue;
+
+            let event: unknown;
+            try {
+              event = JSON.parse(json);
+            } catch {
+              continue;
+            }
+
+            const e = event as {
+              type: string;
+              audioBase64?: string;
+              message?: string;
+              complete?: boolean;
+            };
+
+            if (e.type === "audio" && e.audioBase64) {
+              audioQueue.push(e.audioBase64);
+              void drainQueue();
+            }
+
+            if (e.type === "meta") {
+              agentMessage = e.message ?? "";
+              complete = e.complete ?? false;
+            }
+
+            if (e.type === "error") {
+              throw new Error(e.message ?? "Stream error");
+            }
+          }
+        }
+
+        // Wait for all queued audio to finish playing
+        while (audioQueue.length > 0 || isPlaying) {
+          await new Promise<void>((r) => setTimeout(r, 50));
+        }
+
+        if (agentMessage) {
+          historyRef.current = [
+            ...historyRef.current,
+            { role: "user", content: transcript.trim() },
+            { role: "assistant", content: agentMessage },
+          ];
+        }
+
+        if (complete) {
           cleanup();
           router.push("/onboarding/review");
           return;
         }
 
+        // Restart recording for next turn
+        isProcessingTurnRef.current = false;
+        audioChunksRef.current = [];
+        if (mediaRecorderRef.current?.state === "paused") {
+          mediaRecorderRef.current.resume();
+        } else if (mediaRecorderRef.current?.state === "inactive") {
+          mediaRecorderRef.current.start(100);
+        }
         setOrbState("listening");
       } catch {
         setError("Something went wrong. Please try again.");
         setOrbState("listening");
+        isProcessingTurnRef.current = false;
+        if (mediaRecorderRef.current?.state === "paused") {
+          mediaRecorderRef.current.resume();
+        }
       }
     },
     [playAudio, router, cleanup]
   );
 
-  const startAmplitudeLoop = useCallback((analyser: AnalyserNode) => {
-    const dataArray = new Float32Array(analyser.fftSize);
+  const transcribeAndSend = useCallback(async () => {
+    if (isProcessingTurnRef.current) return;
+    if (!mediaRecorderRef.current) return;
 
-    const loop = () => {
-      analyser.getFloatTimeDomainData(dataArray);
-      let maxAmp = 0;
-      for (const v of dataArray) {
-        maxAmp = Math.max(maxAmp, Math.abs(v));
+    isProcessingTurnRef.current = true;
+    setOrbState("thinking");
+
+    // Stop recorder to finalise the audio file
+    mediaRecorderRef.current.stop();
+
+    // Wait for the final ondataavailable to fire
+    await new Promise<void>((resolve) => {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.onstop = () => resolve();
+      } else {
+        resolve();
+      }
+    });
+
+    const chunks = audioChunksRef.current;
+    audioChunksRef.current = [];
+
+    if (chunks.length === 0) {
+      isProcessingTurnRef.current = false;
+      setOrbState("listening");
+      return;
+    }
+
+    try {
+      const mimeType = chunks[0]?.type || "audio/webm";
+      const audioBlob = new Blob(chunks, { type: mimeType });
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "audio.webm");
+
+      const transcribeRes = await fetch("/api/voice/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!transcribeRes.ok) {
+        throw new Error(`Transcription failed: ${transcribeRes.status}`);
       }
 
-      if (isSpeakingRef.current) {
-        if (maxAmp < SILENCE_AMPLITUDE_THRESHOLD) {
-          if (!silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(() => {
-              silenceTimerRef.current = null;
-              const t = currentTranscriptRef.current;
-              if (t.trim()) {
-                sendTurn(t);
-              }
-            }, SILENCE_THRESHOLD_MS);
-          }
-        } else {
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-          }
+      const { transcript } = (await transcribeRes.json()) as {
+        transcript: string;
+      };
+
+      if (!transcript.trim()) {
+        // No speech detected — restart recording silently
+        isProcessingTurnRef.current = false;
+        if (mediaRecorderRef.current && sessionIdRef.current) {
+          audioChunksRef.current = [];
+          mediaRecorderRef.current.start(100);
         }
+        setOrbState("listening");
+        return;
       }
 
-      animFrameRef.current = requestAnimationFrame(loop);
-    };
-
-    animFrameRef.current = requestAnimationFrame(loop);
+      await sendTurn(transcript);
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setOrbState("listening");
+      isProcessingTurnRef.current = false;
+    }
   }, [sendTurn]);
 
-  const connectDeepgram = useCallback(
-    async (stream: MediaStream) => {
-      const tokenRes = await fetch("/api/voice/deepgram-token");
-      if (!tokenRes.ok) throw new Error("Failed to get Deepgram token");
-      const { token } = (await tokenRes.json()) as { token: string };
+  const startAmplitudeLoop = useCallback(
+    (analyser: AnalyserNode) => {
+      const dataArray = new Float32Array(analyser.fftSize);
+      let silenceStart: number | null = null;
 
-      const wsUrl =
-        `wss://api.deepgram.com/v1/listen` +
-        `?model=nova-3` +
-        `&utterance_end_ms=${SILENCE_THRESHOLD_MS}` +
-        `&interim_results=true` +
-        `&access_token=${encodeURIComponent(token)}`;
+      const loop = () => {
+        analyser.getFloatTimeDomainData(dataArray);
+        let maxAmp = 0;
+        for (const v of dataArray) maxAmp = Math.max(maxAmp, Math.abs(v));
 
-      const ws = new WebSocket(wsUrl);
-      deepgramWsRef.current = ws;
+        const isSpeaking = maxAmp > SILENCE_AMPLITUDE_THRESHOLD;
 
-      ws.onopen = () => {
-        const recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
-        mediaRecorderRef.current = recorder;
-
-        recorder.ondataavailable = (e) => {
-          if (ws.readyState === WebSocket.OPEN && e.data.size > 0) {
-            ws.send(e.data);
-          }
-        };
-
-        recorder.start(250);
-      };
-
-      ws.onmessage = (event: MessageEvent) => {
-        let msg: unknown;
-        try {
-          msg = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-
-        const data = msg as {
-          type?: string;
-          channel?: { alternatives?: { transcript?: string }[] };
-          is_final?: boolean;
-        };
-
-        if (data.type === "Results" && data.is_final) {
-          const t = data.channel?.alternatives?.[0]?.transcript ?? "";
-          if (t) {
-            currentTranscriptRef.current += (currentTranscriptRef.current ? " " : "") + t;
-            isSpeakingRef.current = true;
+        if (isSpeaking) {
+          silenceStart = null;
+        } else if (!isProcessingTurnRef.current) {
+          if (silenceStart === null) {
+            silenceStart = Date.now();
+          } else if (Date.now() - silenceStart > SILENCE_THRESHOLD_MS) {
+            silenceStart = null;
+            if (audioChunksRef.current.length > 0) {
+              void transcribeAndSend();
+            }
           }
         }
 
-        if (data.type === "UtteranceEnd") {
-          if (currentTranscriptRef.current.trim()) {
-            sendTurn(currentTranscriptRef.current);
-          }
-        }
+        animFrameRef.current = requestAnimationFrame(loop);
       };
 
-      ws.onerror = () => {
-        setError("Transcription connection failed. Please try again.");
-      };
+      animFrameRef.current = requestAnimationFrame(loop);
     },
-    [sendTurn]
+    [transcribeAndSend]
   );
+
+  const startRecording = useCallback(async (stream: MediaStream) => {
+    audioChunksRef.current = [];
+
+    const mimeType = getSupportedMimeType();
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        audioChunksRef.current.push(e.data);
+      }
+    };
+
+    recorder.start(100);
+  }, []);
 
   const begin = useCallback(async () => {
     setError(null);
 
     try {
-      // Create session
+      // 1. Create session
       const sessionRes = await fetch("/api/voice/session", { method: "POST" });
       if (!sessionRes.ok) throw new Error("Failed to create session");
       const { sessionId } = (await sessionRes.json()) as { sessionId: string };
       sessionIdRef.current = sessionId;
       sessionStartMsRef.current = Date.now();
+      setStarted(true);
 
-      // Request microphone access
+      // 2. Fetch opening greeting before mic is activated
+      setOrbState("speaking");
+      const greetRes = await fetch("/api/voice/turn", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-start": String(sessionStartMsRef.current),
+        },
+        body: JSON.stringify({ sessionId, transcript: "", history: [] }),
+      });
+      if (!greetRes.ok || !greetRes.body) {
+        throw new Error("Failed to get opening greeting");
+      }
+
+      // Read the SSE stream — same pattern as sendTurn()
+      const greetReader = greetRes.body.getReader();
+      const greetDecoder = new TextDecoder();
+      let greetBuffer = "";
+      let greetAudio = "";
+      let greetMessage = "";
+
+      while (true) {
+        const { done, value } = await greetReader.read();
+        if (done) break;
+
+        greetBuffer += greetDecoder.decode(value, { stream: true });
+        const lines = greetBuffer.split("\n");
+        greetBuffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const json = line.slice(6).trim();
+          if (!json) continue;
+
+          let event: unknown;
+          try { event = JSON.parse(json); } catch { continue; }
+
+          const e = event as { type: string; audioBase64?: string; message?: string };
+
+          if (e.type === "audio" && e.audioBase64) {
+            greetAudio = e.audioBase64;
+          }
+          if (e.type === "meta" && e.message) {
+            greetMessage = e.message;
+          }
+        }
+      }
+
+      if (!greetAudio || !greetMessage) {
+        throw new Error("Greeting stream did not return audio or message");
+      }
+
+      historyRef.current = [{ role: "assistant", content: greetMessage }];
+
+      // 3. Play greeting — mic stays off until audio finishes
+      await playAudio(greetAudio);
+
+      // 4. Activate microphone
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-
-      // Set up Web Audio API for amplitude analysis
       const audioCtx = new AudioContext();
       audioContextRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
-      analyserRef.current = analyser;
 
-      setStarted(true);
       setOrbState("listening");
 
+      // 5. Start amplitude loop and recording
       startAmplitudeLoop(analyser);
-      await connectDeepgram(stream);
+      await startRecording(stream);
     } catch (err) {
+      setStarted(false);
+      setOrbState("idle");
       if (err instanceof DOMException && err.name === "NotAllowedError") {
         setError("Microphone access is required. Please allow it and try again.");
       } else {
         setError("Could not start the voice session. Please try again.");
       }
     }
-  }, [connectDeepgram, startAmplitudeLoop]);
+  }, [startAmplitudeLoop, startRecording, playAudio]);
 
   const orbConfig = ORB_CONFIGS[orbState];
 
@@ -323,7 +460,7 @@ export function VoiceClient() {
       </div>
 
       <SiriOrb
-        size="280px"
+        size="220px"
         colors={orbConfig.colors}
         animationDuration={orbConfig.animationDuration}
       />

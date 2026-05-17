@@ -1,7 +1,8 @@
+// Unused since switching to pre-recorded API. Kept for reference.
 import { type NextRequest } from "next/server";
 import { createRequestLogger } from "@/lib/logger";
 import { requireAuth } from "@/modules/auth/service";
-import { PathwaysError } from "@/lib/errors";
+import { PathwaysError, ValidationError, DatabaseError } from "@/lib/errors";
 import type { Logger } from "pino";
 
 function handleError(error: unknown, log: Logger): Response {
@@ -30,7 +31,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
 
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
-      throw new Error("DEEPGRAM_API_KEY is not set");
+      throw new ValidationError("DEEPGRAM_API_KEY environment variable is not set");
     }
 
     // Fetch project ID
@@ -39,13 +40,13 @@ export async function GET(_req: NextRequest): Promise<Response> {
     });
 
     if (!projectsRes.ok) {
-      throw new Error(`Deepgram projects fetch failed: ${projectsRes.status}`);
+      throw new DatabaseError("Deepgram projects fetch failed", { status: projectsRes.status });
     }
 
     const projectsData = (await projectsRes.json()) as { projects: { project_id: string }[] };
     const projectId = projectsData.projects[0]?.project_id;
     if (!projectId) {
-      throw new Error("No Deepgram projects found");
+      throw new DatabaseError("No Deepgram projects found for the configured API key");
     }
 
     // Create a temporary key with a short TTL
@@ -59,14 +60,14 @@ export async function GET(_req: NextRequest): Promise<Response> {
         },
         body: JSON.stringify({
           comment: "Voice session browser key",
-          scopes: ["usage:write"],
-          time_to_live_in_seconds: 30,
+          scopes: ["usage:write", "listen"],
+          time_to_live_in_seconds: 120,
         }),
       }
     );
 
     if (!keyRes.ok) {
-      throw new Error(`Deepgram key creation failed: ${keyRes.status}`);
+      throw new DatabaseError("Deepgram temporary key creation failed", { status: keyRes.status });
     }
 
     const keyData = (await keyRes.json()) as { key: string };

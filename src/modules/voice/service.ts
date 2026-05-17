@@ -4,8 +4,13 @@ import type { Logger } from "pino";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ValidationError, DatabaseError } from "@/lib/errors";
-import { TurnResponseSchema, VoiceExtractedProfileSchema } from "./types";
-import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile } from "./types";
+import { TurnResponseSchema, VoiceExtractedProfileSchema, ConfirmRequestSchema } from "./types";
+import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile, ConfirmRequest } from "./types";
+
+const OPENING_GREETING =
+  "Welcome to Pathways. I'm here to guide you through your " +
+  "immigration journey. Let's start with the basics — " +
+  "what's your full name, and which country are you currently living in?";
 
 const CLAUDE_SYSTEM_PROMPT = `You are an AI agent for Pathways, an immigration guidance platform.
 Your role is to collect the user's profile through a structured conversation.
@@ -40,6 +45,9 @@ has_dependents: whether they have children or dependents
 
 Rules:
 
+The conversation has already started. You have already greeted the
+user and asked for their full name and current country of residence.
+Do not repeat the greeting. Continue collecting the remaining fields.
 Collect fields in a natural order. Start with name, nationality, location.
 When you have a field value, do not ask for it again.
 If the user is vague or unclear, ask one gentle follow-up then move on
@@ -47,7 +55,9 @@ and add the field to requires_review.
 After all fields are collected (or best-effort collected), close the
 conversation naturally and set complete to true.
 
-You must respond ONLY with valid JSON in this exact structure:
+You must respond ONLY with raw valid JSON — no markdown, no code fences,
+no preamble, no explanation. Your entire response must be directly
+parseable by JSON.parse() with zero preprocessing. Exact structure:
 {
 "message": "The sentence(s) you say to the user",
 "delta": { ...only the fields you extracted in THIS turn... },
@@ -60,20 +70,30 @@ The message field is what gets read aloud — write it accordingly.`;
 
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 /** Call Claude API and return a validated per-turn response. */
 async function callClaude(history: Message[], newTranscript: string): Promise<TurnResponse> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  const userTurn: Anthropic.MessageParam[] = newTranscript.trim()
+    ? [{ role: "user", content: newTranscript }]
+    : [];
 
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
-    { role: "user", content: newTranscript },
+    ...userTurn,
   ];
 
+  // Seed the very first call so the API never receives an empty messages array.
+  if (messages.length === 0) {
+    messages.push({ role: "user", content: "Hello" });
+  }
+
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-5",
     max_tokens: 1024,
     system: CLAUDE_SYSTEM_PROMPT,
     messages,
@@ -86,7 +106,11 @@ async function callClaude(history: Message[], newTranscript: string): Promise<Tu
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content.text);
+    const cleaned = content.text
+      .replace(/^```(?:json)?\s*/m, "")
+      .replace(/\s*```\s*$/m, "")
+      .trim();
+    parsed = JSON.parse(cleaned);
   } catch {
     throw new ValidationError("Claude response was not valid JSON");
   }
@@ -106,7 +130,7 @@ async function textToSpeech(text: string): Promise<string> {
   const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "FnOMXRlQ59aZ9SSpc3UZ";
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
-    throw new Error("ELEVENLABS_API_KEY is not set");
+    throw new ValidationError("ELEVENLABS_API_KEY environment variable is not set");
   }
 
   const response = await fetch(`${ELEVENLABS_API_URL}/${voiceId}`, {
@@ -123,7 +147,7 @@ async function textToSpeech(text: string): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`ElevenLabs TTS failed: ${response.status}`);
+    throw new DatabaseError("ElevenLabs TTS request failed", { status: response.status });
   }
 
   const buffer = await response.arrayBuffer();
@@ -193,6 +217,36 @@ export async function createVoiceSession(profileId: string, log: Logger): Promis
   return sessionId;
 }
 
+/**
+ * Split text into speakable sentence chunks.
+ * Keeps punctuation attached to the preceding sentence.
+ */
+function splitIntoSentences(text: string): string[] {
+  const raw = text.match(/[^.!?]+[.!?]*/g) ?? [text];
+  return raw
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** Chunk sent over SSE for each sentence of the agent's response. */
+export interface TurnChunk {
+  type: "audio";
+  index: number;
+  audioBase64: string;
+  sentence: string;
+}
+
+/** Final metadata chunk sent after all audio chunks. */
+export interface TurnMeta {
+  type: "meta";
+  message: string;
+  complete: boolean;
+  delta: TurnResponse["delta"];
+  requires_review: string[];
+}
+
+export type TurnStreamEvent = TurnChunk | TurnMeta;
+
 /** Shape returned by processConversationTurn. */
 export interface TurnResult {
   message: string;
@@ -245,7 +299,8 @@ export async function processConversationTurn(
   const updatedTranscript =
     currentTranscript +
     (currentTranscript ? "\n" : "") +
-    `User: ${transcript}\nAgent: ${turnResponse.message}`;
+    (transcript.trim() ? `User: ${transcript}\n` : "") +
+    `Agent: ${turnResponse.message}`;
 
   const { error: updateError } = await db
     .from("voice_sessions")
@@ -336,6 +391,192 @@ export async function finalizeVoiceSession(
   log.info({ action: "voice.session.finalized", sessionId, profileId, status });
 }
 
+/**
+ * Streaming version of processConversationTurn.
+ * Yields audio chunks as soon as each sentence is ready, then a final meta event.
+ */
+export async function* streamConversationTurn(
+  sessionId: string,
+  profileId: string,
+  transcript: string,
+  history: Message[],
+  sessionStartMs: number,
+  log: Logger
+): AsyncGenerator<TurnStreamEvent> {
+  log.info({ action: "voice.turn.stream.start", sessionId });
+
+  // Opening turn — return hardcoded greeting immediately, no Claude call needed
+  if (!transcript.trim() && history.length === 0) {
+    log.info({ action: "voice.turn.greeting", sessionId });
+    const audioBase64 = await textToSpeech(OPENING_GREETING);
+    yield {
+      type: "audio" as const,
+      index: 0,
+      audioBase64,
+      sentence: OPENING_GREETING,
+    };
+    yield {
+      type: "meta" as const,
+      message: OPENING_GREETING,
+      complete: false,
+      delta: {},
+      requires_review: [],
+    };
+    return;
+  }
+
+  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+
+  const { data: session, error: sessionError } = await db
+    .from("voice_sessions")
+    .select("id, profile_id, extracted_data, transcript")
+    .eq("id", sessionId)
+    .eq("profile_id", profileId)
+    .single();
+
+  if (sessionError || !session) {
+    throw new DatabaseError(
+      "Voice session not found or access denied",
+      { sessionId },
+      sessionError ?? undefined
+    );
+  }
+
+  const sessionRow = session as {
+    id: string;
+    profile_id: string;
+    extracted_data: unknown;
+    transcript: string | null;
+  };
+
+  const currentPartial = (sessionRow.extracted_data ?? {}) as PartialExtractedProfile;
+  const currentTranscript = sessionRow.transcript ?? "";
+
+  // Build message list for Claude
+  const userTurn: Anthropic.MessageParam[] = transcript.trim()
+    ? [{ role: "user", content: transcript }]
+    : [];
+
+  const messages: Anthropic.MessageParam[] = [
+    ...history.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+    ...userTurn,
+  ];
+
+  if (messages.length === 0) {
+    messages.push({ role: "user", content: "Hello" });
+  }
+
+  // Stream Claude tokens and accumulate full text
+  let fullText = "";
+  const stream = anthropic.messages.stream({
+    model: "claude-sonnet-4-5",
+    max_tokens: 1024,
+    system: CLAUDE_SYSTEM_PROMPT,
+    messages,
+  });
+
+  for await (const event of stream) {
+    if (
+      event.type === "content_block_delta" &&
+      event.delta.type === "text_delta"
+    ) {
+      fullText += event.delta.text;
+    }
+  }
+
+  // Parse and validate the complete Claude response
+  const cleaned = fullText
+    .replace(/^```(?:json)?\s*/m, "")
+    .replace(/\s*```\s*$/m, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new ValidationError("Claude response was not valid JSON");
+  }
+
+  const validated = TurnResponseSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new ValidationError("Claude response failed schema validation", {
+      errors: validated.error.errors.map((e) => e.message),
+    });
+  }
+
+  const turnResponse = validated.data;
+
+  // Fire all TTS requests in parallel, yield results in sentence order
+  const sentences = splitIntoSentences(turnResponse.message);
+
+  const ttsResults = await Promise.all(
+    sentences.map((sentence, index) =>
+      textToSpeech(sentence).then((audioBase64) => ({ index, audioBase64, sentence }))
+    )
+  );
+
+  for (const result of ttsResults) {
+    yield {
+      type: "audio" as const,
+      index: result.index,
+      audioBase64: result.audioBase64,
+      sentence: result.sentence,
+    };
+  }
+
+  // Persist updated session state
+  const updatedPartial = mergeDelta(
+    currentPartial,
+    turnResponse.delta,
+    turnResponse.requires_review
+  );
+
+  const updatedTranscript =
+    currentTranscript +
+    (currentTranscript ? "\n" : "") +
+    (transcript.trim() ? `User: ${transcript}\n` : "") +
+    `Agent: ${turnResponse.message}`;
+
+  const { error: updateError } = await db
+    .from("voice_sessions")
+    .update({ extracted_data: updatedPartial, transcript: updatedTranscript })
+    .eq("id", sessionId);
+
+  if (updateError) {
+    throw new DatabaseError("Failed to update voice session", { sessionId }, updateError);
+  }
+
+  if (turnResponse.complete) {
+    const durationSeconds = Math.round((Date.now() - sessionStartMs) / 1000);
+    await finalizeVoiceSession(
+      sessionId,
+      profileId,
+      buildFinalProfile(updatedPartial),
+      updatedTranscript,
+      durationSeconds,
+      log
+    );
+  }
+
+  yield {
+    type: "meta" as const,
+    message: turnResponse.message,
+    complete: turnResponse.complete,
+    delta: turnResponse.delta,
+    requires_review: turnResponse.requires_review,
+  };
+
+  log.info({
+    action: "voice.turn.stream.complete",
+    sessionId,
+    complete: turnResponse.complete,
+    sentences: sentences.length,
+  });
+}
+
 /** Validate an extracted profile object against the Zod schema. */
 export function validateExtractedProfile(data: unknown): VoiceExtractedProfile {
   const result = VoiceExtractedProfileSchema.safeParse(data);
@@ -347,14 +588,18 @@ export function validateExtractedProfile(data: unknown): VoiceExtractedProfile {
   return result.data;
 }
 
-/** Set onboarding_status = 'complete' after the user confirms their review. */
-export async function confirmVoiceProfile(profileId: string, log: Logger): Promise<void> {
+/** Apply user-edited review corrections, then set onboarding_status = 'complete'. */
+export async function confirmVoiceProfile(
+  profileId: string,
+  updates: ConfirmRequest["updates"],
+  log: Logger
+): Promise<void> {
   log.info({ action: "voice.confirm.start", profileId });
 
   const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
   const { error } = await adminDb
     .from("profiles")
-    .update({ onboarding_status: "complete" })
+    .update({ ...updates, onboarding_status: "complete" })
     .eq("id", profileId);
 
   if (error) {

@@ -48,13 +48,17 @@ export const MessageSchema = z.object({
 
 export const TurnRequestSchema = z.object({
   sessionId: z.string().uuid(),
-  transcript: z.string().min(1),
+  transcript: z.string(),
   history: z.array(MessageSchema),
 });
 
 export const SessionRequestSchema = z.object({});
 
-export const ConfirmRequestSchema = z.object({});
+export const ConfirmRequestSchema = z.object({
+  updates: VoiceExtractedProfileSchema.omit({ requires_review: true }).partial(),
+});
+
+export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>;
 
 export type TurnResponse = z.infer<typeof TurnResponseSchema>;
 export type VoiceExtractedProfile = z.infer<typeof VoiceExtractedProfileSchema>;
