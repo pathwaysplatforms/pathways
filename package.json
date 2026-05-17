@@ -18,6 +18,8 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
+    "@deepgram/sdk": "^5.2.0",
     "@sentry/nextjs": "^8",
     "@supabase/ssr": "^0.5",
     "@supabase/supabase-js": "^2",

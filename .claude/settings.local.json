@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api *)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(git checkout *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git fetch *)",
+      "Bash(Remove-Item next-env.d.ts, tsconfig.tsbuildinfo -Force)",
+      "Bash(git pull *)",
+      "Bash(supabase db *)",
+      "Bash(npx supabase *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(docker info *)",
+      "Bash(supabase --version)",
+      "Bash(git stash *)",
+      "Bash(git *)",
+      "Read(//c/Users/achto/dev/**)",
+      "Bash(dir \"C:\\\\Users\\\\achto\\\\dev\")",
+      "Bash(dir C:\\\\Users\\\\achto\\\\dev\\\\pathways-platform\\\\components\\\\smooth-ui\\\\siri-orb *)",
+      "Bash(node -e \"require\\('@anthropic-ai/sdk'\\); require\\('@deepgram/sdk'\\); console.log\\('both installed'\\)\")",
+      "Bash(node -e \"require\\('clsx'\\); console.log\\('clsx ok'\\)\")",
+      "Bash(node -e \"require\\('tailwind-merge'\\); console.log\\('tw-merge ok'\\)\")"
+    ]
+  }
+}
