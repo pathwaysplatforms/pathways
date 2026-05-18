@@ -4,6 +4,9 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { Message } from "@/modules/voice/types";
+import { createRequestLogger } from "@/lib/logger";
+
+const log = createRequestLogger("voice-client");
 
 // SSR disabled — the orb injects a <style> tag that causes a hydration mismatch when server-rendered
 const SiriOrb = dynamic(() => import("@/components/smooth-ui/siri-orb"), { ssr: false });
@@ -33,9 +36,6 @@ const STATUS_TEXT: Record<OrbState, string> = {
   speaking: "Speaking…",
 };
 
-const SILENCE_THRESHOLD_MS = 1200;
-const SILENCE_AMPLITUDE_THRESHOLD = 0.015;
-
 function getSupportedMimeType(): string {
   const candidates = [
     "audio/webm;codecs=opus",
@@ -50,7 +50,7 @@ function getSupportedMimeType(): string {
   return "";
 }
 
-/** Voice conversation client — amplitude-based silence detection, record → transcribe → turn. */
+/** Voice conversation client — Deepgram live WebSocket STT, Claude SSE stream, ElevenLabs TTS. */
 export function VoiceClient() {
   const router = useRouter();
   const [orbState, setOrbState] = useState<OrbState>("idle");
@@ -62,9 +62,9 @@ export function VoiceClient() {
   const historyRef = useRef<Message[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const deepgramWsRef = useRef<WebSocket | null>(null);
+  const currentTranscriptRef = useRef<string>("");
   const animFrameRef = useRef<number | null>(null);
-  // Prevents a second transcription from firing while one turn is already in flight
   const isProcessingTurnRef = useRef(false);
 
   const cleanup = useCallback(() => {
@@ -72,6 +72,10 @@ export function VoiceClient() {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
+    if (deepgramWsRef.current?.readyState === WebSocket.OPEN) {
+      deepgramWsRef.current.close();
+    }
+    deepgramWsRef.current = null;
     if (mediaRecorderRef.current?.state !== "inactive") {
       mediaRecorderRef.current?.stop();
     }
@@ -109,8 +113,11 @@ export function VoiceClient() {
     async (transcript: string) => {
       if (!sessionIdRef.current) return;
 
+      isProcessingTurnRef.current = true;
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.pause();
+      }
       setOrbState("thinking");
-      audioChunksRef.current = [];
 
       try {
         const res = await fetch("/api/voice/turn", {
@@ -216,13 +223,11 @@ export function VoiceClient() {
           return;
         }
 
-        // Restart recording for next turn
+        // Resume recording for next turn
         isProcessingTurnRef.current = false;
-        audioChunksRef.current = [];
+        currentTranscriptRef.current = "";
         if (mediaRecorderRef.current?.state === "paused") {
           mediaRecorderRef.current.resume();
-        } else if (mediaRecorderRef.current?.state === "inactive") {
-          mediaRecorderRef.current.start(100);
         }
         setOrbState("listening");
       } catch {
@@ -237,123 +242,129 @@ export function VoiceClient() {
     [playAudio, router, cleanup]
   );
 
-  const transcribeAndSend = useCallback(async () => {
-    if (isProcessingTurnRef.current) return;
-    if (!mediaRecorderRef.current) return;
-
-    isProcessingTurnRef.current = true;
-    setOrbState("thinking");
-
-    // Stop recorder to finalise the audio file
-    mediaRecorderRef.current.stop();
-
-    // Wait for the final ondataavailable to fire
-    await new Promise<void>((resolve) => {
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.onstop = () => resolve();
-      } else {
-        resolve();
-      }
-    });
-
-    const chunks = audioChunksRef.current;
-    audioChunksRef.current = [];
-
-    if (chunks.length === 0) {
-      isProcessingTurnRef.current = false;
-      setOrbState("listening");
-      return;
-    }
-
-    try {
-      const mimeType = chunks[0]?.type || "audio/webm";
-      const audioBlob = new Blob(chunks, { type: mimeType });
-      const formData = new FormData();
-      formData.append("audio", audioBlob, "audio.webm");
-
-      const transcribeRes = await fetch("/api/voice/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!transcribeRes.ok) {
-        throw new Error(`Transcription failed: ${transcribeRes.status}`);
-      }
-
-      const { transcript } = (await transcribeRes.json()) as {
-        transcript: string;
-      };
-
-      if (!transcript.trim()) {
-        // No speech detected — restart recording silently
-        isProcessingTurnRef.current = false;
-        if (mediaRecorderRef.current && sessionIdRef.current) {
-          audioChunksRef.current = [];
-          mediaRecorderRef.current.start(100);
-        }
-        setOrbState("listening");
-        return;
-      }
-
-      await sendTurn(transcript);
-    } catch {
-      setError("Something went wrong. Please try again.");
-      setOrbState("listening");
-      isProcessingTurnRef.current = false;
-    }
-  }, [sendTurn]);
-
   const startAmplitudeLoop = useCallback(
     (analyser: AnalyserNode) => {
       const dataArray = new Float32Array(analyser.fftSize);
-      let silenceStart: number | null = null;
-
       const loop = () => {
         analyser.getFloatTimeDomainData(dataArray);
-        let maxAmp = 0;
-        for (const v of dataArray) maxAmp = Math.max(maxAmp, Math.abs(v));
-
-        const isSpeaking = maxAmp > SILENCE_AMPLITUDE_THRESHOLD;
-
-        if (isSpeaking) {
-          silenceStart = null;
-        } else if (!isProcessingTurnRef.current) {
-          if (silenceStart === null) {
-            silenceStart = Date.now();
-          } else if (Date.now() - silenceStart > SILENCE_THRESHOLD_MS) {
-            silenceStart = null;
-            if (audioChunksRef.current.length > 0) {
-              void transcribeAndSend();
-            }
-          }
-        }
-
         animFrameRef.current = requestAnimationFrame(loop);
       };
-
       animFrameRef.current = requestAnimationFrame(loop);
     },
-    [transcribeAndSend]
+    []
   );
 
-  const startRecording = useCallback(async (stream: MediaStream) => {
-    audioChunksRef.current = [];
+  /**
+   * Open a live Deepgram WebSocket directly from the browser.
+   * Authentication via a short-lived key fetched from our API.
+   * The browser streams audio chunks; Deepgram fires UtteranceEnd
+   * when the user stops speaking (~100ms latency vs ~400ms HTTP).
+   */
+  const connectDeepgram = useCallback(
+    async (stream: MediaStream) => {
+      const tokenRes = await fetch("/api/voice/deepgram-token");
+      if (!tokenRes.ok) throw new Error("Failed to get Deepgram token");
+      const { token } = (await tokenRes.json()) as { token: string };
 
-    const mimeType = getSupportedMimeType();
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-    mediaRecorderRef.current = recorder;
+      const dgUrl =
+        "wss://api.deepgram.com/v1/listen" +
+        "?model=nova-3" +
+        "&language=en" +
+        "&smart_format=true" +
+        "&interim_results=true" +
+        "&utterance_end_ms=1000" +
+        "&vad_events=true" +
+        `&access_token=${encodeURIComponent(token)}`;
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) {
-        audioChunksRef.current.push(e.data);
-      }
-    };
+      const ws = new WebSocket(dgUrl);
+      deepgramWsRef.current = ws;
 
-    recorder.start(100);
-  }, []);
+      // Wait for connection to open before returning — 8s timeout guards against key expiry race
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          ws.close();
+          reject(new Error("Deepgram connection timed out"));
+        }, 8000);
+
+        ws.onopen = () => {
+          clearTimeout(timeout);
+
+          const mimeType = getSupportedMimeType();
+          const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+          recorder.ondataavailable = (e) => {
+            if (ws.readyState === WebSocket.OPEN && e.data.size > 0) {
+              ws.send(e.data);
+            }
+          };
+
+          recorder.start(100);
+          mediaRecorderRef.current = recorder;
+
+          resolve();
+        };
+      });
+
+      ws.onmessage = (event: MessageEvent) => {
+        let msg: unknown;
+        try {
+          msg = JSON.parse(event.data as string);
+        } catch {
+          return;
+        }
+
+        const data = msg as {
+          type?: string;
+          channel?: {
+            alternatives?: { transcript?: string }[];
+          };
+          is_final?: boolean;
+          speech_final?: boolean;
+        };
+
+        // Accumulate final transcript segments
+        if (
+          data.type === "Results" &&
+          data.is_final &&
+          data.channel?.alternatives?.[0]?.transcript
+        ) {
+          const segment = data.channel.alternatives[0].transcript;
+          currentTranscriptRef.current +=
+            (currentTranscriptRef.current ? " " : "") + segment;
+        }
+
+        const utteranceEnd = data.type === "UtteranceEnd";
+        const speechFinal = data.type === "Results" && data.speech_final === true;
+
+        if ((utteranceEnd || speechFinal) && !isProcessingTurnRef.current) {
+          const transcript = currentTranscriptRef.current.trim();
+          currentTranscriptRef.current = "";
+          if (transcript) {
+            void sendTurn(transcript);
+          }
+        }
+      };
+
+      ws.onerror = () => {
+        setError("Transcription connection lost. Please try again.");
+        setOrbState("idle");
+      };
+
+      ws.onclose = (event: CloseEvent) => {
+        if (!event.wasClean && !isProcessingTurnRef.current) {
+          setError("Transcription connection dropped. Please try again.");
+          setOrbState("idle");
+        }
+      };
+    },
+    [sendTurn]
+  );
 
   const begin = useCallback(async () => {
     setError(null);
+
+    let stream: MediaStream | undefined;
+    let analyser: AnalyserNode | undefined;
 
     try {
       // 1. Create session
@@ -422,19 +433,15 @@ export function VoiceClient() {
       await playAudio(greetAudio);
 
       // 4. Activate microphone
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       const audioCtx = new AudioContext();
       audioContextRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
+      analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
 
       setOrbState("listening");
-
-      // 5. Start amplitude loop and recording
-      startAmplitudeLoop(analyser);
-      await startRecording(stream);
     } catch (err) {
       setStarted(false);
       setOrbState("idle");
@@ -443,8 +450,25 @@ export function VoiceClient() {
       } else {
         setError("Could not start the voice session. Please try again.");
       }
+      return;
     }
-  }, [startAmplitudeLoop, startRecording, playAudio]);
+
+    // Guard satisfies TypeScript — both are always assigned if the try block above completed
+    if (!stream || !analyser) return;
+
+    // 5. Start amplitude loop and connect to Deepgram — isolated so a WebSocket
+    //    rejection does not show the generic "could not start" error
+    startAmplitudeLoop(analyser);
+    try {
+      await connectDeepgram(stream);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ action: "voice.begin.connectDeepgram.error", error: message });
+      setError("Could not connect to transcription service. Please try again.");
+      setOrbState("idle");
+      cleanup();
+    }
+  }, [startAmplitudeLoop, connectDeepgram, playAudio, cleanup]);
 
   const orbConfig = ORB_CONFIGS[orbState];
 

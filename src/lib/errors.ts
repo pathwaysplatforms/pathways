@@ -38,3 +38,9 @@ export class DatabaseError extends PathwaysError {
     super(message, { code: "DATABASE_ERROR", statusCode: 500, context, cause });
   }
 }
+
+export class InternalError extends PathwaysError {
+  constructor(message: string, context?: Record<string, unknown>, cause?: unknown) {
+    super(message, { code: "INTERNAL_ERROR", statusCode: 500, context, cause });
+  }
+}

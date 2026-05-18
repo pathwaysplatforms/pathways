@@ -93,7 +93,7 @@ async function callClaude(history: Message[], newTranscript: string): Promise<Tu
   }
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system: CLAUDE_SYSTEM_PROMPT,
     messages,
@@ -472,7 +472,7 @@ export async function* streamConversationTurn(
   // Stream Claude tokens and accumulate full text
   let fullText = "";
   const stream = anthropic.messages.stream({
-    model: "claude-sonnet-4-5",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     system: CLAUDE_SYSTEM_PROMPT,
     messages,

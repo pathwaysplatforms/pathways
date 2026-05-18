@@ -1,9 +1,17 @@
-// Unused since switching to pre-recorded API. Kept for reference.
+import { z } from "zod";
 import { type NextRequest } from "next/server";
 import { createRequestLogger } from "@/lib/logger";
 import { requireAuth } from "@/modules/auth/service";
-import { PathwaysError, ValidationError, DatabaseError } from "@/lib/errors";
+import { PathwaysError, ValidationError, InternalError } from "@/lib/errors";
 import type { Logger } from "pino";
+
+const DEEPGRAM_PROJECT_ID = "9db47372-dbcc-4ff6-a1fb-e3f2ebfe34ab";
+const DEEPGRAM_KEY_URL = `https://api.deepgram.com/v1/projects/${DEEPGRAM_PROJECT_ID}/keys`;
+
+const DeepgramKeySchema = z.object({
+  key: z.string(),
+  api_key_id: z.string(),
+});
 
 function handleError(error: unknown, log: Logger): Response {
   if (error instanceof PathwaysError) {
@@ -20,7 +28,10 @@ function handleError(error: unknown, log: Logger): Response {
   );
 }
 
-/** Return a short-lived Deepgram API key for client-side live transcription. */
+/**
+ * Create a short-lived Deepgram child key server-side and return it to the
+ * authenticated client. The master key is never exposed to the browser.
+ */
 export async function GET(_req: NextRequest): Promise<Response> {
   const correlationId = crypto.randomUUID();
   const log = createRequestLogger(correlationId);
@@ -31,49 +42,36 @@ export async function GET(_req: NextRequest): Promise<Response> {
 
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
-      throw new ValidationError("DEEPGRAM_API_KEY environment variable is not set");
+      throw new ValidationError("DEEPGRAM_API_KEY is not configured");
     }
 
-    // Fetch project ID
-    const projectsRes = await fetch("https://api.deepgram.com/v1/projects", {
-      headers: { Authorization: `Token ${apiKey}` },
+    log.info({ action: "api.voice.deepgram-token.deepgram_request" });
+
+    const dgRes = await fetch(DEEPGRAM_KEY_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Token ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        comment: "pathways-session",
+        scopes: ["usage:write"],
+        time_to_live_in_seconds: 10,
+      }),
     });
 
-    if (!projectsRes.ok) {
-      throw new DatabaseError("Deepgram projects fetch failed", { status: projectsRes.status });
+    if (!dgRes.ok) {
+      throw new InternalError("Deepgram child key creation failed", { status: dgRes.status });
     }
 
-    const projectsData = (await projectsRes.json()) as { projects: { project_id: string }[] };
-    const projectId = projectsData.projects[0]?.project_id;
-    if (!projectId) {
-      throw new DatabaseError("No Deepgram projects found for the configured API key");
+    const raw: unknown = await dgRes.json();
+    const parsed = DeepgramKeySchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new InternalError("Deepgram response did not match expected schema");
     }
-
-    // Create a temporary key with a short TTL
-    const keyRes = await fetch(
-      `https://api.deepgram.com/v1/projects/${projectId}/keys`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Token ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          comment: "Voice session browser key",
-          scopes: ["usage:write", "listen"],
-          time_to_live_in_seconds: 120,
-        }),
-      }
-    );
-
-    if (!keyRes.ok) {
-      throw new DatabaseError("Deepgram temporary key creation failed", { status: keyRes.status });
-    }
-
-    const keyData = (await keyRes.json()) as { key: string };
 
     log.info({ action: "api.voice.deepgram-token.done" });
-    return Response.json({ token: keyData.key });
+    return Response.json({ token: parsed.data.key });
   } catch (error) {
     return handleError(error, log);
   }
