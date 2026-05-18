@@ -1,3 +1,6 @@
+// Pre-recorded transcription fallback — retained for mobile/Safari
+// fallback if live WebSocket approach needs platform-specific handling.
+// Currently unused in the primary flow.
 import { type NextRequest } from "next/server";
 import { createRequestLogger } from "@/lib/logger";
 import { requireAuth } from "@/modules/auth/service";

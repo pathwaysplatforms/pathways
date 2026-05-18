@@ -28,7 +28,10 @@
       "Bash(Write-Host \"Cache cleared\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/onboarding/voice)",
       "Bash(pkill -f \"node server.js\")",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(Get-Content C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\.env.local)",
+      "Bash(Select-String \"DEEPGRAM\")",
+      "Bash(curl *)"
     ]
   }
 }
