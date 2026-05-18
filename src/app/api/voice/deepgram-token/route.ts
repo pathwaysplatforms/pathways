@@ -55,8 +55,7 @@ export async function GET(_req: NextRequest): Promise<Response> {
       },
       body: JSON.stringify({
         comment: "pathways-session",
-        scopes: ["usage:write"],
-        time_to_live_in_seconds: 10,
+        time_to_live_in_seconds: 30,
       }),
     });
 
