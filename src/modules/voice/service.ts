@@ -509,16 +509,15 @@ export async function* streamConversationTurn(
 
   const turnResponse = validated.data;
 
-  // Fire all TTS requests in parallel, yield results in sentence order
+  // Fire all TTS requests in parallel, yield each in sentence order as it resolves
   const sentences = splitIntoSentences(turnResponse.message);
 
-  const ttsResults = await Promise.all(
-    sentences.map((sentence, index) =>
-      textToSpeech(sentence).then((audioBase64) => ({ index, audioBase64, sentence }))
-    )
+  const ttsPromises = sentences.map((sentence, index) =>
+    textToSpeech(sentence).then((audioBase64) => ({ index, audioBase64, sentence }))
   );
 
-  for (const result of ttsResults) {
+  for (const ttsPromise of ttsPromises) {
+    const result = await ttsPromise;
     yield {
       type: "audio" as const,
       index: result.index,
