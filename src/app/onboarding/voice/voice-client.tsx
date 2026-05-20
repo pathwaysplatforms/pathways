@@ -36,21 +36,18 @@ const STATUS_TEXT: Record<OrbState, string> = {
   speaking: "Speaking…",
 };
 
-function getSupportedMimeType(): string {
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-    "audio/ogg",
-    "audio/mp4",
-  ];
-  for (const type of candidates) {
-    if (MediaRecorder.isTypeSupported(type)) return type;
+/** Convert Float32 PCM samples (-1..1) to a signed 16-bit little-endian ArrayBuffer. */
+function floatTo16BitPCM(input: Float32Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(input.length * 2);
+  const view = new DataView(buffer);
+  for (let i = 0; i < input.length; i++) {
+    const s = Math.max(-1, Math.min(1, input[i]));
+    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
   }
-  return "";
+  return buffer;
 }
 
-/** Voice conversation client — Deepgram live WebSocket STT, Claude SSE stream, ElevenLabs TTS. */
+/** Voice conversation client — Gladia Solaria-1 live WebSocket STT, Claude SSE stream, ElevenLabs TTS. */
 export function VoiceClient() {
   const router = useRouter();
   const [orbState, setOrbState] = useState<OrbState>("idle");
@@ -60,9 +57,10 @@ export function VoiceClient() {
   const sessionIdRef = useRef<string | null>(null);
   const sessionStartMsRef = useRef<number>(0);
   const historyRef = useRef<Message[]>([]);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const deepgramWsRef = useRef<WebSocket | null>(null);
+  const gladiaWsRef = useRef<WebSocket | null>(null);
+  // ScriptProcessorNode captures raw PCM from the mic and streams it to Gladia.
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const currentTranscriptRef = useRef<string>("");
   const animFrameRef = useRef<number | null>(null);
   const isProcessingTurnRef = useRef(false);
@@ -72,13 +70,14 @@ export function VoiceClient() {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
-    if (deepgramWsRef.current?.readyState === WebSocket.OPEN) {
-      deepgramWsRef.current.close();
+    if (scriptProcessorRef.current) {
+      scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
     }
-    deepgramWsRef.current = null;
-    if (mediaRecorderRef.current?.state !== "inactive") {
-      mediaRecorderRef.current?.stop();
+    if (gladiaWsRef.current?.readyState === WebSocket.OPEN) {
+      gladiaWsRef.current.close();
     }
+    gladiaWsRef.current = null;
     if (audioContextRef.current?.state !== "closed") {
       audioContextRef.current?.close();
     }
@@ -114,9 +113,6 @@ export function VoiceClient() {
       if (!sessionIdRef.current) return;
 
       isProcessingTurnRef.current = true;
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.pause();
-      }
       setOrbState("thinking");
 
       try {
@@ -223,20 +219,15 @@ export function VoiceClient() {
           return;
         }
 
-        // Resume recording for next turn
+        // Resume listening for next turn — ScriptProcessorNode resumes automatically
+        // because isProcessingTurnRef is cleared before the next onaudioprocess fires.
         isProcessingTurnRef.current = false;
         currentTranscriptRef.current = "";
-        if (mediaRecorderRef.current?.state === "paused") {
-          mediaRecorderRef.current.resume();
-        }
         setOrbState("listening");
       } catch {
         setError("Something went wrong. Please try again.");
         setOrbState("listening");
         isProcessingTurnRef.current = false;
-        if (mediaRecorderRef.current?.state === "paused") {
-          mediaRecorderRef.current.resume();
-        }
       }
     },
     [playAudio, router, cleanup]
@@ -254,117 +245,138 @@ export function VoiceClient() {
     []
   );
 
+  /** Handle a single message frame from the Gladia WebSocket. */
+  const handleGladiaMessage = useCallback(
+    (event: MessageEvent) => {
+      let msg: unknown;
+      try {
+        msg = JSON.parse(event.data as string);
+      } catch {
+        return;
+      }
+
+      const data = msg as {
+        type?: string;
+        data?: {
+          utterance?: { text?: string };
+          is_final?: boolean;
+        };
+      };
+
+      // Accumulate final transcript segments.
+      // Gladia event: { type: "transcript", data: { is_final: true, utterance: { text: "..." } } }
+      if (
+        data.type === "transcript" &&
+        data.data?.is_final === true &&
+        (data.data?.utterance?.text ?? "").trim().length > 0
+      ) {
+        const segment = data.data.utterance!.text!.trim();
+        currentTranscriptRef.current =
+          (currentTranscriptRef.current + " " + segment).trim();
+      }
+
+      // Trigger a conversation turn on utterance end.
+      // Gladia event: { type: "speech_end", data: { time: ... } }
+      // Equivalent to Deepgram's UtteranceEnd after utterance_end_ms silence.
+      if (data.type === "speech_end" && !isProcessingTurnRef.current) {
+        const transcript = currentTranscriptRef.current.trim();
+        currentTranscriptRef.current = "";
+        if (transcript.length > 0) {
+          void sendTurn(transcript);
+        }
+      }
+    },
+    [sendTurn]
+  );
+
   /**
-   * Open a live Deepgram WebSocket directly from the browser.
-   * Authentication via a short-lived key fetched from our API.
-   * The browser streams audio chunks; Deepgram fires UtteranceEnd
-   * when the user stops speaking (~100ms latency vs ~400ms HTTP).
+   * Open a Gladia live WebSocket session directly from the browser.
+   *
+   * Auth flow: our server POSTs to Gladia with the secret key and receives a
+   * temporary per-session WebSocket URL. The browser connects to that URL —
+   * GLADIA_API_KEY never appears in a URL or client bundle.
+   *
+   * Audio: raw 16-bit PCM at 16 000 Hz captured via ScriptProcessorNode and
+   * sent as binary ArrayBuffer frames. Gladia's endpointing (1.0 s silence)
+   * fires a speech_end event which triggers each conversation turn.
    */
-  const connectDeepgram = useCallback(
-    async (stream: MediaStream) => {
-      const tokenRes = await fetch("/api/voice/deepgram-token");
-      if (!tokenRes.ok) throw new Error("Failed to get Deepgram token");
-      const { token } = (await tokenRes.json()) as { token: string };
+  const connectGladia = useCallback(
+    async (stream: MediaStream): Promise<void> => {
+      const tokenRes = await fetch("/api/voice/gladia-token");
+      if (!tokenRes.ok) throw new Error("Failed to create Gladia session");
+      const { url } = (await tokenRes.json()) as { url: string };
 
-      const dgUrl =
-        "wss://api.deepgram.com/v1/listen" +
-        "?model=nova-3" +
-        "&language=en" +
-        "&smart_format=true" +
-        "&interim_results=true" +
-        "&utterance_end_ms=1000" +
-        "&vad_events=true" +
-        `&access_token=${encodeURIComponent(token)}`;
+      const ws = new WebSocket(url);
+      gladiaWsRef.current = ws;
 
-      const ws = new WebSocket(dgUrl);
-      deepgramWsRef.current = ws;
-
-      // Wait for connection to open before returning — 8s timeout guards against key expiry race
-      await new Promise<void>((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           ws.close();
-          reject(new Error("Deepgram connection timed out"));
+          reject(new Error("Gladia connection timed out"));
         }, 8000);
 
         ws.onopen = () => {
           clearTimeout(timeout);
 
-          const mimeType = getSupportedMimeType();
-          const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+          const audioCtx = audioContextRef.current;
+          if (!audioCtx) {
+            ws.close();
+            reject(new Error("AudioContext not initialised"));
+            return;
+          }
 
-          recorder.ondataavailable = (e) => {
-            if (ws.readyState === WebSocket.OPEN && e.data.size > 0) {
-              ws.send(e.data);
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+
+          // ScriptProcessorNode captures 2 048-sample PCM frames (~128 ms at
+          // 16 000 Hz) and sends them as binary to Gladia.
+          // createScriptProcessor is deprecated but universally supported;
+          // audio is not sent while a turn is being processed so Gladia's
+          // endpointing timer resets cleanly between turns.
+          const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+          source.connect(processor);
+          processor.connect(audioCtx.destination);
+          scriptProcessorRef.current = processor;
+
+          processor.onaudioprocess = (e) => {
+            if (ws.readyState === WebSocket.OPEN && !isProcessingTurnRef.current) {
+              const pcm = floatTo16BitPCM(e.inputBuffer.getChannelData(0));
+              ws.send(pcm);
             }
           };
 
-          recorder.start(100);
-          mediaRecorderRef.current = recorder;
-
+          startAmplitudeLoop(analyser);
           resolve();
         };
-      });
 
-      ws.onmessage = (event: MessageEvent) => {
-        let msg: unknown;
-        try {
-          msg = JSON.parse(event.data as string);
-        } catch {
-          return;
-        }
-
-        const data = msg as {
-          type?: string;
-          channel?: {
-            alternatives?: { transcript?: string }[];
-          };
-          is_final?: boolean;
-          speech_final?: boolean;
+        ws.onmessage = (e: MessageEvent) => {
+          handleGladiaMessage(e);
         };
 
-        // Accumulate final transcript segments
-        if (
-          data.type === "Results" &&
-          data.is_final &&
-          data.channel?.alternatives?.[0]?.transcript
-        ) {
-          const segment = data.channel.alternatives[0].transcript;
-          currentTranscriptRef.current +=
-            (currentTranscriptRef.current ? " " : "") + segment;
-        }
-
-        const utteranceEnd = data.type === "UtteranceEnd";
-        const speechFinal = data.type === "Results" && data.speech_final === true;
-
-        if ((utteranceEnd || speechFinal) && !isProcessingTurnRef.current) {
-          const transcript = currentTranscriptRef.current.trim();
-          currentTranscriptRef.current = "";
-          if (transcript) {
-            void sendTurn(transcript);
-          }
-        }
-      };
-
-      ws.onerror = () => {
-        setError("Transcription connection lost. Please try again.");
-        setOrbState("idle");
-      };
-
-      ws.onclose = (event: CloseEvent) => {
-        if (!event.wasClean && !isProcessingTurnRef.current) {
-          setError("Transcription connection dropped. Please try again.");
+        ws.onerror = () => {
+          clearTimeout(timeout);
+          setError("Transcription connection lost. Please try again.");
           setOrbState("idle");
-        }
-      };
+          reject(new Error("Gladia WebSocket error during open"));
+        };
+
+        ws.onclose = (e: CloseEvent) => {
+          if (!e.wasClean && !isProcessingTurnRef.current) {
+            setError("Transcription connection dropped. Please try again.");
+            setOrbState("idle");
+          }
+        };
+      });
     },
-    [sendTurn]
+    [handleGladiaMessage, startAmplitudeLoop]
   );
 
   const begin = useCallback(async () => {
     setError(null);
 
     let stream: MediaStream | undefined;
-    let analyser: AnalyserNode | undefined;
 
     try {
       // 1. Create session
@@ -432,14 +444,11 @@ export function VoiceClient() {
       // 3. Play greeting — mic stays off until audio finishes
       await playAudio(greetAudio);
 
-      // 4. Activate microphone
+      // 4. Activate microphone and create AudioContext at 16 000 Hz to match
+      //    Gladia's session config (wav/pcm, 16-bit, 16 kHz, mono).
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const audioCtx = new AudioContext();
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = audioCtx;
-      const source = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
 
       setOrbState("listening");
     } catch (err) {
@@ -453,22 +462,20 @@ export function VoiceClient() {
       return;
     }
 
-    // Guard satisfies TypeScript — both are always assigned if the try block above completed
-    if (!stream || !analyser) return;
+    if (!stream) return;
 
-    // 5. Start amplitude loop and connect to Deepgram — isolated so a WebSocket
-    //    rejection does not show the generic "could not start" error
-    startAmplitudeLoop(analyser);
+    // 5. Connect to Gladia — isolated so a WebSocket rejection does not show
+    //    the generic "could not start" error
     try {
-      await connectDeepgram(stream);
+      await connectGladia(stream);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      log.error({ action: "voice.begin.connectDeepgram.error", error: message });
+      log.error({ action: "voice.begin.connectGladia.error", error: message });
       setError("Could not connect to transcription service. Please try again.");
       setOrbState("idle");
       cleanup();
     }
-  }, [startAmplitudeLoop, connectDeepgram, playAudio, cleanup]);
+  }, [connectGladia, playAudio, cleanup]);
 
   const orbConfig = ORB_CONFIGS[orbState];
 
