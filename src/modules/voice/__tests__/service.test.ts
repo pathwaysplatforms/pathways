@@ -371,23 +371,25 @@ describe("confirmVoiceProfile", () => {
     const adminChain = makeQueryChain({ error: null });
     mockAdmin(makeClient(adminChain));
 
-    await confirmVoiceProfile(profileId, mockLog());
+    await confirmVoiceProfile(profileId, {}, mockLog());
 
-    expect(adminChain.update).toHaveBeenCalledWith({ onboarding_status: "complete" });
+    expect(adminChain.update).toHaveBeenCalledWith(
+      expect.objectContaining({ onboarding_status: "complete" })
+    );
   });
 
   it("throws DatabaseError when the update fails", async () => {
     const adminChain = makeQueryChain({ error: { message: "db error" } });
     mockAdmin(makeClient(adminChain));
 
-    await expect(confirmVoiceProfile(profileId, mockLog())).rejects.toThrow(DatabaseError);
+    await expect(confirmVoiceProfile(profileId, {}, mockLog())).rejects.toThrow(DatabaseError);
   });
 
   it("uses the admin client to bypass RLS", async () => {
     const adminChain = makeQueryChain({ error: null });
     mockAdmin(makeClient(adminChain));
 
-    await confirmVoiceProfile(profileId, mockLog());
+    await confirmVoiceProfile(profileId, {}, mockLog());
 
     expect(createSupabaseAdminClient).toHaveBeenCalled();
     expect(createSupabaseServerClient).not.toHaveBeenCalled();

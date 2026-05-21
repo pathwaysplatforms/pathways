@@ -22,7 +22,16 @@
       "Bash(dir C:\\\\Users\\\\achto\\\\dev\\\\pathways-platform\\\\components\\\\smooth-ui\\\\siri-orb *)",
       "Bash(node -e \"require\\('@anthropic-ai/sdk'\\); require\\('@deepgram/sdk'\\); console.log\\('both installed'\\)\")",
       "Bash(node -e \"require\\('clsx'\\); console.log\\('clsx ok'\\)\")",
-      "Bash(node -e \"require\\('tailwind-merge'\\); console.log\\('tw-merge ok'\\)\")"
+      "Bash(node -e \"require\\('tailwind-merge'\\); console.log\\('tw-merge ok'\\)\")",
+      "Bash(node *)",
+      "Bash(Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Cache cleared\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/onboarding/voice)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(npx vitest *)",
+      "Bash(Get-Content C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\.env.local)",
+      "Bash(Select-String \"DEEPGRAM\")",
+      "Bash(curl *)"
     ]
   }
 }
