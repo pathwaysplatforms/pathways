@@ -398,69 +398,165 @@ export type Database = {
         Row: {
           annual_salary_gbp: number | null
           auth_user_id: string
+          canadian_education_years: number | null
+          canadian_work_years: number | null
+          clb_listening: number | null
+          clb_reading: number | null
+          clb_speaking: number | null
+          clb_writing: number | null
           created_at: string
           current_country: string | null
           degree_field: string | null
           degree_level: string | null
+          eca_obtained: boolean | null
+          education_level: string | null
           email: string | null
           english_level: string | null
+          foreign_work_years: number | null
           full_name: string | null
+          has_canadian_job_offer: boolean | null
           has_criminal_record: boolean | null
           has_degree: boolean | null
           has_dependents: boolean | null
+          has_provincial_nomination: boolean | null
+          has_sibling_in_canada: boolean | null
+          has_trade_certificate: boolean | null
           id: string
+          incomplete_fields: string[] | null
           is_admin: boolean
           marital_status: string | null
           nationality: string | null
+          nclc_listening: number | null
+          nclc_reading: number | null
+          nclc_speaking: number | null
+          nclc_writing: number | null
+          noc_teer_category: number | null
           occupation: string | null
           onboarding_status: string
+          profile_completeness_pct: number | null
+          second_lang_listening: number | null
+          second_lang_reading: number | null
+          second_lang_speaking: number | null
+          second_lang_writing: number | null
+          spouse_canadian_work_years: number | null
+          spouse_clb_listening: number | null
+          spouse_clb_reading: number | null
+          spouse_clb_speaking: number | null
+          spouse_clb_writing: number | null
+          spouse_coming_to_canada: boolean | null
+          spouse_education_level: string | null
           updated_at: string
+          voice_profile_version: number | null
           voice_session_data: Json | null
           years_experience: number | null
         }
         Insert: {
           annual_salary_gbp?: number | null
           auth_user_id: string
+          canadian_education_years?: number | null
+          canadian_work_years?: number | null
+          clb_listening?: number | null
+          clb_reading?: number | null
+          clb_speaking?: number | null
+          clb_writing?: number | null
           created_at?: string
           current_country?: string | null
           degree_field?: string | null
           degree_level?: string | null
+          eca_obtained?: boolean | null
+          education_level?: string | null
           email?: string | null
           english_level?: string | null
+          foreign_work_years?: number | null
           full_name?: string | null
+          has_canadian_job_offer?: boolean | null
           has_criminal_record?: boolean | null
           has_degree?: boolean | null
           has_dependents?: boolean | null
+          has_provincial_nomination?: boolean | null
+          has_sibling_in_canada?: boolean | null
+          has_trade_certificate?: boolean | null
           id?: string
+          incomplete_fields?: string[] | null
           is_admin?: boolean
           marital_status?: string | null
           nationality?: string | null
+          nclc_listening?: number | null
+          nclc_reading?: number | null
+          nclc_speaking?: number | null
+          nclc_writing?: number | null
+          noc_teer_category?: number | null
           occupation?: string | null
           onboarding_status?: string
+          profile_completeness_pct?: number | null
+          second_lang_listening?: number | null
+          second_lang_reading?: number | null
+          second_lang_speaking?: number | null
+          second_lang_writing?: number | null
+          spouse_canadian_work_years?: number | null
+          spouse_clb_listening?: number | null
+          spouse_clb_reading?: number | null
+          spouse_clb_speaking?: number | null
+          spouse_clb_writing?: number | null
+          spouse_coming_to_canada?: boolean | null
+          spouse_education_level?: string | null
           updated_at?: string
+          voice_profile_version?: number | null
           voice_session_data?: Json | null
           years_experience?: number | null
         }
         Update: {
           annual_salary_gbp?: number | null
           auth_user_id?: string
+          canadian_education_years?: number | null
+          canadian_work_years?: number | null
+          clb_listening?: number | null
+          clb_reading?: number | null
+          clb_speaking?: number | null
+          clb_writing?: number | null
           created_at?: string
           current_country?: string | null
           degree_field?: string | null
           degree_level?: string | null
+          eca_obtained?: boolean | null
+          education_level?: string | null
           email?: string | null
           english_level?: string | null
+          foreign_work_years?: number | null
           full_name?: string | null
+          has_canadian_job_offer?: boolean | null
           has_criminal_record?: boolean | null
           has_degree?: boolean | null
           has_dependents?: boolean | null
+          has_provincial_nomination?: boolean | null
+          has_sibling_in_canada?: boolean | null
+          has_trade_certificate?: boolean | null
           id?: string
+          incomplete_fields?: string[] | null
           is_admin?: boolean
           marital_status?: string | null
           nationality?: string | null
+          nclc_listening?: number | null
+          nclc_reading?: number | null
+          nclc_speaking?: number | null
+          nclc_writing?: number | null
+          noc_teer_category?: number | null
           occupation?: string | null
           onboarding_status?: string
+          profile_completeness_pct?: number | null
+          second_lang_listening?: number | null
+          second_lang_reading?: number | null
+          second_lang_speaking?: number | null
+          second_lang_writing?: number | null
+          spouse_canadian_work_years?: number | null
+          spouse_clb_listening?: number | null
+          spouse_clb_reading?: number | null
+          spouse_clb_speaking?: number | null
+          spouse_clb_writing?: number | null
+          spouse_coming_to_canada?: boolean | null
+          spouse_education_level?: string | null
           updated_at?: string
+          voice_profile_version?: number | null
           voice_session_data?: Json | null
           years_experience?: number | null
         }
