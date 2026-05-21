@@ -64,6 +64,7 @@ export function VoiceClient() {
   const currentTranscriptRef = useRef<string>("");
   const animFrameRef = useRef<number | null>(null);
   const isProcessingTurnRef = useRef(false);
+  const pendingSpeechEndRef = useRef<boolean>(false);
 
   const cleanup = useCallback(() => {
     if (animFrameRef.current !== null) {
@@ -78,6 +79,7 @@ export function VoiceClient() {
       gladiaWsRef.current.close();
     }
     gladiaWsRef.current = null;
+    pendingSpeechEndRef.current = false;
     if (audioContextRef.current?.state !== "closed") {
       audioContextRef.current?.close();
     }
@@ -113,6 +115,7 @@ export function VoiceClient() {
       if (!sessionIdRef.current) return;
 
       isProcessingTurnRef.current = true;
+      pendingSpeechEndRef.current = false;
       setOrbState("thinking");
 
       try {
@@ -263,7 +266,7 @@ export function VoiceClient() {
         };
       };
 
-      // Accumulate final transcript segments.
+      // --- FINAL TRANSCRIPT SEGMENT ---
       // Gladia event: { type: "transcript", data: { is_final: true, utterance: { text: "..." } } }
       if (
         data.type === "transcript" &&
@@ -273,16 +276,34 @@ export function VoiceClient() {
         const segment = data.data.utterance!.text!.trim();
         currentTranscriptRef.current =
           (currentTranscriptRef.current + " " + segment).trim();
+
+        // RACE CONDITION FIX:
+        // speech_end already arrived before this is_final —
+        // dispatch the turn now, no second speech_end is coming.
+        if (pendingSpeechEndRef.current && !isProcessingTurnRef.current) {
+          pendingSpeechEndRef.current = false;
+          const transcript = currentTranscriptRef.current.trim();
+          currentTranscriptRef.current = "";
+          if (transcript.length > 0) {
+            void sendTurn(transcript);
+          }
+        }
       }
 
-      // Trigger a conversation turn on utterance end.
+      // --- END OF UTTERANCE ---
       // Gladia event: { type: "speech_end", data: { time: ... } }
-      // Equivalent to Deepgram's UtteranceEnd after utterance_end_ms silence.
       if (data.type === "speech_end" && !isProcessingTurnRef.current) {
         const transcript = currentTranscriptRef.current.trim();
-        currentTranscriptRef.current = "";
+
         if (transcript.length > 0) {
+          // Happy path: is_final arrived before speech_end
+          pendingSpeechEndRef.current = false;
+          currentTranscriptRef.current = "";
           void sendTurn(transcript);
+        } else {
+          // Race: speech_end arrived before is_final — arm the flag.
+          // The is_final handler above will dispatch when transcript arrives.
+          pendingSpeechEndRef.current = true;
         }
       }
     },
