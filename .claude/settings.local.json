@@ -31,7 +31,11 @@
       "Bash(npx vitest *)",
       "Bash(Get-Content C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\.env.local)",
       "Bash(Select-String \"DEEPGRAM\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\src\\\\components\\\\layout\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"done\")"
     ]
   }
 }

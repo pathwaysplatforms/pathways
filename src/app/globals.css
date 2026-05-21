@@ -19,4 +19,153 @@
   --color-warning-bg: #fffbeb;
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
+  --color-pine: #1b3d2a;
+  --color-bg-dashboard: #f4f4f2;
+}
+
+/* Glass card — used for all dashboard widgets */
+.card-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-top: 1px solid rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-left: 1px solid rgba(255, 255, 255, 0.5);
+  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Top-left specular highlight — the "liquid glass" tell */
+.card-glass::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(
+    circle at 20% 20%,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0) 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Horizontal rim highlight at the top edge */
+.card-glass::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 1), transparent);
+  z-index: 0;
+}
+
+/* All direct children float above the pseudo-element layer */
+.card-glass > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Pine-green textured surface — grain via SVG fractal noise overlay */
+.pine-btn {
+  background: radial-gradient(circle at 35% 30%, #2d5a3d 0%, #1b3d2a 55%, #0f2218 100%);
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.15) inset,
+    0 8px 22px -8px rgba(15, 34, 24, 0.55);
+}
+
+.pine-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.18 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+  opacity: 0.45;
+  border-radius: inherit;
+}
+
+.pine-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Gradient blobs — decorative, behind card content */
+.tile-blob-pathway {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 107, 53, 0.55) 0%,
+    rgba(91, 155, 213, 0.35) 50%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tile-blob-docs {
+  position: absolute;
+  bottom: -30px;
+  right: -20px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(224, 92, 92, 0.5) 0%,
+    rgba(124, 200, 192, 0.3) 55%,
+    transparent 70%
+  );
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Top navigation bar */
+.topnav {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* Dashboard grid rows */
+.dash-row-top {
+  display: grid;
+  grid-template-columns: 58fr 42fr;
+  gap: 20px;
+}
+
+.dash-row-bottom {
+  display: grid;
+  grid-template-columns: 42fr 58fr;
+  gap: 20px;
+}
+
+@media (max-width: 767px) {
+  .dash-row-top,
+  .dash-row-bottom {
+    grid-template-columns: 1fr;
+  }
 }

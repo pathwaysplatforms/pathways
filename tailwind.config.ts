@@ -13,6 +13,9 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-inter)", ...fontFamily.sans],
+        jakarta: ["var(--font-jakarta)", ...fontFamily.sans],
+        "dm-sans": ["var(--font-dm-sans)", ...fontFamily.sans],
+        "dm-mono": ["var(--font-dm-mono)", ...fontFamily.mono],
       },
       colors: {
         brand: "var(--color-brand)",
@@ -33,6 +36,11 @@ const config: Config = {
         "warning-bg": "var(--color-warning-bg)",
         danger: "var(--color-danger)",
         "danger-bg": "var(--color-danger-bg)",
+        pine: "var(--color-pine)",
+        "bg-dashboard": "var(--color-bg-dashboard)",
+      },
+      borderRadius: {
+        card: "20px",
       },
     },
   },

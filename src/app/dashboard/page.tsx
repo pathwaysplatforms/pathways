@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { getProfile } from "@/modules/auth/service";
+import { getDashboardData } from "@/modules/dashboard/service";
+import { MyPathwayWidget } from "@/components/dashboard/MyPathwayWidget";
+import { CrsScoreWidget } from "@/components/dashboard/CrsScoreWidget";
+import { DocumentsWidget } from "@/components/dashboard/DocumentsWidget";
+import { NextDrawWidget } from "@/components/dashboard/NextDrawWidget";
 
-/** Dashboard home for users who have completed onboarding. */
+/** Dashboard home — 2×2 widget grid for users who have completed onboarding. */
 export default async function DashboardPage() {
   const profile = await getProfile();
 
@@ -17,15 +22,34 @@ export default async function DashboardPage() {
     redirect("/onboarding/review");
   }
 
+  const correlationId = crypto.randomUUID();
+  const { profile: dashProfile, draw } = await getDashboardData(correlationId);
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 px-4">
-      <div className="max-w-md w-full space-y-4">
-        <h1 className="text-2xl font-medium text-neutral-900">
-          Welcome{profile.full_name ? `, ${profile.full_name}` : ""}
+    <main className="min-h-screen bg-bg-dashboard px-6 py-10 md:px-10">
+      {/* Page header */}
+      <header className="mb-8">
+        <h1 className="font-jakarta text-2xl text-neutral-900">
+          Good to have you back{profile.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}.
         </h1>
-        <p className="text-sm text-neutral-500">
-          Your immigration dashboard is being built. Check back soon.
+        <p className="font-dm-sans text-sm text-neutral-400 mt-1">
+          {dashProfile.destination_country} via {dashProfile.pathway.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
         </p>
+      </header>
+
+      {/* Widget grid */}
+      <div className="flex flex-col gap-5">
+        {/* Row 1: My Pathway (58%) + CRS Score (42%) */}
+        <div className="dash-row-top">
+          <MyPathwayWidget profile={dashProfile} />
+          <CrsScoreWidget profile={dashProfile} draw={draw} />
+        </div>
+
+        {/* Row 2: Documents (42%) + Next Draw (58%) */}
+        <div className="dash-row-bottom">
+          <DocumentsWidget profile={dashProfile} />
+          <NextDrawWidget profile={dashProfile} draw={draw} />
+        </div>
       </div>
     </main>
   );
