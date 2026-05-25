@@ -16,14 +16,14 @@ logger = get_logger(__name__)
 class BaseScraper(ABC):
     def __init__(self) -> None:
         firecrawl_key = os.environ.get("FIRECRAWL_API_KEY")
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+        supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
 
         if not all([firecrawl_key, supabase_url, supabase_key]):
             raise EnvironmentError(
                 "Missing required environment variables. "
-                "Ensure FIRECRAWL_API_KEY, SUPABASE_URL, and "
-                "SUPABASE_SERVICE_KEY are set."
+                "Ensure FIRECRAWL_API_KEY, NEXT_PUBLIC_SUPABASE_URL, and "
+                "SUPABASE_SECRET_KEY are set."
             )
 
         self.firecrawl = FirecrawlApp(api_key=firecrawl_key)
