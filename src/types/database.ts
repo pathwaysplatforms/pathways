@@ -440,6 +440,7 @@ export type Database = {
           annual_salary_gbp: number | null
           auth_user_id: string
           canadian_education_years: number | null
+          canadian_work_recent: boolean | null
           canadian_work_years: number | null
           clb_listening: number | null
           clb_reading: number | null
@@ -453,6 +454,7 @@ export type Database = {
           education_level: string | null
           email: string | null
           english_level: string | null
+          foreign_work_recent: boolean | null
           foreign_work_years: number | null
           full_name: string | null
           has_canadian_job_offer: boolean | null
@@ -471,6 +473,7 @@ export type Database = {
           nclc_reading: number | null
           nclc_speaking: number | null
           nclc_writing: number | null
+          noc_code: string | null
           noc_teer_category: number | null
           occupation: string | null
           onboarding_status: string
@@ -495,6 +498,7 @@ export type Database = {
           annual_salary_gbp?: number | null
           auth_user_id: string
           canadian_education_years?: number | null
+          canadian_work_recent?: boolean | null
           canadian_work_years?: number | null
           clb_listening?: number | null
           clb_reading?: number | null
@@ -508,6 +512,7 @@ export type Database = {
           education_level?: string | null
           email?: string | null
           english_level?: string | null
+          foreign_work_recent?: boolean | null
           foreign_work_years?: number | null
           full_name?: string | null
           has_canadian_job_offer?: boolean | null
@@ -526,6 +531,7 @@ export type Database = {
           nclc_reading?: number | null
           nclc_speaking?: number | null
           nclc_writing?: number | null
+          noc_code?: string | null
           noc_teer_category?: number | null
           occupation?: string | null
           onboarding_status?: string
@@ -550,6 +556,7 @@ export type Database = {
           annual_salary_gbp?: number | null
           auth_user_id?: string
           canadian_education_years?: number | null
+          canadian_work_recent?: boolean | null
           canadian_work_years?: number | null
           clb_listening?: number | null
           clb_reading?: number | null
@@ -563,6 +570,7 @@ export type Database = {
           education_level?: string | null
           email?: string | null
           english_level?: string | null
+          foreign_work_recent?: boolean | null
           foreign_work_years?: number | null
           full_name?: string | null
           has_canadian_job_offer?: boolean | null
@@ -581,6 +589,7 @@ export type Database = {
           nclc_reading?: number | null
           nclc_speaking?: number | null
           nclc_writing?: number | null
+          noc_code?: string | null
           noc_teer_category?: number | null
           occupation?: string | null
           onboarding_status?: string

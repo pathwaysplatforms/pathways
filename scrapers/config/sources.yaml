@@ -1,0 +1,63 @@
+pathways:
+  canada:
+    express_entry:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry.html
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility.html
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents.html
+      crawl_depth: 1
+      visa_type: express_entry
+      country: canada
+    family_sponsorship:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship.html
+      crawl_depth: 1
+      visa_type: family_sponsorship
+      country: canada
+    pnp_ontario:
+      urls:
+        - https://www.ontario.ca/page/ontario-immigrant-nominee-program-oinp
+      crawl_depth: 1
+      visa_type: pnp_ontario
+      country: canada
+
+  usa:
+    h1b:
+      urls:
+        - https://www.uscis.gov/working-in-the-united-states/h-1b-specialty-occupations
+      crawl_depth: 0
+      visa_type: h1b
+      country: usa
+    green_card_eb:
+      urls:
+        - https://www.uscis.gov/green-card/green-card-eligibility/green-card-for-employment-based-immigrants
+      crawl_depth: 1
+      visa_type: green_card_eb
+      country: usa
+
+  uk:
+    skilled_worker:
+      urls:
+        - https://www.gov.uk/skilled-worker-visa
+      crawl_depth: 0
+      visa_type: skilled_worker
+      country: uk
+    global_talent:
+      urls:
+        - https://www.gov.uk/global-talent
+      crawl_depth: 0
+      visa_type: global_talent
+      country: uk
+
+draws:
+  canada_express_entry:
+    url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html
+    country: canada
+    program: express_entry
+    parser: canada_draws
+
+  australia_skillselect:
+    url: https://immi.homeaffairs.gov.au/visas/working-in-australia/skillselect/invitation-rounds
+    country: australia
+    program: skillselect_189
+    parser: australia_draws
