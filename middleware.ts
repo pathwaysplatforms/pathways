@@ -58,14 +58,15 @@ export async function middleware(request: NextRequest) {
   const onboardingStatus = profile?.onboarding_status ?? "not_started";
   const isAdmin = profile?.is_admin ?? false;
 
+  const isApiPath = pathname.startsWith("/api/");
   const isOnboardingPath = pathname.startsWith("/onboarding");
   const isAdminPath = pathname.startsWith("/admin");
 
-  if (onboardingStatus === "not_started" && !isOnboardingPath) {
+  if (!isApiPath && onboardingStatus === "not_started" && !isOnboardingPath) {
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
-  if (onboardingStatus === "voice_complete" && !isOnboardingPath) {
+  if (!isApiPath && onboardingStatus === "voice_complete" && !isOnboardingPath) {
     return NextResponse.redirect(new URL("/onboarding/review", request.url));
   }
 

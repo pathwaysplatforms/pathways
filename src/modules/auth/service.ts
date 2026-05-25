@@ -19,10 +19,10 @@ function getOrigin(): string {
 
 export async function getSession(): Promise<Session | null> {
   const supabase = createSupabaseServerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session;
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) return null;
+  // callers only use .user; other Session fields are unavailable from getUser()
+  return { user } as unknown as Session;
 }
 
 export async function getProfile(): Promise<Profile | null> {

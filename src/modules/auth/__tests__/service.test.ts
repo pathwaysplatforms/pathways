@@ -32,8 +32,10 @@ import {
   signInWithEmail,
 } from "../service";
 
+const mockUser = { id: "user-123", email: "test@example.com" };
+
 const mockSession = {
-  user: { id: "user-123", email: "test@example.com" },
+  user: mockUser,
   access_token: "token",
 };
 
@@ -51,6 +53,7 @@ type AdminClientType = ReturnType<typeof createSupabaseAdminClient>;
 
 function makeServerClient(
   overrides: {
+    getUser?: unknown;
     getSession?: unknown;
     signInWithOtp?: unknown;
     from?: ReturnType<typeof vi.fn>;
@@ -58,6 +61,9 @@ function makeServerClient(
 ) {
   return {
     auth: {
+      getUser: vi.fn().mockResolvedValue(
+        overrides.getUser ?? { data: { user: null }, error: null }
+      ),
       getSession: vi.fn().mockResolvedValue(
         overrides.getSession ?? { data: { session: null }, error: null }
       ),
@@ -104,20 +110,21 @@ describe("getSession", () => {
   it("returns session object when authenticated", async () => {
     mockServerClient(
       makeServerClient({
-        getSession: { data: { session: mockSession }, error: null },
+        getUser: { data: { user: mockUser }, error: null },
       })
     );
 
     const result = await getSession();
 
-    expect(result).toEqual(mockSession);
+    expect(result).not.toBeNull();
+    expect(result?.user.id).toBe("user-123");
   });
 });
 
 describe("signInWithEmail", () => {
   it("calls supabase.auth.signInWithOtp with correct params", async () => {
     const client = makeServerClient({
-      getSession: { data: { session: mockSession }, error: null },
+      getUser: { data: { user: mockUser }, error: null },
     });
     mockServerClient(client);
 
@@ -148,7 +155,7 @@ describe("requireAuth", () => {
   it("returns user when session exists", async () => {
     mockServerClient(
       makeServerClient({
-        getSession: { data: { session: mockSession }, error: null },
+        getUser: { data: { user: mockUser }, error: null },
       })
     );
 
@@ -162,7 +169,7 @@ describe("requireAdmin", () => {
   it("throws AuthError when is_admin is false", async () => {
     mockServerClient(
       makeServerClient({
-        getSession: { data: { session: mockSession }, error: null },
+        getUser: { data: { user: mockUser }, error: null },
       })
     );
     mockAdminClient(
@@ -181,7 +188,7 @@ describe("requireAdmin", () => {
   it("returns user when is_admin is true", async () => {
     mockServerClient(
       makeServerClient({
-        getSession: { data: { session: mockSession }, error: null },
+        getUser: { data: { user: mockUser }, error: null },
       })
     );
     mockAdminClient(

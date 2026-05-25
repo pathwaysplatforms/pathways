@@ -30,14 +30,14 @@ const config: Config = {
           subtle: "#F1F3F4",    // input backgrounds, dividers
           muted: "#E8EAED",     // skeleton loaders, disabled states
         },
- 
+
         // Borders
         border: {
           light: "#EAEDF0",
           DEFAULT: "#D8DCE1",
           strong: "#BDC4CC",
         },
- 
+
         // Text
         text: {
           primary: "#111827",   // headings, important labels
@@ -45,7 +45,7 @@ const config: Config = {
           tertiary: "#9CA3AF",  // hints, placeholders, timestamps
           disabled: "#D1D5DB",
         },
- 
+
         // Accent — dark aquamarine green
         accent: {
           50:  "#ECFDF8",
@@ -60,7 +60,7 @@ const config: Config = {
           900: "#083D3A",
           950: "#042220",
         },
- 
+
         // Status colors — used sparingly for state indicators only
         status: {
           // Onboarding incomplete
@@ -93,7 +93,7 @@ const config: Config = {
           },
         },
       },
- 
+
       // ─── Spacing / Layout ─────────────────────────────────────────
       spacing: {
         // Dashboard gutters — thick as specified
@@ -102,7 +102,7 @@ const config: Config = {
         "sidebar":   "64px",   // collapsed sidebar width
         "sidebar-open": "220px",
       },
- 
+
       // ─── Border Radius ────────────────────────────────────────────
       borderRadius: {
         // Strongly rounded, retains rectangularity
@@ -114,7 +114,7 @@ const config: Config = {
         btn:   "10px",
         icon:  "12px",
       },
- 
+
       // ─── Shadows ──────────────────────────────────────────────────
       boxShadow: {
         card:     "0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)",
@@ -124,7 +124,7 @@ const config: Config = {
         // Accent card / button sheen shadow
         accent:   "0 4px 20px 0 rgba(15,168,150,0.30), 0 1px 4px 0 rgba(15,168,150,0.20)",
       },
- 
+
       // ─── Transitions ──────────────────────────────────────────────
       transitionDuration: {
         fast:   "120ms",
@@ -135,7 +135,7 @@ const config: Config = {
         smooth: "cubic-bezier(0.4, 0, 0.2, 1)",
         spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
       },
- 
+
       // ─── Animation ────────────────────────────────────────────────
       keyframes: {
         // Card expand (for future card expansion feature)

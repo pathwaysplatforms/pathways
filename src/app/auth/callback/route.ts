@@ -26,11 +26,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
     }
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (userError || !user) {
       return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
     }
 
@@ -39,7 +37,7 @@ export async function GET(request: NextRequest) {
     const { data } = await db
       .from("profiles")
       .select("onboarding_status")
-      .eq("auth_user_id", session.user.id)
+      .eq("auth_user_id", user.id)
       .single();
 
     const profile = data as Pick<Profile, "onboarding_status"> | null;
@@ -54,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     reqLogger.info({
       action: "auth.callback_success",
-      userId: session.user.id,
+      userId: user.id,
       redirectPath,
     });
 
