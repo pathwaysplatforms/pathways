@@ -1,56 +1,58 @@
-import { redirect } from "next/navigation";
-import { getProfile } from "@/modules/auth/service";
-import { getDashboardData } from "@/modules/dashboard/service";
-import { MyPathwayWidget } from "@/components/dashboard/MyPathwayWidget";
-import { CrsScoreWidget } from "@/components/dashboard/CrsScoreWidget";
-import { DocumentsWidget } from "@/components/dashboard/DocumentsWidget";
-import { NextDrawWidget } from "@/components/dashboard/NextDrawWidget";
+import { redirect } from 'next/navigation';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createRequestLogger } from '@/lib/logger';
+import { getDashboardData } from '@/modules/dashboard/service';
+import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
+import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { Suspense } from 'react';
 
-/** Dashboard home — 2×2 widget grid for users who have completed onboarding. */
+/** Server component: authenticates the user, fetches dashboard data, renders shell. */
 export default async function DashboardPage() {
-  const profile = await getProfile();
+  const supabase = createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!profile) {
-    redirect("/auth/login");
+  if (!user) {
+    redirect('/auth/login');
   }
 
-  if (profile.onboarding_status === "not_started") {
-    redirect("/onboarding");
+  const correlationId = `dashboard-${user.id}-${Date.now()}`;
+  const logger = createRequestLogger(correlationId);
+
+  logger.info({ action: 'dashboard.start', userId: user.id });
+
+  let dashboardData;
+  try {
+    dashboardData = await getDashboardData(user.id, logger);
+  } catch (err) {
+    logger.error({ action: 'dashboard.error', userId: user.id, err });
+    return (
+      <DashboardShell avatarInitials="?">
+        <div className="flex flex-1 items-center justify-center p-7">
+          <div className="card max-w-md w-full text-center">
+            <h2 className="card-title mb-2">Something went wrong</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              We couldn&apos;t load your dashboard. Please try again.
+            </p>
+            <a href="/dashboard" className="btn-primary">
+              Retry
+            </a>
+          </div>
+        </div>
+      </DashboardShell>
+    );
   }
 
-  if (profile.onboarding_status === "voice_complete") {
-    redirect("/onboarding/review");
-  }
-
-  const correlationId = crypto.randomUUID();
-  const { profile: dashProfile, draw } = await getDashboardData(correlationId);
+  logger.info({ action: 'dashboard.complete', userId: user.id, state: dashboardData.state });
 
   return (
-    <main className="min-h-screen bg-bg-dashboard px-6 py-10 md:px-10">
-      {/* Page header */}
-      <header className="mb-8">
-        <h1 className="font-jakarta text-2xl text-neutral-900">
-          Good to have you back{profile.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}.
-        </h1>
-        <p className="font-dm-sans text-sm text-neutral-400 mt-1">
-          {dashProfile.destination_country} via {dashProfile.pathway.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-        </p>
-      </header>
-
-      {/* Widget grid */}
-      <div className="flex flex-col gap-5">
-        {/* Row 1: My Pathway (58%) + CRS Score (42%) */}
-        <div className="dash-row-top">
-          <MyPathwayWidget profile={dashProfile} />
-          <CrsScoreWidget profile={dashProfile} draw={draw} />
-        </div>
-
-        {/* Row 2: Documents (42%) + Next Draw (58%) */}
-        <div className="dash-row-bottom">
-          <DocumentsWidget profile={dashProfile} />
-          <NextDrawWidget profile={dashProfile} draw={draw} />
-        </div>
-      </div>
-    </main>
+    <DashboardShell
+      avatarInitials={dashboardData.avatarInitials}
+      applicationId={dashboardData.applicationId}
+    >
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardGrid data={dashboardData} />
+      </Suspense>
+    </DashboardShell>
   );
 }

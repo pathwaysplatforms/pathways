@@ -20,6 +20,29 @@ Tailwind CSS v4, shadcn/ui.
 - No TODO comments — implement fully or flag the gap to the user.
 - No commented-out code.
 - Every exported function has a JSDoc comment (one line minimum).
+- No arbitrary Tailwind values except where the relevant spec explicitly permits
+  them (e.g. outer dashboard padding p-[28px]).
+- Never create a database migration without stopping and proposing it first.
+  Some schema gaps exist (crs_score, profile_expiry_date, etc.) — use the
+  fallback behaviour described in specs/dashboard.md rather than adding columns
+  unilaterally.
+
+## Design System
+
+Before building any UI component or screen, read ALL of these in order:
+1. `specs/design-system.md` — visual direction, color tokens, typography, component rules
+2. `specs/dashboard.md` — dashboard layout, all 4 states, card-by-card content spec
+3. `tailwind.config.ts` — all design tokens as Tailwind classes
+4. `src/app/globals.css` — component classes (.card, .card-accent, .btn-primary, .sidebar, etc.)
+5. `src/lib/design-tokens.ts` — TypeScript token constants for programmatic use
+6. `specs/copy-and-tone.md` — all user-facing text must follow this
+
+Never invent colors, fonts, radii, or spacing. All values exist in the files above.
+Never use Inter, Roboto, or system fonts — Urbanist only (loaded via next/font/google).
+Never use Tailwind shadow utilities on cards — use only the .card class shadow from globals.css.
+Never use font-weight 600 (font-semibold) or 700 (font-bold) except where explicitly
+permitted in the relevant spec. If a conflict exists between this rule and globals.css,
+flag it to the developer rather than resolving it silently.
 
 ## Patterns to follow
 - Module pattern: every feature lives in /src/modules/{name}/ with its own
@@ -40,7 +63,7 @@ Supabase uses the new key naming convention:
 Never use the old names anywhere in the codebase.
 
 ## Database
-- Schema is the source of truth. See /specs/database-schema.md.
+- Schema is the source of truth. See /specs/database-schema.md and src/types/database.ts.
 - Never modify the schema by hand in Supabase dashboard. Always write a
   migration file in /supabase/migrations/.
 - Row-level security is mandatory on every table. No exceptions.
@@ -109,20 +132,17 @@ Pattern: const { data: profile } = await supabaseAdmin
   .single()
 Never check is_admin on the client side.
 
-## UI and design system
-Read specs/design-system.md before writing any UI component.
-Read specs/copy-and-tone.md before writing any user-facing text.
-
 Stack: Next.js 14 App Router, Tailwind CSS v4, shadcn/ui (slate base),
 Radix UI, Framer Motion (purposeful only), Lucide React, Lottie React
 (voice waveform only).
 
 Rules:
-- No arbitrary Tailwind values (no text-[17px], no p-[13px])
+- No arbitrary Tailwind values (no text-[17px], no p-[13px]) except where
+  a spec file explicitly permits a specific value
 - No inline styles except where Tailwind cannot achieve it
-- No colours outside the token set in design-system.md
-- No font-weight 600 or 700
-- No box shadows on cards
+- No colours outside the token set in specs/design-system.md
+- No font-weight 600 or 700 (flag conflict with globals.css to developer)
+- No box shadows on cards — use only the .card class from globals.css
 - No more than one primary button per screen
 - No placeholder-only form fields — always add a visible label
 - No lorem ipsum — use realistic immigration-context copy
@@ -148,3 +168,4 @@ supabase db push. Those are always the developer's responsibility.
 - Use console.log instead of the logger
 - Leave TODO comments or placeholder implementations
 - Write UI that violates the design system
+- Add database columns to work around schema gaps — flag them instead

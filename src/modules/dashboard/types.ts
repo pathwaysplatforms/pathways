@@ -1,27 +1,95 @@
-/** Dashboard-specific user profile with CRS score and document tracking data. */
-export type DashboardUserProfile = {
+import type { Tables } from '@/types/database';
+
+export type DashboardState =
+  | 'onboarding_incomplete'
+  | 'pathway_not_selected'
+  | 'application_in_progress'
+  | 'application_submitted';
+
+export interface OnboardingStep {
+  id: string;
+  label: string;
+  description: string;
+  completed: boolean;
+}
+
+export interface RecommendedPathway {
   id: string;
   name: string;
-  origin_country: string;
-  destination_country: string;
-  pathway: "express_entry_fswp" | "oinp_tech" | "family_sponsorship";
-  crs_score: number;
-  crs_history: { month: string; score: number }[];
-  current_step: 1 | 2 | 3 | 4 | 5;
-  documents_ready: number;
-  documents_total: number;
-  document_names: string[];
-};
+  processingTime: string;
+  eligibilityStatus: 'eligible' | 'likely' | 'possible';
+}
 
-/** Express Entry draw history and next draw projection. */
-export type DrawData = {
-  next_draw_date: string;
-  estimated_minimum_crs: number;
-  history: { date: string; crs: number; type: string }[];
-};
+export interface ApplicationStep {
+  id: string;
+  stepNumber: number;
+  label: string;
+  description: string;
+  estimatedDuration: string;
+  status: 'complete' | 'current' | 'upcoming';
+}
 
-/** Combined payload returned by getDashboardData. */
-export type DashboardData = {
-  profile: DashboardUserProfile;
-  draw: DrawData;
+export interface DashboardDocument {
+  id: string;
+  name: string;
+  isMandatory: boolean;
+  status: string;
+}
+
+export interface Recommendation {
+  id: string;
+  label: string;
+  description: string;
+  impactLabel: string;
+}
+
+export interface DashboardData {
+  state: DashboardState;
+
+  firstName: string;
+  avatarInitials: string;
+  profileCompleteness: number;
+
+  onboardingStatus: string;
+  incompleteFields: string[];
+  onboardingSteps: OnboardingStep[];
+
+  recommendedPathways: RecommendedPathway[];
+
+  applicationId: string | null;
+  applicationStatus: string | null;
+  applicationSubmittedAt: string | null;
+  pathwayTitle: string | null;
+  pathwayOfficialName: string | null;
+  processingTimeMin: string | null;
+  processingTimeMax: string | null;
+  applicationSteps: ApplicationStep[];
+  documents: DashboardDocument[];
+
+  completedStepsCount: number;
+  totalStepsCount: number;
+  pendingDocumentsCount: number;
+  completedDocumentsCount: number;
+
+  recommendations: Recommendation[];
+}
+
+/** Onboarding step definitions derived from known profile sections. */
+export const ONBOARDING_STEPS_META: Omit<OnboardingStep, 'completed'>[] = [
+  { id: 'personal',  label: 'Personal info',    description: 'Name, nationality, current country' },
+  { id: 'education', label: 'Education',         description: 'Degree level and field of study' },
+  { id: 'work',      label: 'Work experience',   description: 'Years of experience and occupation' },
+  { id: 'language',  label: 'Language scores',   description: 'CLB scores from your English test' },
+  { id: 'finances',  label: 'Finances',           description: 'Annual salary and financial situation' },
+  { id: 'family',    label: 'Family & intent',   description: 'Marital status, dependents, destination' },
+];
+
+/** Maps each onboarding step to the profile fields that must be non-null to mark it complete. */
+export const STEP_FIELDS: Record<string, (keyof Tables<'profiles'>)[]> = {
+  personal:  ['full_name', 'nationality', 'current_country'],
+  education: ['education_level', 'has_degree', 'degree_level', 'degree_field'],
+  work:      ['years_experience', 'occupation', 'noc_teer_category'],
+  language:  ['english_level', 'clb_listening', 'clb_reading', 'clb_speaking', 'clb_writing'],
+  finances:  ['annual_salary_gbp'],
+  family:    ['marital_status', 'has_dependents'],
 };

@@ -1,131 +1,216 @@
-# Pathways — design system specification
+# Pathways — Design Specification
 
-## Philosophy
-Immigration is high-stakes. Users are often anxious and uncertain.
-The UI must feel calm, authoritative, and clear. Think Stripe or Linear.
-Every design decision should reduce cognitive load, not add visual interest.
+> **Claude Code instruction**: Read this file before building any new screen, component, or UI element. Every decision here has been deliberately chosen — follow it precisely.
 
-## Stack
-- Tailwind CSS v4
-- shadcn/ui (slate base — components copied into /src/components/ui/)
-- Radix UI (via shadcn)
-- Framer Motion (purposeful transitions only)
-- Lucide React (icons)
-- Lottie React (voice waveform only)
-- Inter font via next/font/google
+---
 
-## Colour tokens
-Define in app/globals.css as CSS variables:
+## Brand
 
---color-brand: #2563EB
---color-brand-dark: #1D4ED8
---color-brand-light: #EFF6FF
---color-neutral-50: #F8FAFC
---color-neutral-100: #F1F5F9
---color-neutral-200: #E2E8F0
---color-neutral-400: #94A3B8
---color-neutral-600: #475569
---color-neutral-800: #1E293B
---color-neutral-900: #0F172A
---color-success: #16A34A
---color-success-bg: #F0FDF4
---color-warning: #D97706
---color-warning-bg: #FFFBEB
---color-danger: #DC2626
---color-danger-bg: #FEF2F2
+- **Product name**: Pathways
+- **Tagline**: Your immigration journey, simplified
+- **Logo mark**: "Pathways" wordmark in Urbanist Bold + a small filled circle accent in `accent-500`
 
-Dark mode under .dark class. darkMode: 'class' in tailwind config.
+---
+
+## Visual Direction
+
+**Clean, professional, consumer SaaS.** White and very light grey surfaces. The UI should feel like a premium dashboard — similar in spirit to Linear or Vercel — but warmer and more approachable because our users are individuals navigating a stressful life process, not developers.
+
+**One signature move**: the dark aquamarine accent color (`#0FA896`) applied to key CTAs and status cards, always with a sheen/shimmer effect. Everything else is restrained.
+
+---
 
 ## Typography
-Font: Inter (weights 400 and 500 only — never 600 or 700)
 
-Scale:
-- text-[28px] font-medium  → page headings h1
-- text-xl font-medium      → section headings h2
-- text-base font-medium    → card titles h3
-- text-sm                  → body text (default)
-- text-[13px] text-neutral-600 → secondary text
-- text-[11px] font-medium uppercase tracking-wide text-neutral-400 → labels
+**Font**: `Urbanist` (Google Fonts) — load weights 400, 500, 600, 700, 800.
 
-Line height: leading-relaxed on all body text.
+```html
+<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+```
 
-## Spacing
-Base unit: 4px (Tailwind default). Use Tailwind spacing scale only.
-Standard card padding: p-5
-Standard section gap: gap-6
-Never use arbitrary spacing values.
+| Use | Weight | Size | Notes |
+|---|---|---|---|
+| Page heading | 700 | 24px | Rare — top of a new section |
+| Card title | 700 | 15px | Every card's first line |
+| Section label (eyebrow) | 600 | 11px | ALL CAPS, 0.08em tracking |
+| Body copy | 400 | 14px | Descriptions, content |
+| Body emphasis | 600 | 14px | Key values, numbers |
+| Caption / hint | 400 | 12px | Timestamps, placeholders |
+| Hero number | 800 | 20–30px | CRS score, large stats |
 
-## Border radius
-rounded      → 6px  small elements
-rounded-md   → 8px  inputs, buttons, cards
-rounded-xl   → 12px modals, large cards
-rounded-full → pill for status badges ONLY
+---
 
-## Shadows
-Almost none. Use borders instead.
-Exception: modals use shadow-lg.
-Cards: border border-neutral-200 only, no shadow.
+## Color Palette
 
-## Component rules
+### Backgrounds
+| Token | Hex | Use |
+|---|---|---|
+| `bg-base` | `#F8F9FA` | Page/app background |
+| `bg-surface` | `#FFFFFF` | Cards, panels, modals |
+| `bg-subtle` | `#F1F3F4` | Input backgrounds, hover states |
+| `bg-muted` | `#E8EAED` | Skeleton loaders, disabled |
 
-### Buttons
-Four variants only: primary, secondary, ghost, danger.
-Primary: bg-brand text-white — one maximum per screen.
-Secondary: border border-neutral-200
-Ghost: text-brand no border
-Danger: bg-danger-bg text-danger border border-red-200
-All: rounded-md h-10 px-4 text-sm font-medium
+### Borders
+| Token | Hex | Use |
+|---|---|---|
+| `border-light` | `#EAEDF0` | Most card borders |
+| `border` | `#D8DCE1` | Input borders, dividers |
+| `border-strong` | `#BDC4CC` | Focused states, emphasis |
 
-### Cards
-bg-white border border-neutral-200 rounded-xl p-5
-No shadow. Hover: border-neutral-300 transition.
+### Text
+| Token | Hex | Use |
+|---|---|---|
+| `text-primary` | `#111827` | Headings, important labels |
+| `text-secondary` | `#4B5563` | Body text |
+| `text-tertiary` | `#9CA3AF` | Hints, metadata |
+| `text-disabled` | `#D1D5DB` | Disabled states |
 
-### Status badges
-rounded-full, four states only:
-- complete: bg-success-bg text-success
-- in_progress: bg-warning-bg text-warning
-- action_needed: bg-danger-bg text-danger
-- not_started: bg-neutral-100 text-neutral-600
-Text: text-xs font-medium. Padding: px-2.5 py-0.5
+### Accent — Dark Aquamarine Green
+Primary: **`#0FA896`** (`accent-500`)
 
-### Form inputs
-h-10 border border-neutral-200 rounded-md px-3 text-sm
-Focus: ring-2 ring-brand border-brand
-Error: border-danger ring-danger
-Always include visible label above — never placeholder-only.
+Use the accent for: primary buttons, active nav indicators, progress fills, key metric labels, status badges for "in progress".
 
-### Page layout
-Single-column flows: max-w-3xl centred
-Dashboard views: max-w-6xl
-Sidebar: 240px fixed
+**Never** apply the accent color decoratively. Only use it where there is user intent or action.
 
-### Loading states
-Skeleton loaders (neutral-100 animated pulse). No spinners except
-for sub-second operations.
+### State Colors (badges & indicators only — never for backgrounds of full cards)
+| State | Background | Text | Border | Dot |
+|---|---|---|---|---|
+| Onboarding incomplete | `#FFFBEB` | `#92400E` | `#FDE68A` | `#F59E0B` |
+| Pathway not selected | `#EFF6FF` | `#1E40AF` | `#BFDBFE` | `#3B82F6` |
+| Application in progress | `#ECFDF8` | `#0B7269` | `#A3F4E2` | `#0FA896` |
+| Application submitted | `#F0FDF4` | `#14532D` | `#BBF7D0` | `#22C55E` |
 
-### Empty states
-Every list must have an empty state:
-- Lucide icon (neutral-300, size 40)
-- Neutral heading
-- Single CTA if action available
+---
 
-### Errors
-Inline: text-danger text-[13px] mt-1 below the input
-Page-level: amber banner at top of form
-Never use alert() or browser dialogs.
+## Spacing & Layout
 
-## What Claude Code must NOT do
-- Use arbitrary Tailwind values
-- Use inline styles where Tailwind can achieve it
-- Use colours outside the token set
-- Use font-weight 600 or 700
-- Use box shadows on cards
-- Place more than one primary button per screen
-- Use placeholder-only form fields
-- Use lorem ipsum copy
+### Dashboard shell
+```
+┌─────────────────────────────────────────────────┐
+│  Sidebar (64px collapsed / 220px open)          │
+│  ├── Logo mark at top                           │
+│  ├── Nav icons (vertical, icon-only collapsed)  │
+│  └── User avatar at bottom                     │
+│                                                 │
+│  Main content area                              │
+│  ├── Top bar: page title + user greeting        │
+│  ├── Dashboard state badge                      │
+│  └── Card grid (see below)                     │
+└─────────────────────────────────────────────────┘
+```
 
-## Responsive
-Mobile-first. All layouts work at 375px.
-Sidebar collapses to bottom nav on mobile.
-Voice interface goes full-screen on mobile.
-Cards stack single column below md breakpoint.
+### Card gutters
+- Between cards: **20px**
+- Page outer padding: **28px**
+
+### Card layout — 3 column grid is the default
+Cards can span multiple columns. Layout varies per dashboard state (defined below).
+
+---
+
+## Cards
+
+### Base card
+- Background: `#FFFFFF`
+- Border: `1px solid #EAEDF0`
+- Border radius: **16px** — strongly rounded, retains rectangularity
+- Box shadow: `0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)`
+- Hover: shadow elevates to `card-md`
+- Padding: 20px
+
+### Accent card (used for primary CTA or key status)
+- Background: `#0D8F80` (`accent-600`)
+- Text: white
+- Box shadow: `0 4px 20px 0 rgba(15,168,150,0.30)`
+- **Sheen effect**: a `::after` pseudo-element sweeps a white gradient highlight across the surface on a 3s loop:
+  ```css
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.18) 48%, rgba(255,255,255,0.30) 52%, transparent 70%);
+  background-size: 200% 100%;
+  animation: sheen 3s ease-in-out infinite;
+  ```
+
+### Interactive / expandable cards
+- Add `cursor: pointer` + hover `transform: translateY(-1px)`
+- On click: animate card to fill the viewport using `card-expanding` → `card-expanded` CSS classes (see globals.css)
+- The expanded card replaces the main content area with a full-screen detail view
+- Always provide a close/back affordance (top-left arrow or ✕)
+
+---
+
+## Buttons
+
+### Primary
+- Background: `accent-500` (`#0FA896`) with sheen animation
+- Text: white, Urbanist 600, 14px
+- Radius: 10px
+- Shadow: accent shadow
+- Hover: darken to `accent-600`, translate up 1px
+
+### Secondary
+- Background: transparent
+- Border: `1.5px solid accent-500`
+- Text: `accent-600`
+- Hover: `accent-50` background fill
+
+### Destructive / ghost — define as needed, no sheen.
+
+---
+
+## Sidebar Navigation
+
+- **Width**: 64px collapsed, 220px open
+- **Background**: `#FFFFFF`
+- **Border**: `1px solid #EAEDF0` right edge
+- **Icon buttons**: 40×40px, `border-radius: 12px`
+  - Default: `text-tertiary`
+  - Hover: `bg-subtle` background
+  - Active: `accent-50` background, `accent-600` icon color
+- **Logo**: top of sidebar
+- **User avatar**: pinned to bottom
+
+---
+
+## Dashboard States
+
+Four states drive what the dashboard renders. The shell (sidebar + top bar) is always identical. Only the card grid content changes.
+
+### State 1 — Onboarding Incomplete
+*User has not finished their profile.*
+
+### State 2 — Pathway Not Selected
+*Profile complete, no pathway chosen yet.*
+
+### State 3 — Application In Progress
+*Pathway selected, application checklist active.*
+
+### State 4 — Application Submitted
+*Application sent; awaiting decisions.*
+
+> **Card-level detail for each state is defined in `dashboard-spec.md` (to be written with the product owner).**
+
+---
+
+## Card Expansion Pattern (Future)
+
+When a card is tapped/clicked to expand:
+
+1. Record the card's `getBoundingClientRect()`
+2. Set the card to `position: fixed` at those coordinates
+3. Add class `card-expanding` to start the CSS transition
+4. In the next frame, add `card-expanded` to animate to full viewport
+5. Render the full-screen content inside (fade in with `fade-in` animation)
+6. On close: reverse the animation back to origin rect, then restore to normal flow
+
+This pattern means **no routing is required** for card expansion — it's a pure in-page animation. Use a React context (`CardExpansionContext`) to manage which card (if any) is expanded.
+
+---
+
+## Do Nots
+
+- ❌ Never use Inter, Roboto, or system fonts — always Urbanist
+- ❌ Never apply the accent color decoratively (borders, backgrounds, icons) unless it signals action or status
+- ❌ Never use the sheen effect on non-accent surfaces
+- ❌ Never use inline `style` attributes for colors or spacing that exist as tokens — use Tailwind classes or CSS variables
+- ❌ Never add more than one accent-colored card per dashboard state
+- ❌ Never use `px-` padding smaller than `p-5` (20px) inside cards
+- ❌ Never use border-radius smaller than `rounded-2xl` (16px) for cards
