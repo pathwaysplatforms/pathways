@@ -1,22 +1,376 @@
+@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─── CSS Custom Properties ─────────────────────────────────────── */
 :root {
-  --color-brand: #2563eb;
-  --color-brand-dark: #1d4ed8;
-  --color-brand-light: #eff6ff;
-  --color-neutral-50: #f8fafc;
-  --color-neutral-100: #f1f5f9;
-  --color-neutral-200: #e2e8f0;
-  --color-neutral-400: #94a3b8;
-  --color-neutral-600: #475569;
-  --color-neutral-800: #1e293b;
-  --color-neutral-900: #0f172a;
-  --color-success: #16a34a;
-  --color-success-bg: #f0fdf4;
-  --color-warning: #d97706;
-  --color-warning-bg: #fffbeb;
-  --color-danger: #dc2626;
-  --color-danger-bg: #fef2f2;
+  /* Backgrounds */
+  --color-bg-base:      #F8F9FA;
+  --color-bg-surface:   #FFFFFF;
+  --color-bg-subtle:    #F1F3F4;
+  --color-bg-muted:     #E8EAED;
+
+  /* Borders */
+  --color-border-light:  #EAEDF0;
+  --color-border:        #D8DCE1;
+  --color-border-strong: #BDC4CC;
+
+  /* Text */
+  --color-text-primary:   #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-tertiary:  #9CA3AF;
+  --color-text-disabled:  #D1D5DB;
+
+  /* Accent — dark aquamarine green */
+  --color-accent-50:   #ECFDF8;
+  --color-accent-100:  #D0FAF0;
+  --color-accent-200:  #A3F4E2;
+  --color-accent-300:  #6EEACD;
+  --color-accent-400:  #2DD4B0;
+  --color-accent-500:  #0FA896;
+  --color-accent-600:  #0D8F80;
+  --color-accent-700:  #0B7269;
+  --color-accent-800:  #0A5A54;
+  --color-accent-900:  #083D3A;
+
+  /* Layout */
+  --sidebar-width-collapsed: 64px;
+  --sidebar-width-open:      220px;
+  --dashboard-gutter:        20px;
+  --dashboard-gutter-lg:     28px;
+
+  /* Radii */
+  --radius-card:  16px;
+  --radius-panel: 20px;
+  --radius-btn:   10px;
+  --radius-input: 10px;
+  --radius-badge: 8px;
+  --radius-icon:  12px;
+
+  /* Shadows */
+  --shadow-card:    0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04);
+  --shadow-card-md: 0 4px 12px 0 rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+  --shadow-card-lg: 0 8px 24px 0 rgba(0,0,0,0.09), 0 4px 8px -2px rgba(0,0,0,0.05);
+  --shadow-sidebar: 2px 0 12px 0 rgba(0,0,0,0.05);
+  --shadow-accent:  0 4px 20px 0 rgba(15,168,150,0.30), 0 1px 4px 0 rgba(15,168,150,0.20);
+
+  /* Sheen gradient for accent surfaces */
+  --sheen-gradient: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.18) 48%,
+    rgba(255,255,255,0.30) 52%,
+    transparent 70%
+  );
+}
+
+/* ─── Base Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Urbanist', sans-serif;
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Component Layer ────────────────────────────────────────────── */
+@layer components {
+
+  /* Card — base */
+  .card {
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--color-border-light);
+    box-shadow: var(--shadow-card);
+    padding: 20px;
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+
+  .card:hover {
+    box-shadow: var(--shadow-card-md);
+  }
+
+  /* Card — clickable / expandable (used for future card expansion) */
+  .card-interactive {
+    cursor: pointer;
+  }
+
+  .card-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card-lg);
+  }
+
+  .card-interactive:active {
+    transform: translateY(0);
+  }
+
+  /* Card — accent (dark aquamarine, with sheen) */
+  .card-accent {
+    background: var(--color-accent-600);
+    border-radius: var(--radius-card);
+    border: none;
+    box-shadow: var(--shadow-accent);
+    padding: 20px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Sheen sweep on accent card */
+  .card-accent::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--sheen-gradient);
+    background-size: 200% 100%;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: sheen 3s ease-in-out infinite;
+  }
+
+  /* Button — primary (accent + sheen) */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-accent-500);
+    border: none;
+    border-radius: var(--radius-btn);
+    box-shadow: var(--shadow-accent);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+  }
+
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--sheen-gradient);
+    background-size: 200% 100%;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: sheen 2.6s ease-in-out infinite;
+  }
+
+  .btn-primary:hover {
+    background: var(--color-accent-600);
+    box-shadow: 0 6px 24px 0 rgba(15,168,150,0.38);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* Button — secondary (ghost outline) */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 18px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-accent-600);
+    background: transparent;
+    border: 1.5px solid var(--color-accent-500);
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .btn-secondary:hover {
+    background: var(--color-accent-50);
+  }
+
+  /* Status badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-badge);
+    letter-spacing: 0.02em;
+  }
+
+  .badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Dashboard state badges */
+  .badge-warning  { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+  .badge-warning::before  { background: #F59E0B; }
+
+  .badge-info     { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
+  .badge-info::before     { background: #3B82F6; }
+
+  .badge-progress { background: #ECFDF8; color: #0B7269; border: 1px solid #A3F4E2; }
+  .badge-progress::before { background: #0FA896; }
+
+  .badge-success  { background: #F0FDF4; color: #14532D; border: 1px solid #BBF7D0; }
+  .badge-success::before  { background: #22C55E; }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-width-collapsed);
+    background: var(--color-bg-surface);
+    border-right: 1px solid var(--color-border-light);
+    box-shadow: var(--shadow-sidebar);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    gap: 4px;
+    flex-shrink: 0;
+    transition: width 250ms cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .sidebar.open {
+    width: var(--sidebar-width-open);
+    align-items: flex-start;
+    padding: 20px 12px;
+  }
+
+  /* Sidebar nav icon button */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-icon);
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+    flex-shrink: 0;
+  }
+
+  .nav-item:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+
+  .nav-item.active {
+    background: var(--color-accent-50);
+    color: var(--color-accent-600);
+  }
+
+  /* Dashboard grid layout */
+  .dashboard-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--color-bg-base);
+  }
+
+  .dashboard-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--dashboard-gutter-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--dashboard-gutter);
+  }
+
+  /* Bento card grid — 3 column default */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--dashboard-gutter);
+  }
+
+  .card-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--dashboard-gutter);
+  }
+
+  /* Card spans for bento layouts */
+  .col-span-2 { grid-column: span 2; }
+  .col-span-3 { grid-column: span 3; }
+  .row-span-2 { grid-row: span 2; }
+
+}
+
+/* ─── Utilities ──────────────────────────────────────────────────── */
+@layer utilities {
+
+  /* Section label — small all-caps eyebrow */
+  .label-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
+
+  /* Card title */
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+  }
+
+  /* Subtle divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--color-border-light);
+    margin: 16px 0;
+  }
+
+}
+
+/* ─── Sheen keyframe ─────────────────────────────────────────────── */
+@keyframes sheen {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ─── Card expand transition (future use) ────────────────────────── */
+/*
+  When a card is promoted to full-screen, apply the `.card-expanding`
+  class to animate it filling the viewport.
+  The JS/React side handles toggling the class and setting a fixed
+  position with the card's getBoundingClientRect() as the origin.
+*/
+.card-expanding {
+  position: fixed;
+  z-index: 50;
+  transition:
+    top    350ms cubic-bezier(0.4, 0, 0.2, 1),
+    left   350ms cubic-bezier(0.4, 0, 0.2, 1),
+    width  350ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 350ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-expanded {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
 }
