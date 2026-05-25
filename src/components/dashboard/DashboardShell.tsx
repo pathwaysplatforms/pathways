@@ -4,7 +4,6 @@ import { LayoutDashboard, FileText, FolderOpen, User } from 'lucide-react';
 interface DashboardShellProps {
   children: React.ReactNode;
   avatarInitials: string;
-  firstName: string;
   applicationId?: string | null;
 }
 

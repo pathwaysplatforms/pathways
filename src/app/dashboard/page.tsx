@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   } catch (err) {
     logger.error({ action: 'dashboard.error', userId: user.id, err });
     return (
-      <DashboardShell avatarInitials="?" firstName="there">
+      <DashboardShell avatarInitials="?">
         <div className="flex flex-1 items-center justify-center p-7">
           <div className="card max-w-md w-full text-center">
             <h2 className="card-title mb-2">Something went wrong</h2>
@@ -48,7 +48,6 @@ export default async function DashboardPage() {
   return (
     <DashboardShell
       avatarInitials={dashboardData.avatarInitials}
-      firstName={dashboardData.firstName}
       applicationId={dashboardData.applicationId}
     >
       <Suspense fallback={<DashboardSkeleton />}>
