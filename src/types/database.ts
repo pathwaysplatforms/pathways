@@ -272,6 +272,47 @@ export type Database = {
         }
         Relationships: []
       }
+      pathway_matches: {
+        Row: {
+          calculated_at: string
+          created_at: string
+          crs_score: number
+          id: string
+          result: Json
+          top_pathway_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calculated_at?: string
+          created_at?: string
+          crs_score: number
+          id?: string
+          result: Json
+          top_pathway_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calculated_at?: string
+          created_at?: string
+          crs_score?: number
+          id?: string
+          result?: Json
+          top_pathway_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pathway_matches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pathway_steps: {
         Row: {
           description: string

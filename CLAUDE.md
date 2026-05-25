@@ -21,6 +21,11 @@ Tailwind CSS v4, shadcn/ui.
 - No commented-out code.
 - Every exported function has a JSDoc comment (one line minimum).
 
+## Spec files are read-only
+Never modify any file in the specs/ directory.
+Specs are instructions for Claude, not outputs.
+If a spec needs updating, flag it to the developer.
+
 ## Patterns to follow
 - Module pattern: every feature lives in /src/modules/{name}/ with its own
   service.ts, types.ts, and __tests__/ directory.
