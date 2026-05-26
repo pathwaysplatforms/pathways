@@ -42,20 +42,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python -m scrapers.pathway_scraper
 
-      - name: Vacuum Analyze chunks table
-        working-directory: scrapers
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-
-        run: |
-          python - <<'EOF'
-          import os
-          from supabase import create_client
-          client = create_client(os.environ["NEXT_PUBLIC_SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
-          client.rpc("vacuum_chunks").execute()
-          print("VACUUM ANALYZE complete")
-          EOF
 
       - name: Open issue on failure
         if: failure()
