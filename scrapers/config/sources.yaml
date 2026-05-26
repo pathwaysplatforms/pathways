@@ -1,29 +1,148 @@
 # Pathways — Immigration Sources Configuration
-# Scope: Canada only (expand later)
+# Canada-only scope. Deep crawl enabled for major sections.
+# crawl_depth: 0 = single page
+# crawl_depth: 1 = page + direct links
+# crawl_depth: 2 = page + links + their links (most comprehensive)
 
 pathways:
   canada:
+
+    # Express Entry — flagship pathway, needs maximum depth
     express_entry:
       urls:
         - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry.html
-        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility.html
-        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents.html
-      crawl_depth: 0
+      crawl_depth: 2
       visa_type: express_entry
       country: canada
 
-    family_sponsorship:
+    # Express Entry eligibility detail pages
+    express_entry_fsw:
       urls:
-        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship.html
-      crawl_depth: 0
-      visa_type: family_sponsorship
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/federal-skilled-workers.html
+      crawl_depth: 1
+      visa_type: express_entry_fsw
+      country: canada
+
+    express_entry_cec:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/canadian-experience-class.html
+      crawl_depth: 1
+      visa_type: express_entry_cec
+      country: canada
+
+    express_entry_fst:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/skilled-trades.html
+      crawl_depth: 1
+      visa_type: express_entry_fst
+      country: canada
+
+    # CRS — critical for score calculators
+    express_entry_crs:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/criteria-comprehensive-ranking-system/grid.html
+      crawl_depth: 1
+      visa_type: express_entry_crs
+      country: canada
+
+    # Documents and application
+    express_entry_documents:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents.html
+      crawl_depth: 1
+      visa_type: express_entry
+      country: canada
+
+    # Provincial Nominee Programs
+    pnp_overview:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/provincial-nominees.html
+      crawl_depth: 1
+      visa_type: pnp
       country: canada
 
     pnp_ontario:
       urls:
         - https://www.ontario.ca/page/ontario-immigrant-nominee-program-oinp
-      crawl_depth: 0
+      crawl_depth: 1
       visa_type: pnp_ontario
+      country: canada
+
+    pnp_bc:
+      urls:
+        - https://www.welcomebc.ca/immigrate-to-b-c/bc-provincial-nominee-program
+      crawl_depth: 1
+      visa_type: pnp_bc
+      country: canada
+
+    pnp_alberta:
+      urls:
+        - https://www.alberta.ca/alberta-immigrant-nominee-program
+      crawl_depth: 1
+      visa_type: pnp_alberta
+      country: canada
+
+    # Family sponsorship
+    family_sponsorship:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship.html
+      crawl_depth: 2
+      visa_type: family_sponsorship
+      country: canada
+
+    # Work permits
+    work_permits:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/permit.html
+      crawl_depth: 1
+      visa_type: work_permit
+      country: canada
+
+    lmia:
+      urls:
+        - https://www.canada.ca/en/employment-social-development/services/foreign-workers.html
+      crawl_depth: 1
+      visa_type: lmia
+      country: canada
+
+    # Study permits
+    study_permits:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada.html
+      crawl_depth: 1
+      visa_type: study_permit
+      country: canada
+
+    # Citizenship
+    citizenship:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship.html
+      crawl_depth: 2
+      visa_type: citizenship
+      country: canada
+
+    # Permanent residence pathways
+    permanent_residence:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada.html
+      crawl_depth: 1
+      visa_type: permanent_residence
+      country: canada
+
+    # Processing times — critical user question
+    processing_times:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/application/check-processing-times.html
+      crawl_depth: 0
+      visa_type: processing_times
+      country: canada
+
+    # Settlement and integration
+    settlement:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/new-immigrants.html
+      crawl_depth: 1
+      visa_type: settlement
       country: canada
 
 draws:

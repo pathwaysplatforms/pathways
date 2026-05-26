@@ -11,11 +11,10 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       issues: write
       contents: read
-
 
     steps:
       - name: Checkout develop
@@ -30,13 +29,15 @@ jobs:
           cache: 'pip'
           cache-dependency-path: scrapers/requirements.txt
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: pip install -r scrapers/requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
 
       - name: Run draws scraper
         working-directory: scrapers
         env:
-          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: python -m scrapers.draws_scraper
