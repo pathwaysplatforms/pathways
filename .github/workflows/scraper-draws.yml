@@ -33,25 +33,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r scrapers/requirements.txt
 
-      - name: Debug — print raw markdown from Canada draws page
-        working-directory: scrapers
-        env:
-          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-        run: |
-          python - <<'EOF'
-          import os, time
-          from firecrawl import FirecrawlApp
-          app = FirecrawlApp(api_key=os.environ["FIRECRAWL_API_KEY"])
-          result = app.scrape_url(
-              "https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html",
-              params={"formats": ["markdown"]}
-          )
-          md = result.get("markdown", "NO MARKDOWN RETURNED")
-          print("=== RAW MARKDOWN (first 3000 chars) ===")
-          print(md[:3000])
-          print("=== END RAW MARKDOWN ===")
-          EOF
-
       - name: Run draws scraper
         working-directory: scrapers
         env:

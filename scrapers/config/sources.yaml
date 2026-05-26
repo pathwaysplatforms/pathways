@@ -27,8 +27,14 @@ pathways:
       country: canada
 
 draws:
-  canada_express_entry:
+  canada_express_entry_latest:
     url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html
+    country: canada
+    program: express_entry
+    parser: canada_draws
+
+  canada_express_entry_history:
+    url: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/mandate/policies-operational-instructions-agreements/ministerial-instructions/express-entry-rounds.html
     country: canada
     program: express_entry
     parser: canada_draws
