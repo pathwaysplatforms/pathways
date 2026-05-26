@@ -35,7 +35,10 @@
       "WebFetch(domain:api.anthropic.com)",
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\src\\\\components\\\\layout\")",
       "Bash(Out-Null)",
-      "Bash(Write-Output \"done\")"
+      "Bash(Write-Output \"done\")",
+      "Bash(Get-ChildItem C:\\\\Users\\\\achto\\\\dev\\\\pathways-final -Filter \".env*\" -Force)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem C:\\\\Users\\\\achto\\\\dev\\\\pathways-final -Filter \"*.env*\" -Force)"
     ]
   }
 }

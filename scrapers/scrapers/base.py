@@ -80,7 +80,6 @@ class BaseScraper(ABC):
                     strategy = BFSDeepCrawlStrategy(
                         max_depth=crawl_depth,
                         max_pages=40,
-                        same_domain=True,
                         include_patterns=[
                             r".*canada\.ca.*immigration.*",
                             r".*ontario\.ca.*immigr.*",
