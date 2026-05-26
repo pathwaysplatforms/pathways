@@ -12,6 +12,10 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      issues: write
+      contents: read
+
 
     steps:
       - name: Checkout develop
@@ -33,7 +37,7 @@ jobs:
         working-directory: scrapers
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: python -m scrapers.draws_scraper
 
