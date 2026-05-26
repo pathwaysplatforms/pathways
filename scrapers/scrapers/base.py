@@ -1,4 +1,5 @@
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -56,9 +57,11 @@ class BaseScraper(ABC):
                     url,
                     params={"formats": ["markdown"]},
                 )
+                time.sleep(12)  # Respect Firecrawl free tier: 5 req/min
                 return result.get("markdown") or None
         except Exception as e:
             logger.error(f"Firecrawl error fetching {url}: {e}")
+            time.sleep(12)  # Sleep on error too before caller retries
             return None
 
     @abstractmethod
