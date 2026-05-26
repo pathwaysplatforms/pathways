@@ -145,6 +145,47 @@ pathways:
       visa_type: settlement
       country: canada
 
+    # Atlantic Immigration Program — employer-driven PR pathway for Atlantic provinces
+    atlantic_immigration:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/atlantic-immigration.html
+      crawl_depth: 1
+      visa_type: atlantic_immigration
+      country: canada
+
+    # Rural and Northern Immigration Pilot — community-driven PR for smaller communities
+    # Note: RNIP was discontinued after March 2024; page retained for historical reference.
+    rural_northern_immigration:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-northern-immigration-pilot.html
+      crawl_depth: 0
+      visa_type: rural_northern_immigration
+      country: canada
+
+    # Start-up Visa — PR pathway for innovative entrepreneurs backed by designated orgs
+    startup_visa:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/start-visa.html
+      crawl_depth: 1
+      visa_type: startup_visa
+      country: canada
+
+    # Caregiver pathways — Home Child Care Provider and Home Support Worker pilots
+    caregiver:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/caregivers.html
+      crawl_depth: 1
+      visa_type: caregiver
+      country: canada
+
+    # Refugee and humanitarian protection — overview only (crawl_depth 0)
+    refugees_humanitarian:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/refugees.html
+      crawl_depth: 0
+      visa_type: refugees_humanitarian
+      country: canada
+
 draws:
   canada_express_entry_latest:
     url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html

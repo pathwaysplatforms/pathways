@@ -1,7 +1,9 @@
 import asyncio
 import os
+import time
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -11,37 +13,76 @@ from utils.logger import get_logger
 load_dotenv()
 logger = get_logger(__name__)
 
+_DEFAULT_BM25_QUERY = (
+    "immigration visa permit residency canada express entry "
+    "eligibility requirements documents application"
+)
+
 
 class BaseScraper(ABC):
     def __init__(self) -> None:
+        missing: list[str] = []
         supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
         supabase_key = os.environ.get("SUPABASE_SECRET_KEY")
 
-        if not all([supabase_url, supabase_key]):
+        if not supabase_url:
+            missing.append("NEXT_PUBLIC_SUPABASE_URL")
+        if not supabase_key:
+            missing.append("SUPABASE_SECRET_KEY")
+
+        if missing:
             raise EnvironmentError(
-                "Missing required environment variables. "
-                "Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are set."
+                f"Missing required environment variables: {', '.join(missing)}"
             )
 
-        self.supabase: Client = create_client(supabase_url, supabase_key)
+        self.supabase: Client = create_client(supabase_url, supabase_key)  # type: ignore[arg-type]
 
-    def fetch_markdown(self, url: str, crawl_depth: int = 0) -> Optional[str]:
+    def fetch_markdown(
+        self,
+        url: str,
+        crawl_depth: int = 0,
+        page_timeout: int = 30000,
+        bm25_query: str = _DEFAULT_BM25_QUERY,
+    ) -> Optional[str]:
         """
-        Fetch a URL via Crawl4AI and return clean LLM-optimized Markdown.
-        Uses Playwright headless Chromium — handles JavaScript rendering.
-        When crawl_depth > 0, follows internal links automatically.
+        Fetch a URL via Crawl4AI and return LLM-optimized Markdown.
+        Retries up to 2 times with exponential backoff (1s, 3s) on failure.
         """
-        try:
-            return asyncio.run(self._fetch_async(url, crawl_depth))
-        except Exception as e:
-            logger.error(f"fetch_markdown failed for {url}: {e}")
-            return None
+        delays = [1, 3]
+        for attempt in range(3):
+            try:
+                return asyncio.run(
+                    self._fetch_async(url, crawl_depth, page_timeout, bm25_query)
+                )
+            except RuntimeError as e:
+                # asyncio.run() cannot be called inside an already-running event loop
+                logger.error(f"asyncio.run error for {url}: {e}", exc_info=True)
+                return None
+            except Exception as e:
+                if attempt < 2:
+                    delay = delays[attempt]
+                    logger.warning(
+                        f"fetch_markdown attempt {attempt + 1}/3 failed for {url}: "
+                        f"{type(e).__name__}: {e} — retrying in {delay}s"
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        f"fetch_markdown failed after 3 attempts for {url}: "
+                        f"{type(e).__name__}: {e}",
+                        exc_info=True,
+                    )
+                    return None
+        return None
 
     async def _fetch_async(
-        self, url: str, crawl_depth: int = 0
+        self,
+        url: str,
+        crawl_depth: int = 0,
+        page_timeout: int = 30000,
+        bm25_query: str = _DEFAULT_BM25_QUERY,
     ) -> Optional[str]:
-        # Import here to avoid issues with asyncio event loop at module level
-        from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+        from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode  # noqa: F401
         from crawl4ai.content_filter_strategy import BM25ContentFilter
         from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
@@ -51,104 +92,139 @@ class BaseScraper(ABC):
             java_script_enabled=True,
         )
 
-        # BM25 filter removes navigation, footers, cookie banners, and
-        # other boilerplate — keeps only immigration-relevant content
         content_filter = BM25ContentFilter(
-            user_query=(
-                "immigration visa permit residency canada express entry "
-                "eligibility requirements documents application"
-            ),
+            user_query=bm25_query,
             bm25_threshold=1.0,
         )
 
-        run_config = CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            markdown_generator=DefaultMarkdownGenerator(
-                content_filter=content_filter,
-                options={"ignore_links": False},
-            ),
-            page_timeout=30000,   # 30s per page
-            wait_until="networkidle",
+        markdown_generator = DefaultMarkdownGenerator(
+            content_filter=content_filter,
+            options={"ignore_links": False},
         )
 
         try:
             async with AsyncWebCrawler(config=browser_config) as crawler:
                 if crawl_depth > 0:
-                    # Deep crawl: discover all sub-pages automatically
-                    from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
-
-                    strategy = BFSDeepCrawlStrategy(
-                        max_depth=crawl_depth,
-                        max_pages=40,
-                        include_patterns=[
-                            r".*canada\.ca.*immigration.*",
-                            r".*ontario\.ca.*immigr.*",
-                            r".*canada\.ca.*citizenship.*",
-                        ],
-                        exclude_patterns=[
-                            r".*\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip)$",
-                            r".*/contact.*",
-                            r".*/search.*",
-                            r".*/404.*",
-                        ],
+                    return await self._deep_crawl(
+                        crawler, url, crawl_depth, page_timeout, markdown_generator
                     )
-
-                    run_config_deep = CrawlerRunConfig(
-                        cache_mode=CacheMode.BYPASS,
-                        markdown_generator=DefaultMarkdownGenerator(
-                            content_filter=content_filter,
-                            options={"ignore_links": False},
-                        ),
-                        page_timeout=30000,
-                        wait_until="networkidle",
-                        deep_crawl_strategy=strategy,
-                    )
-
-                    results = await crawler.arun(url=url, config=run_config_deep)
-
-                    # arun with deep crawl returns a list
-                    if isinstance(results, list):
-                        pages = [r for r in results if r.success and r.markdown]
-                    else:
-                        pages = [results] if results.success and results.markdown else []
-
-                    if not pages:
-                        logger.warning(f"Deep crawl returned 0 pages for {url}")
-                        return None
-
-                    combined = "\n\n---\n\n".join(
-                        f"## Source: {r.url}\n\n"
-                        + (r.markdown.fit_markdown
-                           if hasattr(r.markdown, 'fit_markdown') and r.markdown.fit_markdown
-                           else str(r.markdown))
-                        for r in pages
-                    )
-                    logger.info(
-                        f"Deep crawl found {len(pages)} pages from {url}"
-                    )
-                    return combined or None
-
                 else:
-                    # Single page scrape
-                    result = await crawler.arun(url=url, config=run_config)
-
-                    if not result.success:
-                        logger.error(
-                            f"Crawl4AI failed for {url}: {result.error_message}"
-                        )
-                        return None
-
-                    markdown = (
-                        result.markdown.fit_markdown
-                        if hasattr(result.markdown, 'fit_markdown')
-                           and result.markdown.fit_markdown
-                        else str(result.markdown)
+                    return await self._single_page(
+                        crawler, url, page_timeout, markdown_generator
                     )
-                    return markdown or None
-
         except Exception as e:
-            logger.error(f"Crawl4AI error for {url}: {e}")
+            logger.error(
+                f"Crawl4AI session error for {url}: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
             return None
+
+    async def _single_page(
+        self,
+        crawler: Any,
+        url: str,
+        page_timeout: int,
+        markdown_generator: Any,
+    ) -> Optional[str]:
+        """Fetch a single page, with an HTTP/2 fallback if needed."""
+        from crawl4ai import CrawlerRunConfig, CacheMode
+
+        run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            markdown_generator=markdown_generator,
+            page_timeout=page_timeout,
+            wait_until="networkidle",
+        )
+
+        result = await crawler.arun(url=url, config=run_config)
+
+        if not result.success:
+            error_msg = result.error_message or ""
+            if "ERR_HTTP2_PROTOCOL_ERROR" in error_msg:
+                logger.warning(
+                    f"HTTP/2 protocol error for {url} — retrying with domcontentloaded"
+                )
+                fallback_config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS,
+                    markdown_generator=markdown_generator,
+                    page_timeout=page_timeout,
+                    wait_until="domcontentloaded",
+                )
+                result = await crawler.arun(url=url, config=fallback_config)
+                if not result.success:
+                    logger.error(
+                        f"HTTP/2 fallback also failed for {url}: {result.error_message}"
+                    )
+                    return None
+            else:
+                logger.error(f"Crawl4AI failed for {url}: {error_msg}")
+                return None
+
+        return self._extract_markdown(result) or None
+
+    async def _deep_crawl(
+        self,
+        crawler: Any,
+        url: str,
+        crawl_depth: int,
+        page_timeout: int,
+        markdown_generator: Any,
+    ) -> Optional[str]:
+        """BFS deep crawl. Falls back to single-page scrape if 0 pages are returned."""
+        from crawl4ai import CrawlerRunConfig, CacheMode
+        from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
+
+        # Derive include_patterns dynamically from the URL being crawled so that
+        # non-canada.ca sources (welcomebc.ca, alberta.ca, etc.) are not excluded.
+        parsed = urlparse(url)
+        domain_escaped = parsed.netloc.replace(".", r"\.")
+        include_patterns = [f".*{domain_escaped}.*"]
+
+        strategy = BFSDeepCrawlStrategy(
+            max_depth=crawl_depth,
+            max_pages=40,
+            include_patterns=include_patterns,
+            exclude_patterns=[
+                r".*\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip)$",
+                r".*/contact.*",
+                r".*/search.*",
+                r".*/404.*",
+            ],
+        )
+
+        run_config_deep = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            markdown_generator=markdown_generator,
+            page_timeout=page_timeout,
+            wait_until="networkidle",
+            deep_crawl_strategy=strategy,
+        )
+
+        results = await crawler.arun(url=url, config=run_config_deep)
+
+        if isinstance(results, list):
+            pages = [r for r in results if r.success and r.markdown]
+        else:
+            pages = [results] if results.success and results.markdown else []
+
+        if not pages:
+            logger.warning(
+                f"Deep crawl returned 0 pages for {url} — falling back to single-page scrape"
+            )
+            return await self._single_page(crawler, url, page_timeout, markdown_generator)
+
+        combined = "\n\n---\n\n".join(
+            f"## Source: {r.url}\n\n{self._extract_markdown(r)}" for r in pages
+        )
+        logger.info(f"Deep crawl found {len(pages)} pages from {url}")
+        return combined or None
+
+    @staticmethod
+    def _extract_markdown(result: Any) -> str:
+        """Extract fit_markdown if available, otherwise fall back to str(markdown)."""
+        if hasattr(result.markdown, "fit_markdown") and result.markdown.fit_markdown:
+            return result.markdown.fit_markdown
+        return str(result.markdown)
 
     @abstractmethod
     def run(self) -> None:

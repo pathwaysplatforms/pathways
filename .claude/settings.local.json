@@ -38,7 +38,9 @@
       "Bash(Write-Output \"done\")",
       "Bash(Get-ChildItem C:\\\\Users\\\\achto\\\\dev\\\\pathways-final -Filter \".env*\" -Force)",
       "Bash(Select-Object Name)",
-      "Bash(Get-ChildItem C:\\\\Users\\\\achto\\\\dev\\\\pathways-final -Filter \"*.env*\" -Force)"
+      "Bash(Get-ChildItem C:\\\\Users\\\\achto\\\\dev\\\\pathways-final -Filter \"*.env*\" -Force)",
+      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('scrapers/base.py'\\).read\\(\\)\\); print\\('base.py OK'\\)\")",
+      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('scrapers/pathway_scraper.py'\\).read\\(\\)\\); print\\('pathway_scraper.py OK'\\)\")"
     ]
   }
 }
