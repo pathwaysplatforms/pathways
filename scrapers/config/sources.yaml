@@ -80,7 +80,7 @@ pathways:
     pnp_bc:
       urls:
         - https://www.welcomebc.ca/immigrate-to-b-c/bc-provincial-nominee-program
-      crawl_depth: 1
+      crawl_depth: 0
       use_browser: true
       visa_type: pnp_bc
       country: canada
@@ -88,7 +88,7 @@ pathways:
     pnp_alberta:
       urls:
         - https://www.alberta.ca/alberta-immigrant-nominee-program
-      crawl_depth: 1
+      crawl_depth: 0
       use_browser: true
       visa_type: pnp_alberta
       country: canada
