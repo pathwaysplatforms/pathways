@@ -133,7 +133,7 @@ class BaseScraper(ABC):
             cache_mode=CacheMode.BYPASS,
             markdown_generator=markdown_generator,
             page_timeout=page_timeout,
-            wait_until="networkidle",
+            wait_until="domcontentloaded",
         )
 
         result = await crawler.arun(url=url, config=run_config)
