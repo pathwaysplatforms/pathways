@@ -3,7 +3,6 @@ import os
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Optional
-from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -90,6 +89,7 @@ class BaseScraper(ABC):
             headless=True,
             verbose=False,
             java_script_enabled=True,
+            extra_args=["--disable-http2"],
         )
 
         content_filter = BM25ContentFilter(
@@ -126,7 +126,7 @@ class BaseScraper(ABC):
         page_timeout: int,
         markdown_generator: Any,
     ) -> Optional[str]:
-        """Fetch a single page, with an HTTP/2 fallback if needed."""
+        """Fetch a single page and return its markdown."""
         from crawl4ai import CrawlerRunConfig, CacheMode
 
         run_config = CrawlerRunConfig(
@@ -139,26 +139,10 @@ class BaseScraper(ABC):
         result = await crawler.arun(url=url, config=run_config)
 
         if not result.success:
-            error_msg = result.error_message or ""
-            if "ERR_HTTP2_PROTOCOL_ERROR" in error_msg:
-                logger.warning(
-                    f"HTTP/2 protocol error for {url} — retrying with domcontentloaded"
-                )
-                fallback_config = CrawlerRunConfig(
-                    cache_mode=CacheMode.BYPASS,
-                    markdown_generator=markdown_generator,
-                    page_timeout=page_timeout,
-                    wait_until="domcontentloaded",
-                )
-                result = await crawler.arun(url=url, config=fallback_config)
-                if not result.success:
-                    logger.error(
-                        f"HTTP/2 fallback also failed for {url}: {result.error_message}"
-                    )
-                    return None
-            else:
-                logger.error(f"Crawl4AI failed for {url}: {error_msg}")
-                return None
+            logger.error(
+                f"Crawl4AI failed for {url}: {result.error_message or 'unknown error'}"
+            )
+            return None
 
         return self._extract_markdown(result) or None
 
@@ -174,22 +158,9 @@ class BaseScraper(ABC):
         from crawl4ai import CrawlerRunConfig, CacheMode
         from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
 
-        # Derive include_patterns dynamically from the URL being crawled so that
-        # non-canada.ca sources (welcomebc.ca, alberta.ca, etc.) are not excluded.
-        parsed = urlparse(url)
-        domain_escaped = parsed.netloc.replace(".", r"\.")
-        include_patterns = [f".*{domain_escaped}.*"]
-
         strategy = BFSDeepCrawlStrategy(
             max_depth=crawl_depth,
             max_pages=40,
-            include_patterns=include_patterns,
-            exclude_patterns=[
-                r".*\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip)$",
-                r".*/contact.*",
-                r".*/search.*",
-                r".*/404.*",
-            ],
         )
 
         run_config_deep = CrawlerRunConfig(
