@@ -42,11 +42,26 @@ class BaseScraper(ABC):
         crawl_depth: int = 0,
         page_timeout: int = 30000,
         bm25_query: str = _DEFAULT_BM25_QUERY,
+        use_browser: bool = True,
     ) -> Optional[str]:
         """
-        Fetch a URL via Crawl4AI and return LLM-optimized Markdown.
-        Retries up to 2 times with exponential backoff (1s, 3s) on failure.
+        Fetch a URL and return Markdown. Routes to plain HTTP or Playwright based on use_browser.
+        HTTP path: single-page, no retries needed beyond the outer pipeline retry.
+        Browser path: retries up to 2 times with exponential backoff (1s, 3s) on failure.
         """
+        if not use_browser:
+            try:
+                return asyncio.run(self._fetch_http(url))
+            except RuntimeError as e:
+                logger.error(f"asyncio.run error for {url}: {e}", exc_info=True)
+                return None
+            except Exception as e:
+                logger.error(
+                    f"_fetch_http failed for {url}: {type(e).__name__}: {e}",
+                    exc_info=True,
+                )
+                return None
+
         delays = [1, 3]
         for attempt in range(3):
             try:
@@ -73,6 +88,52 @@ class BaseScraper(ABC):
                     )
                     return None
         return None
+
+    async def _fetch_http(self, url: str) -> Optional[str]:
+        """
+        Plain HTTP fetch using aiohttp — no browser, no Playwright.
+        For SSR government sites that block headless Chromium.
+        """
+        import aiohttp
+        import html2text
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/136.0.0.0 Safari/537.36"
+            ),
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+            ),
+            "Accept-Language": "en-CA,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+        }
+        timeout = aiohttp.ClientTimeout(total=30)
+
+        try:
+            async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        logger.error(
+                            f"HTTP {response.status} fetching {url}"
+                        )
+                        return None
+                    html = await response.text()
+        except aiohttp.ServerTimeoutError:
+            logger.error(f"Timeout fetching {url}")
+            return None
+        except aiohttp.ClientError as e:
+            logger.error(
+                f"Connection error fetching {url}: {type(e).__name__}: {e}"
+            )
+            return None
+
+        converter = html2text.HTML2Text()
+        converter.ignore_links = False
+        converter.body_width = 0
+        return converter.handle(html) or None
 
     async def _fetch_async(
         self,

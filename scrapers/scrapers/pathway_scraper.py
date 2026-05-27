@@ -74,7 +74,12 @@ class PathwayScraper(BaseScraper):
             stats["attempted"] += 1
             logger.info(f"Fetching: {url}")
 
-            markdown = self.fetch_markdown(url, crawl_depth=cfg.get("crawl_depth", 0))
+            use_browser = cfg.get("use_browser", True)
+            markdown = self.fetch_markdown(
+                url,
+                crawl_depth=cfg.get("crawl_depth", 0),
+                use_browser=use_browser,
+            )
 
             if not markdown:
                 logger.warning(f"Empty content returned for {url} — skipping")
