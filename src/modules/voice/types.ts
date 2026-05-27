@@ -4,21 +4,23 @@ export const TurnResponseSchema = z.object({
   message: z.string(),
   delta: z.object({
     full_name: z.string().nullable().optional(),
+    date_of_birth: z.string().nullable().optional(),
     nationality: z.string().nullable().optional(),
     current_country: z.string().nullable().optional(),
-    occupation: z.string().nullable().optional(),
+    marital_status: z.string().nullable().optional(),
+    spouse_coming_to_canada: z.boolean().nullable().optional(),
+    education_level_voice: z.string().nullable().optional(),
     years_experience: z.number().nullable().optional(),
-    has_degree: z.boolean().nullable().optional(),
-    degree_level: z.enum(["bachelor", "master", "phd", "other"]).nullable().optional(),
-    degree_field: z.string().nullable().optional(),
-    annual_salary_gbp: z.number().nullable().optional(),
-    has_criminal_record: z.boolean().nullable().optional(),
-    english_level: z
-      .enum(["native", "fluent", "b2", "b1", "below_b1"])
+    has_canadian_experience: z.boolean().nullable().optional(),
+    occupation: z.string().nullable().optional(),
+    language_proficiency_self: z
+      .enum(["native", "fluent", "advanced", "intermediate", "basic"])
       .nullable()
       .optional(),
-    marital_status: z.string().nullable().optional(),
-    has_dependents: z.boolean().nullable().optional(),
+    has_family_in_canada: z.boolean().nullable().optional(),
+    intended_province: z.string().nullable().optional(),
+    annual_income: z.number().nullable().optional(),
+    income_currency: z.string().nullable().optional(),
   }),
   complete: z.boolean(),
   requires_review: z.array(z.string()),
@@ -26,18 +28,22 @@ export const TurnResponseSchema = z.object({
 
 export const VoiceExtractedProfileSchema = z.object({
   full_name: z.string().nullable(),
+  date_of_birth: z.string().nullable(),
   nationality: z.string().nullable(),
   current_country: z.string().nullable(),
-  occupation: z.string().nullable(),
-  years_experience: z.number().nullable(),
-  has_degree: z.boolean().nullable(),
-  degree_level: z.enum(["bachelor", "master", "phd", "other"]).nullable(),
-  degree_field: z.string().nullable(),
-  annual_salary_gbp: z.number().nullable(),
-  has_criminal_record: z.boolean().nullable(),
-  english_level: z.enum(["native", "fluent", "b2", "b1", "below_b1"]).nullable(),
   marital_status: z.string().nullable(),
-  has_dependents: z.boolean().nullable(),
+  spouse_coming_to_canada: z.boolean().nullable(),
+  education_level_voice: z.string().nullable(),
+  years_experience: z.number().nullable(),
+  has_canadian_experience: z.boolean().nullable(),
+  occupation: z.string().nullable(),
+  language_proficiency_self: z
+    .enum(["native", "fluent", "advanced", "intermediate", "basic"])
+    .nullable(),
+  has_family_in_canada: z.boolean().nullable(),
+  intended_province: z.string().nullable(),
+  annual_income: z.number().nullable(),
+  income_currency: z.string().nullable(),
   requires_review: z.array(z.string()),
 });
 
@@ -59,7 +65,6 @@ export const ConfirmRequestSchema = z.object({
 });
 
 export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>;
-
 export type TurnResponse = z.infer<typeof TurnResponseSchema>;
 export type VoiceExtractedProfile = z.infer<typeof VoiceExtractedProfileSchema>;
 export type Message = z.infer<typeof MessageSchema>;

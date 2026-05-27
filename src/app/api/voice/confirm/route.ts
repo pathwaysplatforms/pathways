@@ -45,7 +45,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const parsed = ConfirmRequestSchema.safeParse(body);
     if (!parsed.success) {
       throw new ValidationError("Invalid request body", {
-        errors: parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`),
+        errors: parsed.error.errors.map((err: { path: (string | number)[]; message: string }) => `${err.path.join(".")}: ${err.message}`),
       });
     }
 

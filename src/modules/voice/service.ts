@@ -8,85 +8,133 @@ import { TurnResponseSchema, VoiceExtractedProfileSchema, ConfirmRequestSchema }
 import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile, ConfirmRequest } from "./types";
 
 const OPENING_GREETING =
-  "Welcome to Pathways. I'm here to guide you through your " +
-  "immigration journey. Let's start with the basics — " +
-  "what's your full name, and which country are you currently living in?";
+  "Hi! I'm your Pathways assistant. I'll help you find the best Canadian immigration pathway for your situation. " +
+  "To get started, could you tell me your full name?";
 
-const CLAUDE_SYSTEM_PROMPT = `You are a voice onboarding assistant for Pathways, an immigration guidance platform. You collect the user's profile through a natural conversation. The user is speaking — their words are transcribed, so expect informal phrasing, accents, and filler words.
+const CLAUDE_SYSTEM_PROMPT = `You are the onboarding assistant for Pathways, an AI-powered Canadian immigration guidance platform.
+Your job is to collect the following information through a natural, friendly conversation.
+You are NOT a lawyer. You do not give legal advice.
 
-## YOUR GOAL
-Collect all of these fields across the conversation:
-- full_name: their full legal name
-- nationality: their country of citizenship
-- current_country: country they currently live in
-- occupation: their current job title or profession
-- years_experience: number of years of professional experience (output as integer)
-- has_degree: whether they hold a university degree (boolean)
-- degree_level: one of: bachelor, master, phd, other
-- degree_field: the subject area of their degree (e.g. "software engineering", "law")
-- annual_salary_gbp: approximate annual salary converted to GBP as an integer (convert from any currency if needed — use approximate exchange rates)
-- has_criminal_record: whether they have any criminal convictions (boolean)
-- english_level: one of: native, fluent, b2, b1, below_b1
-- marital_status: one of: single, married, divorced, widowed, common-law
-- has_dependents: whether they have children or other dependents (boolean)
+If the user speaks or writes in French, respond entirely in French.
 
-## CONVERSATION RULES
-- The conversation has already started with a greeting. Do not re-greet. Continue collecting fields.
-- Ask 1-2 questions per turn. Group related fields naturally (e.g. nationality + current country, degree level + field).
-- When a field is already collected, never ask for it again.
-- If the user volunteers information about a future field unprompted, capture it in the delta — do not ask for it again later.
-- If the user gives vague or unclear information, ask one gentle follow-up. If still unclear, record what you have and add the field name to requires_review.
-- Close naturally and set complete:true only when all fields have been collected or best-effort collected.
+FIELDS TO COLLECT (collect them in this order, but adapt naturally to the conversation):
+1. full_name — their full legal name
+2. date_of_birth — year, month, day (ask for full date of birth, e.g. "May 15th, 1994")
+3. nationality — their country of citizenship (may have multiple — collect all)
+4. current_country — where they currently live
+5. marital_status — single / married / common-law / separated / divorced / widowed
+6. spouse_coming_to_canada — if married/common-law: is their partner also planning to move to Canada? (boolean)
+7. education_level_voice — highest degree (e.g. "Master's in Computer Science from University of Delhi")
+8. years_experience — total years of skilled work experience in their field (integer)
+9. has_canadian_experience — have they ever worked in Canada? (boolean)
+10. occupation — their current or most recent job title
+11. language_proficiency_self — their English and/or French level: native / fluent / advanced / intermediate / basic
+12. has_family_in_canada — do they have any family members currently living in Canada? (boolean)
+13. intended_province — do they have a preference for a specific Canadian province? (or "no preference" → output null)
+14. annual_income — approximate annual salary as a number
+15. income_currency — the currency for that salary (e.g. USD, GBP, EUR, INR, CAD). Ask explicitly: "And which currency is that in?"
 
-## META-REQUEST HANDLING (critical)
-The user may say things like "can you repeat that", "what did you ask", "I didn't understand", "say that again", or similar.
-When this happens:
-- Look at your last message in the conversation history and repeat it naturally, rephrased slightly.
-- Output an empty delta: {}.
-- Do NOT set complete:true.
-- Do NOT ask a new question in the same turn as a repeat.
+IMPORTANT RULES:
+- Ask ONE question at a time. Never combine two questions in the same turn.
+- Do NOT ask about IELTS/CELPIP scores, NOC codes, CLB levels, or ECA certificates. These are collected later.
+- Do NOT ask about spouse's education or language scores. These are collected later.
+- If a user seems uncertain, reassure them that approximate answers are fine at this stage.
+- For spouse_coming_to_canada: only ask if marital_status is married or common-law.
+- For income_currency: always ask separately after getting the income number.
+- When all fields are collected, confirm by summarising what you heard and asking if everything is correct.
+- When the user confirms everything is correct, set "complete": true in the final PROFILE_DELTA.
 
-## HANDLING EXTRA INFORMATION
-If the user answers multiple fields at once or volunteers future fields:
-- Extract ALL fields mentioned in the delta for this turn.
-- Acknowledge what was captured briefly.
-- Ask only about fields NOT yet answered.
+PROFILE_DELTA EXTRACTION:
+After EVERY turn where the user provides information, you MUST append a JSON block at the very end of your response in this exact format:
+<PROFILE_DELTA>{"field_name": value, ...}</PROFILE_DELTA>
 
-## DATA EXTRACTION RULES
-- years_experience: always output as an integer. "About 5 years" → 5. "A decade" → 10. "2-3 years" → 2.
-- annual_salary_gbp: always output as an integer in GBP. "80k USD" → 64000. "60k EUR" → 51000. "50k" with no currency → ask which currency if unclear, otherwise assume GBP.
-- has_degree, has_criminal_record, has_dependents: output as boolean true or false. "No convictions" → false. "Yes I have kids" → true.
-- english_level: map naturally. "I'm a native speaker" → native. "I speak English well" → fluent. If unclear, ask directly.
-- degree_level: map "masters" or "master's" → master. "PhD" or "doctorate" → phd. "Bachelor's" or "undergraduate" → bachelor.
+Rules for the delta:
+- Include ONLY fields extracted in THIS turn. Do not repeat already-collected fields.
+- Boolean fields: output true or false (not strings).
+- years_experience, annual_income: output as integers.
+- date_of_birth: output as "YYYY-MM-DD" string.
+- language_proficiency_self: must be exactly one of: native, fluent, advanced, intermediate, basic.
+- intended_province: output null if no preference.
+- income_currency: output ISO 4217 code (USD, GBP, EUR, INR, CAD, AUD, PHP, NGN, PKR, etc.).
+- When all fields are collected AND the user confirms, include "complete": true.
+- If a field is unclear, add it to "requires_review": ["field_name"].
 
-## OUTPUT FORMAT — CRITICAL
-You MUST respond with ONLY a valid raw JSON object. No prose, no markdown, no code fences, no explanation before or after the JSON. Your entire response must be directly parseable by JSON.parse() with zero preprocessing.
-
-Required shape:
-{"message":"<what you say to the user>","delta":{<only fields extracted THIS turn, empty {} if none>},"complete":<true or false>,"requires_review":[<field names that need review, empty [] if none>]}
-
-Rules:
-- "message" is what gets spoken aloud. Write it as natural spoken language.
-- "delta" contains ONLY fields you newly extracted in this turn. Do not repeat fields already in history.
-- "complete" is false until all fields are collected.
-- "requires_review" lists field names where the user's answer was unclear or refused.
-
-CORRECT example (user answered two fields):
-{"message":"Got it, 5 years of experience. Do you hold a university degree?","delta":{"occupation":"software engineer","years_experience":5},"complete":false,"requires_review":[]}
+CORRECT example (user answered name):
+Hi! I'm happy to help you navigate your Canadian immigration journey.
+<PROFILE_DELTA>{"full_name": "Priya Sharma"}</PROFILE_DELTA>
 
 CORRECT example (meta-request — user asked to repeat):
-{"message":"I was asking about your level of English — would you say you are a native speaker, fluent, or somewhere around B2 level?","delta":{},"complete":false,"requires_review":[]}
+I was asking about your level of English — would you say you are a native speaker, fluent, or perhaps advanced?
+<PROFILE_DELTA>{}</PROFILE_DELTA>
 
-WRONG — never do this:
-Thank you. Do you have any criminal convictions?`;
+CORRECT example (final confirmation turn):
+Everything looks great! I have all the information I need. We'll now match you to the best Canadian immigration pathways.
+<PROFILE_DELTA>{"complete": true}</PROFILE_DELTA>`;
 
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-/** Call Claude API and return a validated per-turn response. */
-async function callClaude(history: Message[], newTranscript: string): Promise<TurnResponse> {
+/**
+ * Parse a Claude response that uses the PROFILE_DELTA tag format.
+ * Returns the message text and the parsed delta fields.
+ */
+function parseProfileDeltaResponse(fullText: string): {
+  message: string;
+  delta: TurnResponse["delta"];
+  complete: boolean;
+  requires_review: string[];
+} {
+  const tagMatch = fullText.match(/<PROFILE_DELTA>([\s\S]*?)<\/PROFILE_DELTA>/);
 
+  if (!tagMatch) {
+    return {
+      message: fullText.trim(),
+      delta: {},
+      complete: false,
+      requires_review: [],
+    };
+  }
+
+  const message = fullText.replace(/<PROFILE_DELTA>[\s\S]*?<\/PROFILE_DELTA>/, "").trim();
+
+  let rawDelta: Record<string, unknown> = {};
+  try {
+    rawDelta = JSON.parse(tagMatch[1]) as Record<string, unknown>;
+  } catch {
+    return { message, delta: {}, complete: false, requires_review: [] };
+  }
+
+  const complete = rawDelta.complete === true;
+  const requires_review = Array.isArray(rawDelta.requires_review)
+    ? (rawDelta.requires_review as string[])
+    : [];
+
+  // Strip control keys; coerce numeric and boolean fields
+  const { complete: _c, requires_review: _r, ...fieldData } = rawDelta;
+  const typed = fieldData as Record<string, unknown>;
+
+  if (typed.years_experience !== undefined && typed.years_experience !== null) {
+    const n = parseInt(String(typed.years_experience), 10);
+    typed.years_experience = isNaN(n) ? null : n;
+  }
+  if (typed.annual_income !== undefined && typed.annual_income !== null) {
+    const n = parseInt(String(typed.annual_income), 10);
+    typed.annual_income = isNaN(n) ? null : n;
+  }
+
+  const validated = TurnResponseSchema.shape.delta.safeParse(typed);
+  const delta: TurnResponse["delta"] = validated.success ? validated.data : {};
+
+  return { message, delta, complete, requires_review };
+}
+
+/** Call Claude API synchronously (used in non-streaming path). */
+async function callClaude(
+  history: Message[],
+  newTranscript: string,
+  collectedFields: string
+): Promise<TurnResponse> {
   const userTurn: Anthropic.MessageParam[] = newTranscript.trim()
     ? [{ role: "user", content: newTranscript }]
     : [];
@@ -99,16 +147,19 @@ async function callClaude(history: Message[], newTranscript: string): Promise<Tu
     ...userTurn,
   ];
 
-  // Seed the very first call so the API never receives an empty messages array.
   if (messages.length === 0) {
     messages.push({ role: "user", content: "Hello" });
   }
+
+  const systemWithContext = collectedFields
+    ? `${CLAUDE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
+    : CLAUDE_SYSTEM_PROMPT;
 
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     temperature: 0,
-    system: CLAUDE_SYSTEM_PROMPT,
+    system: systemWithContext,
     messages,
   });
 
@@ -117,25 +168,8 @@ async function callClaude(history: Message[], newTranscript: string): Promise<Tu
     throw new ValidationError("Unexpected Claude response type");
   }
 
-  let parsed: unknown;
-  try {
-    const cleaned = content.text
-      .replace(/^```(?:json)?\s*/m, "")
-      .replace(/\s*```\s*$/m, "")
-      .trim();
-    parsed = JSON.parse(cleaned);
-  } catch {
-    throw new ValidationError("Claude response was not valid JSON");
-  }
-
-  const validated = TurnResponseSchema.safeParse(parsed);
-  if (!validated.success) {
-    throw new ValidationError("Claude response failed schema validation", {
-      errors: validated.error.errors.map((e) => e.message),
-    });
-  }
-
-  return validated.data;
+  const parsed = parseProfileDeltaResponse(content.text);
+  return parsed;
 }
 
 /** Call ElevenLabs TTS and return audio as a base64 string. */
@@ -188,18 +222,20 @@ function mergeDelta(
 function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProfile {
   return {
     full_name: partial.full_name ?? null,
+    date_of_birth: partial.date_of_birth ?? null,
     nationality: partial.nationality ?? null,
     current_country: partial.current_country ?? null,
-    occupation: partial.occupation ?? null,
-    years_experience: partial.years_experience ?? null,
-    has_degree: partial.has_degree ?? null,
-    degree_level: partial.degree_level ?? null,
-    degree_field: partial.degree_field ?? null,
-    annual_salary_gbp: partial.annual_salary_gbp ?? null,
-    has_criminal_record: partial.has_criminal_record ?? null,
-    english_level: partial.english_level ?? null,
     marital_status: partial.marital_status ?? null,
-    has_dependents: partial.has_dependents ?? null,
+    spouse_coming_to_canada: partial.spouse_coming_to_canada ?? null,
+    education_level_voice: partial.education_level_voice ?? null,
+    years_experience: partial.years_experience ?? null,
+    has_canadian_experience: partial.has_canadian_experience ?? null,
+    occupation: partial.occupation ?? null,
+    language_proficiency_self: partial.language_proficiency_self ?? null,
+    has_family_in_canada: partial.has_family_in_canada ?? null,
+    intended_province: partial.intended_province ?? null,
+    annual_income: partial.annual_income ?? null,
+    income_currency: partial.income_currency ?? null,
     requires_review: partial.requires_review ?? [],
   };
 }
@@ -230,15 +266,55 @@ export async function createVoiceSession(profileId: string, log: Logger): Promis
   return sessionId;
 }
 
+/** Look up an existing in-progress session for the given profile. */
+export async function findExistingSession(
+  profileId: string,
+  log: Logger
+): Promise<{ sessionId: string; history: Message[]; partialProfile: PartialExtractedProfile } | null> {
+  log.info({ action: "voice.session.resume.check", profileId });
+
+  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const { data } = await db
+    .from("voice_sessions")
+    .select("id, transcript, extracted_data")
+    .eq("profile_id", profileId)
+    .eq("status", "in_progress")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!data) return null;
+
+  const row = data as {
+    id: string;
+    transcript: string | null;
+    extracted_data: unknown;
+  };
+
+  const lines = (row.transcript ?? "").split("\n").filter(Boolean);
+  const history: Message[] = lines.map((line) => {
+    const isUser = line.startsWith("User: ");
+    return {
+      role: (isUser ? "user" : "assistant") as "user" | "assistant",
+      content: isUser ? line.slice(6) : line.startsWith("Agent: ") ? line.slice(7) : line,
+    };
+  });
+
+  log.info({ action: "voice.session.resume.found", sessionId: row.id });
+  return {
+    sessionId: row.id,
+    history,
+    partialProfile: (row.extracted_data ?? {}) as PartialExtractedProfile,
+  };
+}
+
 /**
  * Split text into speakable sentence chunks.
  * Keeps punctuation attached to the preceding sentence.
  */
 function splitIntoSentences(text: string): string[] {
   const raw = text.match(/[^.!?]+[.!?]*/g) ?? [text];
-  return raw
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  return raw.map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
 /** Chunk sent over SSE for each sentence of the agent's response. */
@@ -273,7 +349,7 @@ export interface TurnResult {
   audioBase64: string;
 }
 
-/** Process one conversation turn: call Claude, merge delta, TTS, optionally finalize. */
+/** Process one conversation turn (non-streaming): call Claude, merge delta, TTS, optionally finalize. */
 export async function processConversationTurn(
   sessionId: string,
   profileId: string,
@@ -311,7 +387,12 @@ export async function processConversationTurn(
   const currentPartial = (sessionRow.extracted_data ?? {}) as PartialExtractedProfile;
   const currentTranscript = sessionRow.transcript ?? "";
 
-  const turnResponse = await callClaude(history, transcript);
+  const collectedFields = Object.entries(currentPartial as Record<string, unknown>)
+    .filter(([k, v]) => v !== null && v !== undefined && k !== "requires_review")
+    .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`)
+    .join("\n");
+
+  const turnResponse = await callClaude(history, transcript, collectedFields);
 
   const updatedPartial = mergeDelta(currentPartial, turnResponse.delta, turnResponse.requires_review);
 
@@ -383,19 +464,23 @@ export async function finalizeVoiceSession(
     .update({
       voice_session_data: extractedProfile,
       onboarding_status: "voice_complete",
+      onboarding_step: "voice_complete",
+      onboarding_method: "voice",
       full_name: extractedProfile.full_name,
       nationality: extractedProfile.nationality,
       current_country: extractedProfile.current_country,
       occupation: extractedProfile.occupation,
       years_experience: extractedProfile.years_experience,
-      has_degree: extractedProfile.has_degree,
-      degree_level: extractedProfile.degree_level,
-      degree_field: extractedProfile.degree_field,
-      annual_salary_gbp: extractedProfile.annual_salary_gbp,
-      has_criminal_record: extractedProfile.has_criminal_record,
-      english_level: extractedProfile.english_level,
       marital_status: extractedProfile.marital_status,
-      has_dependents: extractedProfile.has_dependents,
+      date_of_birth: extractedProfile.date_of_birth,
+      income_currency: extractedProfile.income_currency,
+      intended_province: extractedProfile.intended_province,
+      has_canadian_experience: extractedProfile.has_canadian_experience,
+      language_proficiency_self: extractedProfile.language_proficiency_self,
+      has_family_in_canada: extractedProfile.has_family_in_canada,
+      education_level_voice: extractedProfile.education_level_voice,
+      spouse_coming_to_canada: extractedProfile.spouse_coming_to_canada,
+      annual_income: extractedProfile.annual_income,
     })
     .eq("id", profileId);
 
@@ -471,7 +556,6 @@ export async function* streamConversationTurn(
   const currentPartial = (sessionRow.extracted_data ?? {}) as PartialExtractedProfile;
   const currentTranscript = sessionRow.transcript ?? "";
 
-  // Build message list for Claude — cap history at 20 messages to prevent context overflow
   const truncatedHistory = history.slice(-20);
   const userTurn: Anthropic.MessageParam[] = transcript.trim()
     ? [{ role: "user", content: transcript }]
@@ -480,9 +564,7 @@ export async function* streamConversationTurn(
   const messages: Anthropic.MessageParam[] = [
     ...truncatedHistory.map((m) => ({
       role: m.role as "user" | "assistant",
-      content: m.role === "assistant" && !m.content.trimStart().startsWith('{')
-        ? JSON.stringify({ message: m.content, delta: {}, complete: false, requires_review: [] })
-        : m.content,
+      content: m.content,
     })),
     ...userTurn,
   ];
@@ -491,17 +573,15 @@ export async function* streamConversationTurn(
     messages.push({ role: "user", content: "Hello" });
   }
 
-  // Build collected-fields context to prevent re-asking after history truncation
   const collectedFields = Object.entries(currentPartial as Record<string, unknown>)
-    .filter(([k, v]) => v !== null && v !== undefined && k !== 'requires_review')
+    .filter(([k, v]) => v !== null && v !== undefined && k !== "requires_review")
     .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`)
-    .join('\n');
+    .join("\n");
 
-  const systemWithContext = collectedFields.length > 0
+  const systemWithContext = collectedFields
     ? `${CLAUDE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
     : CLAUDE_SYSTEM_PROMPT;
 
-  // Stream Claude tokens and accumulate full text
   let fullText = "";
   const stream = anthropic.messages.stream({
     model: "claude-haiku-4-5-20251001",
@@ -520,93 +600,38 @@ export async function* streamConversationTurn(
     }
   }
 
-  // Parse and validate the complete Claude response
-  const cleaned = fullText
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```\s*$/m, "")
-    .trim();
-
-  let parsedJson: unknown = undefined;
-  let parseError = false;
-  try {
-    parsedJson = JSON.parse(cleaned);
-  } catch {
-    parseError = true;
-  }
-
-  let turnResponse: TurnResponse;
-  if (parseError) {
-    if (cleaned.length === 0) {
-      log.error({ action: "voice.turn.parse.error", sessionId, raw: cleaned.slice(0, 500) });
-      yield { type: "error" as const, message: "Empty response from AI" };
-      log.info({ action: "voice.turn.stream.complete", sessionId, complete: false, sentences: 0 });
-      return;
-    }
-    // Attempt to recover embedded JSON from a prose-wrapped response
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        const recovered = JSON.parse(jsonMatch[0]);
-        turnResponse = TurnResponseSchema.parse(recovered);
-        log.warn({ action: "voice.turn.json.embedded.recovered", sessionId, snippet: cleaned.slice(0, 100) });
-      } catch {
-        turnResponse = { message: cleaned.trim(), delta: {} as TurnResponse["delta"], complete: false, requires_review: [] };
-        log.warn({ action: "voice.turn.plaintext.fallback", sessionId, raw: cleaned.slice(0, 200) });
-      }
-    } else {
-      turnResponse = { message: cleaned.trim(), delta: {} as TurnResponse["delta"], complete: false, requires_review: [] };
-      log.warn({ action: "voice.turn.plaintext.fallback", sessionId, raw: cleaned.slice(0, 200) });
-    }
-  } else {
-    // Coerce numeric fields that Claude may return as strings
-    if (typeof parsedJson === 'object' && parsedJson !== null) {
-      const p = parsedJson as Record<string, unknown>;
-      if (p.delta && typeof p.delta === 'object' && p.delta !== null) {
-        const d = p.delta as Record<string, unknown>;
-        if (d.years_experience !== undefined && d.years_experience !== null) {
-          const coerced = parseInt(String(d.years_experience), 10);
-          d.years_experience = isNaN(coerced) ? null : coerced;
-        }
-        if (d.annual_salary_gbp !== undefined && d.annual_salary_gbp !== null) {
-          const coerced = parseInt(String(d.annual_salary_gbp), 10);
-          d.annual_salary_gbp = isNaN(coerced) ? null : coerced;
-        }
-      }
-    }
-    const validated = TurnResponseSchema.safeParse(parsedJson);
-    if (!validated.success) {
-      log.error({ action: "voice.turn.validation.error", sessionId, errors: validated.error.errors.map((e) => e.message) });
-      yield { type: "error" as const, message: "Response validation failed" };
-      log.info({ action: "voice.turn.stream.complete", sessionId, complete: false, sentences: 0 });
-      return;
-    }
-    turnResponse = validated.data;
-  }
-
-  if (!turnResponse.message || turnResponse.message.trim().length === 0) {
-    log.warn({ action: "voice.turn.empty.message", sessionId });
-    yield { type: "error" as const, message: "Empty response" };
-    log.info({ action: "voice.turn.stream.complete", sessionId, complete: false, sentences: 0 });
+  if (!fullText.trim()) {
+    log.error({ action: "voice.turn.empty.response", sessionId });
+    yield { type: "error" as const, message: "Empty response from AI" };
     return;
   }
 
-  // Fire all TTS requests in parallel, yield results in sentence order
-  const sentences = splitIntoSentences(turnResponse.message);
+  const { message, delta, complete, requires_review } = parseProfileDeltaResponse(fullText);
 
+  if (!message) {
+    log.warn({ action: "voice.turn.empty.message", sessionId });
+    yield { type: "error" as const, message: "Empty message from AI" };
+    return;
+  }
+
+  const sentences = splitIntoSentences(message);
   if (sentences.length === 0) {
-    log.warn({ action: "voice.turn.no.sentences", sessionId });
-    yield { type: "error" as const, message: "No sentences" };
-    log.info({ action: "voice.turn.stream.complete", sessionId, complete: false, sentences: 0 });
+    yield { type: "error" as const, message: "No speakable sentences" };
     return;
   }
 
   const ttsResults = await Promise.all(
-    sentences.map(async (sentence, index): Promise<{ index: number; audioBase64: string | null; sentence: string; error: string | null }> => {
+    sentences.map(async (sentence, index) => {
       try {
         const audioBase64 = await textToSpeech(sentence);
         return { index, audioBase64, sentence, error: null };
       } catch (err) {
-        return { index, audioBase64: null, sentence, error: err instanceof Error ? err.message : String(err) };
+        return {
+          index,
+          audioBase64: null,
+          sentence,
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
     })
   );
@@ -615,7 +640,6 @@ export async function* streamConversationTurn(
     if (result.error !== null) {
       log.error({ action: "voice.turn.tts.error", sessionId, index: result.index, error: result.error });
       yield { type: "error" as const, message: "Audio generation failed" };
-      log.info({ action: "voice.turn.stream.complete", sessionId, complete: false, sentences: 0 });
       return;
     }
     yield {
@@ -626,18 +650,13 @@ export async function* streamConversationTurn(
     };
   }
 
-  // Persist updated session state
-  const updatedPartial = mergeDelta(
-    currentPartial,
-    turnResponse.delta,
-    turnResponse.requires_review
-  );
+  const updatedPartial = mergeDelta(currentPartial, delta, requires_review);
 
   const updatedTranscript =
     currentTranscript +
     (currentTranscript ? "\n" : "") +
     (transcript.trim() ? `User: ${transcript}\n` : "") +
-    `Agent: ${turnResponse.message}`;
+    `Agent: ${message}`;
 
   const { error: updateError } = await db
     .from("voice_sessions")
@@ -648,7 +667,7 @@ export async function* streamConversationTurn(
     throw new DatabaseError("Failed to update voice session", { sessionId }, updateError);
   }
 
-  if (turnResponse.complete) {
+  if (complete) {
     const durationSeconds = Math.round((Date.now() - sessionStartMs) / 1000);
     await finalizeVoiceSession(
       sessionId,
@@ -662,16 +681,16 @@ export async function* streamConversationTurn(
 
   yield {
     type: "meta" as const,
-    message: turnResponse.message,
-    complete: turnResponse.complete,
-    delta: turnResponse.delta,
-    requires_review: turnResponse.requires_review,
+    message,
+    complete,
+    delta,
+    requires_review,
   };
 
   log.info({
     action: "voice.turn.stream.complete",
     sessionId,
-    complete: turnResponse.complete,
+    complete,
     sentences: sentences.length,
   });
 }
@@ -681,7 +700,7 @@ export function validateExtractedProfile(data: unknown): VoiceExtractedProfile {
   const result = VoiceExtractedProfileSchema.safeParse(data);
   if (!result.success) {
     throw new ValidationError("Invalid extracted profile", {
-      errors: result.error.errors.map((e) => e.message),
+      errors: result.error.errors.map((err: { message: string }) => err.message),
     });
   }
   return result.data;

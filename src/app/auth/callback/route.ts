@@ -4,6 +4,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createRequestLogger } from "@/lib/logger";
 import type { Profile } from "@/modules/auth/types";
 
+/** Map a Supabase Auth error to a query param for the login page. */
+function mapAuthError(msg: string): string {
+  const lower = msg.toLowerCase();
+  if (lower.includes("expired") || lower.includes("otp expired")) return "expired";
+  if (lower.includes("invalid") || lower.includes("not found")) return "invalid";
+  return "generic";
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -11,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     reqLogger.warn({ action: "auth.callback_no_code" });
-    return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
+    return NextResponse.redirect(new URL("/auth/login?error=invalid", request.url));
   }
 
   try {
@@ -23,32 +31,32 @@ export async function GET(request: NextRequest) {
         action: "auth.callback_exchange_failed",
         error: exchangeError.message,
       });
-      return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
+      const errorCode = mapAuthError(exchangeError.message);
+      return NextResponse.redirect(new URL(`/auth/login?error=${errorCode}`, request.url));
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
+      return NextResponse.redirect(new URL("/auth/login?error=generic", request.url));
     }
 
-    // Database types pending regeneration — cast until `supabase gen types --local` is run
     const db = supabase as unknown as SupabaseClient;
     const { data } = await db
       .from("profiles")
-      .select("onboarding_status")
+      .select("onboarding_step")
       .eq("auth_user_id", user.id)
       .single();
 
-    const profile = data as Pick<Profile, "onboarding_status"> | null;
-    const status = profile?.onboarding_status ?? "not_started";
+    const profile = data as Pick<Profile, "onboarding_step"> | null;
+    const step = profile?.onboarding_step ?? null;
 
     const redirectPath =
-      status === "complete"
+      step === "complete"
         ? "/dashboard"
-        : status === "voice_complete"
+        : step === "voice_complete"
           ? "/onboarding/review"
-          : "/onboarding";
+          : "/onboarding/voice";
 
     reqLogger.info({
       action: "auth.callback_success",
@@ -59,6 +67,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectPath, request.url));
   } catch (error) {
     reqLogger.error({ action: "auth.callback_error", error: String(error) });
-    return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
+    return NextResponse.redirect(new URL("/auth/login?error=generic", request.url));
   }
 }

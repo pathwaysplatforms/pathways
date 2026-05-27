@@ -40,7 +40,22 @@
       "Bash(Select-Object Name)",
       "Bash(Get-ChildItem C:\\\\Users\\\\achto\\\\dev\\\\pathways-final -Filter \"*.env*\" -Force)",
       "Bash(python -c \"import ast, sys; ast.parse\\(open\\('scrapers/base.py'\\).read\\(\\)\\); print\\('base.py OK'\\)\")",
-      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('scrapers/pathway_scraper.py'\\).read\\(\\)\\); print\\('pathway_scraper.py OK'\\)\")"
+      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('scrapers/pathway_scraper.py'\\).read\\(\\)\\); print\\('pathway_scraper.py OK'\\)\")",
+      "Bash(grep -v \"//.*any\")",
+      "Bash(npm audit *)",
+      "Bash(grep -v \"//.*getSession\")",
+      "Bash(grep -v \"//.*Image\\\\|import.*Image\")",
+      "Bash(grep -v \"//.*fetch\\\\|test\\\\.\")",
+      "Bash(grep -rn \"server.js\" src/ . --include=\"*.js\" --include=\"*.ts\" --maxdepth 1)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\" -Directory -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(head *)",
+      "PowerShell(tree *)",
+      "Bash(Find C:\\\\Users\\\\achto\\\\dev\\\\pathways-final *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\supabase\\\\migrations\" -File)",
+      "Bash(Remove-Item *)",
+      "PowerShell(Remove-Item *)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

@@ -88,35 +88,34 @@ function mockLog() {
 const profileId = "profile-uuid-123";
 const sessionId = "session-uuid-456";
 
+/** A complete valid extracted profile using the new Canadian-focused fields. */
 const validExtracted: VoiceExtractedProfile = {
-  full_name: "Jane Doe",
-  nationality: "French",
+  full_name: "Priya Sharma",
+  date_of_birth: "1990-05-15",
+  nationality: "Indian",
   current_country: "United Kingdom",
+  marital_status: "married",
+  spouse_coming_to_canada: true,
+  education_level_voice: "Master's in Computer Science",
+  years_experience: 7,
+  has_canadian_experience: false,
   occupation: "Software Engineer",
-  years_experience: 5,
-  has_degree: true,
-  degree_level: "master",
-  degree_field: "Computer Science",
-  annual_salary_gbp: 70000,
-  has_criminal_record: false,
-  english_level: "fluent",
-  marital_status: "single",
-  has_dependents: false,
+  language_proficiency_self: "fluent",
+  has_family_in_canada: false,
+  intended_province: "Ontario",
+  annual_income: 85000,
+  income_currency: "GBP",
   requires_review: [],
 };
 
-function anthropicResponse(json: object) {
-  return { content: [{ type: "text", text: JSON.stringify(json) }] };
-}
-
-function validTurnJson(overrides: object = {}) {
-  return {
-    message: "What is your nationality?",
-    delta: { nationality: "French" },
-    complete: false,
-    requires_review: [],
-    ...overrides,
-  };
+/**
+ * Build a mock Anthropic response using the new PROFILE_DELTA tag format.
+ * Claude now returns prose + a <PROFILE_DELTA>...</PROFILE_DELTA> block.
+ */
+function claudeProfileDeltaResponse(message: string, delta: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  const deltaJson = JSON.stringify({ ...delta, ...extra });
+  const text = `${message}\n<PROFILE_DELTA>${deltaJson}</PROFILE_DELTA>`;
+  return { content: [{ type: "text", text }] };
 }
 
 beforeEach(() => {
@@ -157,31 +156,21 @@ describe("createVoiceSession", () => {
   });
 });
 
-describe("processConversationTurn — delta merging", () => {
-  it("merges delta correctly across multiple fields", async () => {
-    const existingData = { full_name: "Jane", requires_review: [] };
+describe("processConversationTurn — delta merging with PROFILE_DELTA format", () => {
+  it("merges newly extracted fields into the existing partial profile", async () => {
+    const existingData = { full_name: "Priya", requires_review: [] };
     const chain = makeQueryChain({
-      data: {
-        id: sessionId,
-        profile_id: profileId,
-        extracted_data: existingData,
-        transcript: "",
-      },
+      data: { id: sessionId, profile_id: profileId, extracted_data: existingData, transcript: "" },
       error: null,
     });
     mockServer(makeClient(chain));
 
     mockAnthropicCreate.mockResolvedValue(
-      anthropicResponse(validTurnJson({ delta: { nationality: "French" } }))
+      claudeProfileDeltaResponse("What is your nationality?", { nationality: "Indian" })
     );
 
     const result = await processConversationTurn(
-      sessionId,
-      profileId,
-      "My name is Jane",
-      [],
-      Date.now() - 5000,
-      mockLog()
+      sessionId, profileId, "My name is Priya", [], Date.now() - 5000, mockLog()
     );
 
     expect(result.message).toBe("What is your nationality?");
@@ -191,36 +180,28 @@ describe("processConversationTurn — delta merging", () => {
     const updateCall = chain.update.mock.calls[0][0] as {
       extracted_data: { full_name: string; nationality: string };
     };
-    expect(updateCall.extracted_data.full_name).toBe("Jane");
-    expect(updateCall.extracted_data.nationality).toBe("French");
+    expect(updateCall.extracted_data.full_name).toBe("Priya");
+    expect(updateCall.extracted_data.nationality).toBe("Indian");
   });
 
   it("accumulates requires_review fields across turns", async () => {
-    const existingData = { full_name: "Jane", requires_review: ["nationality"] };
+    const existingData = { full_name: "Priya", requires_review: ["nationality"] };
     const chain = makeQueryChain({
-      data: {
-        id: sessionId,
-        profile_id: profileId,
-        extracted_data: existingData,
-        transcript: "",
-      },
+      data: { id: sessionId, profile_id: profileId, extracted_data: existingData, transcript: "" },
       error: null,
     });
     mockServer(makeClient(chain));
 
     mockAnthropicCreate.mockResolvedValue(
-      anthropicResponse(
-        validTurnJson({ delta: { current_country: "UK" }, requires_review: ["current_country"] })
+      claudeProfileDeltaResponse(
+        "I see. Where are you currently living?",
+        { current_country: "UK" },
+        { requires_review: ["current_country"] }
       )
     );
 
     await processConversationTurn(
-      sessionId,
-      profileId,
-      "I live in the UK",
-      [],
-      Date.now(),
-      mockLog()
+      sessionId, profileId, "I live in the UK", [], Date.now(), mockLog()
     );
 
     const updateCall = chain.update.mock.calls[0][0] as {
@@ -229,10 +210,8 @@ describe("processConversationTurn — delta merging", () => {
     expect(updateCall.extracted_data.requires_review).toContain("nationality");
     expect(updateCall.extracted_data.requires_review).toContain("current_country");
   });
-});
 
-describe("processConversationTurn — Zod validation", () => {
-  it("throws ValidationError when Claude returns malformed JSON", async () => {
+  it("treats a plain prose response (no PROFILE_DELTA) as message with empty delta", async () => {
     const chain = makeQueryChain({
       data: { id: sessionId, profile_id: profileId, extracted_data: {}, transcript: "" },
       error: null,
@@ -240,28 +219,19 @@ describe("processConversationTurn — Zod validation", () => {
     mockServer(makeClient(chain));
 
     mockAnthropicCreate.mockResolvedValue({
-      content: [{ type: "text", text: "not json at all" }],
+      content: [{ type: "text", text: "Could you please repeat that?" }],
     });
 
-    await expect(
-      processConversationTurn(sessionId, profileId, "hello", [], Date.now(), mockLog())
-    ).rejects.toThrow(ValidationError);
+    const result = await processConversationTurn(
+      sessionId, profileId, "huh", [], Date.now(), mockLog()
+    );
+
+    expect(result.message).toBe("Could you please repeat that?");
+    expect(result.complete).toBe(false);
   });
+});
 
-  it("throws ValidationError when Claude response fails the schema", async () => {
-    const chain = makeQueryChain({
-      data: { id: sessionId, profile_id: profileId, extracted_data: {}, transcript: "" },
-      error: null,
-    });
-    mockServer(makeClient(chain));
-
-    mockAnthropicCreate.mockResolvedValue(anthropicResponse({ wrong_field: true }));
-
-    await expect(
-      processConversationTurn(sessionId, profileId, "hello", [], Date.now(), mockLog())
-    ).rejects.toThrow(ValidationError);
-  });
-
+describe("processConversationTurn — error handling", () => {
   it("throws DatabaseError when session is not found", async () => {
     const chain = makeQueryChain({ data: null, error: { message: "no rows" } });
     mockServer(makeClient(chain));
@@ -270,17 +240,50 @@ describe("processConversationTurn — Zod validation", () => {
       processConversationTurn(sessionId, profileId, "hello", [], Date.now(), mockLog())
     ).rejects.toThrow(DatabaseError);
   });
+
+  it("throws ValidationError when Anthropic returns an unexpected response type", async () => {
+    const chain = makeQueryChain({
+      data: { id: sessionId, profile_id: profileId, extracted_data: {}, transcript: "" },
+      error: null,
+    });
+    mockServer(makeClient(chain));
+
+    mockAnthropicCreate.mockResolvedValue({ content: [{ type: "image" }] });
+
+    await expect(
+      processConversationTurn(sessionId, profileId, "hello", [], Date.now(), mockLog())
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("throws DatabaseError when session update fails", async () => {
+    const getChain = makeQueryChain({
+      data: { id: sessionId, profile_id: profileId, extracted_data: {}, transcript: "" },
+      error: null,
+    });
+    mockServer(makeClient(getChain));
+    const errorChain = {
+      ...getChain,
+      then: (r: ((v: unknown) => unknown) | null | undefined) =>
+        Promise.resolve({ error: { message: "update failed" } }).then(r),
+    };
+    // eq() must also return the error chain so the await resolves to the error
+    errorChain.eq = vi.fn().mockReturnValue(errorChain);
+    getChain.update.mockReturnValue(errorChain);
+
+    mockAnthropicCreate.mockResolvedValue(
+      claudeProfileDeltaResponse("Got it!", { occupation: "Engineer" })
+    );
+
+    await expect(
+      processConversationTurn(sessionId, profileId, "I am an engineer", [], Date.now(), mockLog())
+    ).rejects.toThrow(DatabaseError);
+  });
 });
 
 describe("processConversationTurn — complete: true triggers finalization", () => {
-  it("calls admin profiles update when complete is true", async () => {
+  it("calls admin profiles update with voice_complete status when complete is true", async () => {
     const serverChain = makeQueryChain({
-      data: {
-        id: sessionId,
-        profile_id: profileId,
-        extracted_data: validExtracted,
-        transcript: "",
-      },
+      data: { id: sessionId, profile_id: profileId, extracted_data: validExtracted, transcript: "" },
       error: null,
     });
     const adminChain = makeQueryChain({ error: null });
@@ -288,21 +291,11 @@ describe("processConversationTurn — complete: true triggers finalization", () 
     mockAdmin(makeClient(adminChain));
 
     mockAnthropicCreate.mockResolvedValue(
-      anthropicResponse({
-        message: "All done.",
-        delta: {},
-        complete: true,
-        requires_review: [],
-      })
+      claudeProfileDeltaResponse("All done!", {}, { complete: true })
     );
 
     const result = await processConversationTurn(
-      sessionId,
-      profileId,
-      "Yes, that is correct.",
-      [],
-      Date.now() - 60000,
-      mockLog()
+      sessionId, profileId, "Yes, that is correct.", [], Date.now() - 60000, mockLog()
     );
 
     expect(result.complete).toBe(true);
@@ -355,13 +348,13 @@ describe("validateExtractedProfile", () => {
     expect(validateExtractedProfile(validExtracted)).toEqual(validExtracted);
   });
 
-  it("throws ValidationError when required fields are missing", () => {
+  it("throws ValidationError when required fields are missing (empty object)", () => {
     expect(() => validateExtractedProfile({ full_name: "Jane" })).toThrow(ValidationError);
   });
 
-  it("throws ValidationError when degree_level has an invalid enum value", () => {
+  it("throws ValidationError when language_proficiency_self has an invalid enum value", () => {
     expect(() =>
-      validateExtractedProfile({ ...validExtracted, degree_level: "associate" })
+      validateExtractedProfile({ ...validExtracted, language_proficiency_self: "beginner" })
     ).toThrow(ValidationError);
   });
 });

@@ -12,17 +12,24 @@ export type Profile = {
   current_country: string | null;
   occupation: string | null;
   years_experience: number | null;
-  has_degree: boolean | null;
-  degree_level: string | null;
-  degree_field: string | null;
-  annual_salary_gbp: number | null;
-  has_criminal_record: boolean | null;
-  english_level: string | null;
   marital_status: string | null;
-  has_dependents: boolean | null;
   voice_session_data: Record<string, unknown> | null;
   onboarding_status: "not_started" | "voice_complete" | "complete";
   is_admin: boolean;
   created_at: string;
   updated_at: string;
+
+  // Added by 20260527000001_preflow_redesign migration
+  date_of_birth: string | null;
+  annual_income: number | null;
+  income_currency: string | null;
+  intended_province: string | null;
+  has_canadian_experience: boolean | null;
+  language_proficiency_self: "native" | "fluent" | "advanced" | "intermediate" | "basic" | null;
+  has_family_in_canada: boolean | null;
+  education_level_voice: string | null;
+  spouse_coming_to_canada: boolean | null;
+  pathway_input_json: Record<string, unknown> | null;
+  onboarding_step: "not_started" | "voice_in_progress" | "voice_complete" | "review" | "complete" | null;
+  onboarding_method: "voice" | "chat" | "form" | null;
 };
