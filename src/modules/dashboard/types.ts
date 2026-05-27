@@ -90,6 +90,6 @@ export const STEP_FIELDS: Record<string, (keyof Tables<'profiles'>)[]> = {
   education: ['education_level', 'has_degree', 'degree_level', 'degree_field'],
   work:      ['years_experience', 'occupation', 'noc_teer_category'],
   language:  ['english_level', 'clb_listening', 'clb_reading', 'clb_speaking', 'clb_writing'],
-  finances:  ['annual_salary_gbp'],
+  finances:  ['annual_income'],
   family:    ['marital_status', 'has_dependents'],
 };
