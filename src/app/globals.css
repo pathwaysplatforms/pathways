@@ -7,7 +7,7 @@
 /* ─── CSS Custom Properties ─────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --color-bg-base:      #F8F9FA;
+  --color-bg-base:      #EDEEF2;
   --color-bg-surface:   #FFFFFF;
   --color-bg-subtle:    #F1F3F4;
   --color-bg-muted:     #E8EAED;
@@ -23,17 +23,17 @@
   --color-text-tertiary:  #9CA3AF;
   --color-text-disabled:  #D1D5DB;
 
-  /* Accent — dark aquamarine green */
-  --color-accent-50:   #ECFDF8;
-  --color-accent-100:  #D0FAF0;
-  --color-accent-200:  #A3F4E2;
-  --color-accent-300:  #6EEACD;
-  --color-accent-400:  #2DD4B0;
-  --color-accent-500:  #0FA896;
-  --color-accent-600:  #0D8F80;
-  --color-accent-700:  #0B7269;
-  --color-accent-800:  #0A5A54;
-  --color-accent-900:  #083D3A;
+  /* Accent — teal */
+  --color-accent-50:   #ebfafb;
+  --color-accent-100:  #cdf3f5;
+  --color-accent-200:  #9de8ec;
+  --color-accent-300:  #5cd4db;
+  --color-accent-400:  #1ab8c4;
+  --color-accent-500:  #14909c;
+  --color-accent-600:  #107581;
+  --color-accent-700:  #0d5d68;
+  --color-accent-800:  #0a4750;
+  --color-accent-900:  #072f38;
 
   /* Layout */
   --sidebar-width-collapsed: 64px;
@@ -54,7 +54,7 @@
   --shadow-card-md: 0 4px 12px 0 rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
   --shadow-card-lg: 0 8px 24px 0 rgba(0,0,0,0.09), 0 4px 8px -2px rgba(0,0,0,0.05);
   --shadow-sidebar: 2px 0 12px 0 rgba(0,0,0,0.05);
-  --shadow-accent:  0 4px 20px 0 rgba(15,168,150,0.30), 0 1px 4px 0 rgba(15,168,150,0.20);
+  --shadow-accent:  0 4px 20px 0 rgba(20,144,156,0.30), 0 1px 4px 0 rgba(20,144,156,0.20);
 
   /* Sheen gradient for accent surfaces */
   --sheen-gradient: linear-gradient(
@@ -86,8 +86,7 @@ html, body {
   .card {
     background: var(--color-bg-surface);
     border-radius: var(--radius-card);
-    border: 1px solid var(--color-border-light);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-card-md);
     padding: 20px;
     transition: box-shadow 200ms ease, transform 200ms ease;
   }
@@ -225,8 +224,8 @@ html, body {
   .badge-info     { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
   .badge-info::before     { background: #3B82F6; }
 
-  .badge-progress { background: #ECFDF8; color: #0B7269; border: 1px solid #A3F4E2; }
-  .badge-progress::before { background: #0FA896; }
+  .badge-progress { background: #ebfafb; color: #0d5d68; border: 1px solid #9de8ec; }
+  .badge-progress::before { background: #14909c; }
 
   .badge-success  { background: #F0FDF4; color: #14532D; border: 1px solid #BBF7D0; }
   .badge-success::before  { background: #22C55E; }

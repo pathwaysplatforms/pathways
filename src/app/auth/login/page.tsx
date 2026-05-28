@@ -8,13 +8,13 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
   const hasError = searchParams.error === "auth";
 
   return (
-    <main className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center px-4">
+    <main className="min-h-screen bg-bg-base flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <h1 className="text-[28px] font-medium text-neutral-900">Pathways</h1>
+          <h1 className="text-[28px] font-medium text-text-primary">Pathways</h1>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-xl p-8 space-y-6">
+        <div className="bg-bg-surface border border-border-light rounded-panel p-8 space-y-6">
           <LoginForm hasError={hasError} />
         </div>
       </div>

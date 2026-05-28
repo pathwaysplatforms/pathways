@@ -9,7 +9,7 @@
 export const colors = {
     // Backgrounds
     bg: {
-      base:    "#F8F9FA",
+      base:    "#EDEEF2",
       surface: "#FFFFFF",
       subtle:  "#F1F3F4",
       muted:   "#E8EAED",
@@ -30,18 +30,18 @@ export const colors = {
       disabled:  "#D1D5DB",
     },
   
-    // Accent — dark aquamarine green
+    // Accent — teal
     accent: {
-      50:  "#ECFDF8",
-      100: "#D0FAF0",
-      200: "#A3F4E2",
-      300: "#6EEACD",
-      400: "#2DD4B0",
-      500: "#0FA896",   // primary accent
-      600: "#0D8F80",
-      700: "#0B7269",
-      800: "#0A5A54",
-      900: "#083D3A",
+      50:  "#ebfafb",
+      100: "#cdf3f5",
+      200: "#9de8ec",
+      300: "#5cd4db",
+      400: "#1ab8c4",
+      500: "#14909c",   // primary accent
+      600: "#107581",
+      700: "#0d5d68",
+      800: "#0a4750",
+      900: "#072f38",
     },
   
     // Dashboard state colors
@@ -62,10 +62,10 @@ export const colors = {
       },
       // State 3: Application in progress
       inProgress: {
-        bg:     "#ECFDF8",
-        text:   "#0B7269",
-        border: "#A3F4E2",
-        dot:    "#0FA896",
+        bg:     "#ebfafb",
+        text:   "#0d5d68",
+        border: "#9de8ec",
+        dot:    "#14909c",
       },
       // State 4: Application submitted
       submitted: {

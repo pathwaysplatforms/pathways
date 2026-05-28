@@ -1,11 +1,4 @@
-import { TopNav } from "@/components/layout/TopNav";
-
-/** Layout wrapper for all /dashboard routes — adds the sticky top nav. */
+/** Layout wrapper for all /dashboard routes. Shell is rendered by the page component. */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <TopNav />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 }
