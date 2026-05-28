@@ -11,7 +11,10 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90        # Deep crawls take longer than single-page fetches
+    permissions:
+      issues: write
+      contents: read
 
     steps:
       - name: Checkout develop
@@ -26,31 +29,19 @@ jobs:
           cache: 'pip'
           cache-dependency-path: scrapers/requirements.txt
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: pip install -r scrapers/requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
 
       - name: Run pathway scraper
         working-directory: scrapers
         env:
-          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python -m scrapers.pathway_scraper
-
-      - name: Vacuum Analyze chunks table
-        working-directory: scrapers
-        env:
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-        run: |
-          python - <<'EOF'
-          import os
-          from supabase import create_client
-          client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SECRET_KEY"])
-          client.rpc("vacuum_chunks").execute()
-          print("VACUUM ANALYZE complete")
-          EOF
 
       - name: Open issue on failure
         if: failure()
