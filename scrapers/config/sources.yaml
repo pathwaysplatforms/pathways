@@ -1,63 +1,622 @@
+# Pathways — Immigration Sources Configuration
+# Canada-only scope. Deep crawl enabled for major sections.
+# crawl_depth: 0 = single page
+# crawl_depth: 1 = page + direct links
+# crawl_depth: 2 = page + links + their links (most comprehensive)
+# use_browser: false = plain HTTP fetch (SSR sites); true = Playwright/Crawl4AI (JS-heavy sites)
+
 pathways:
   canada:
+
+    # Express Entry — flagship pathway, needs maximum depth
     express_entry:
       urls:
         - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry.html
-        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility.html
-        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents.html
-      crawl_depth: 1
+      crawl_depth: 2
+      use_browser: false
       visa_type: express_entry
       country: canada
-    family_sponsorship:
+
+    # Express Entry eligibility detail pages
+    express_entry_fsw:
       urls:
-        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship.html
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/federal-skilled-workers.html
       crawl_depth: 1
-      visa_type: family_sponsorship
+      use_browser: false
+      visa_type: express_entry_fsw
       country: canada
+
+    express_entry_cec:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/canadian-experience-class.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: express_entry_cec
+      country: canada
+
+    express_entry_fst:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/skilled-trades.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: express_entry_fst
+      country: canada
+
+    # CRS — critical for score calculators
+    express_entry_crs:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/criteria-comprehensive-ranking-system/grid.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: express_entry_crs
+      country: canada
+
+    # Documents and application
+    express_entry_documents:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    # Provincial Nominee Programs
+    pnp_overview:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/provincial-nominees.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: pnp
+      country: canada
+
     pnp_ontario:
       urls:
         - https://www.ontario.ca/page/ontario-immigrant-nominee-program-oinp
       crawl_depth: 1
+      use_browser: false
       visa_type: pnp_ontario
       country: canada
 
-  usa:
-    h1b:
+    pnp_bc:
       urls:
-        - https://www.uscis.gov/working-in-the-united-states/h-1b-specialty-occupations
+        - https://www.welcomebc.ca/immigrate-to-b-c/bc-provincial-nominee-program
       crawl_depth: 0
-      visa_type: h1b
-      country: usa
-    green_card_eb:
-      urls:
-        - https://www.uscis.gov/green-card/green-card-eligibility/green-card-for-employment-based-immigrants
-      crawl_depth: 1
-      visa_type: green_card_eb
-      country: usa
+      use_browser: true
+      visa_type: pnp_bc
+      country: canada
 
-  uk:
-    skilled_worker:
+    pnp_alberta:
       urls:
-        - https://www.gov.uk/skilled-worker-visa
+        - https://www.alberta.ca/alberta-immigrant-nominee-program
       crawl_depth: 0
-      visa_type: skilled_worker
-      country: uk
-    global_talent:
+      use_browser: true
+      visa_type: pnp_alberta
+      country: canada
+
+    # Family sponsorship
+    family_sponsorship:
       urls:
-        - https://www.gov.uk/global-talent
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship.html
+      crawl_depth: 2
+      use_browser: false
+      visa_type: family_sponsorship
+      country: canada
+
+    # Work permits
+    work_permits:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/permit.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: work_permit
+      country: canada
+
+    lmia:
+      urls:
+        - https://www.canada.ca/en/employment-social-development/services/foreign-workers.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: lmia
+      country: canada
+
+    # Study permits
+    study_permits:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: study_permit
+      country: canada
+
+    # Citizenship
+    citizenship:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship.html
+      crawl_depth: 2
+      use_browser: false
+      visa_type: citizenship
+      country: canada
+
+    # Permanent residence pathways
+    permanent_residence:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: permanent_residence
+      country: canada
+
+    # Processing times — critical user question
+    processing_times:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/application/check-processing-times.html
       crawl_depth: 0
-      visa_type: global_talent
-      country: uk
+      use_browser: false
+      visa_type: processing_times
+      country: canada
+
+    # Settlement and integration
+    settlement:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/new-immigrants.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: settlement
+      country: canada
+
+    # Atlantic Immigration Program — employer-driven PR pathway for Atlantic provinces
+    atlantic_immigration:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/atlantic-immigration.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: atlantic_immigration
+      country: canada
+
+    # Rural and Northern Immigration Pilot — community-driven PR for smaller communities
+    # Note: RNIP was discontinued after March 2024; page retained for historical reference.
+    rural_northern_immigration:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/rural-northern-immigration-pilot.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: rural_northern_immigration
+      country: canada
+
+    # Start-up Visa — PR pathway for innovative entrepreneurs backed by designated orgs
+    startup_visa:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/start-visa.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: startup_visa
+      country: canada
+
+    # Caregiver pathways — Home Child Care Provider and Home Support Worker pilots
+    caregiver:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/caregivers.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: caregiver
+      country: canada
+
+    # Refugee and humanitarian protection — overview only (crawl_depth 0)
+    refugees_humanitarian:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/refugees.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: refugees_humanitarian
+      country: canada
+
+    # Express Entry — missing detail pages
+    express_entry_how_to_apply:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/apply-permanent-residence.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    express_entry_crs_score:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/criteria-comprehensive-ranking-system.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    express_entry_proof_of_funds:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents/proof-funds.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    express_entry_language_testing:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents/language-requirements.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    express_entry_job_offer:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents/job-offer.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    express_entry_create_profile:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    express_entry_after_apply:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/after-apply.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: express_entry
+      country: canada
+
+    # Work permits — detail pages
+    work_permit_open:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/permit/temporary/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: work_permit
+      country: canada
+
+    work_permit_employer_specific:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/permit/temporary/apply.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: work_permit
+      country: canada
+
+    pgwp:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/after-graduation.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pgwp
+      country: canada
+
+    pgwp_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/after-graduation/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pgwp
+      country: canada
+
+    bowp:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/pr-work-permits/bridging.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: bowp
+      country: canada
+
+    intracompany_transfer:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/special-instructions/business-people.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: work_permit
+      country: canada
+
+    lmia_exemptions:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/hire-temporary-foreign/international-mobility-program.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: work_permit
+      country: canada
+
+    # Study permits — detail pages
+    study_permit_apply:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/apply.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: study_permit
+      country: canada
+
+    study_permit_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/get-documents.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: study_permit
+      country: canada
+
+    study_permit_extend:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/extend-study-permit.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: study_permit
+      country: canada
+
+    study_permit_work_while_studying:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/work/work-on-campus.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: study_permit
+      country: canada
+
+    # Family sponsorship — detail pages
+    family_sponsorship_spouse:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship/spouse-partner-children.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: family_sponsorship
+      country: canada
+
+    family_sponsorship_parents:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship/sponsor-parents-grandparents.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: family_sponsorship
+      country: canada
+
+    family_sponsorship_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship/spouse-partner-children/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: family_sponsorship
+      country: canada
+
+    family_sponsorship_income:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/family-sponsorship/sponsor-parents-grandparents/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: family_sponsorship
+      country: canada
+
+    # Citizenship — detail pages
+    citizenship_apply:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship/become-canadian-citizen/apply.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: citizenship
+      country: canada
+
+    citizenship_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship/become-canadian-citizen/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: citizenship
+      country: canada
+
+    citizenship_test:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship/become-canadian-citizen/citizenship-test.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: citizenship
+      country: canada
+
+    # Ontario OINP streams
+    oinp_human_capital:
+      urls:
+        - https://www.ontario.ca/page/ontarios-express-entry-human-capital-priorities-stream
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pnp_ontario
+      country: canada
+
+    oinp_employer_job_offer:
+      urls:
+        - https://www.ontario.ca/page/oinp-employer-job-offer-foreign-worker-stream
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pnp_ontario
+      country: canada
+
+    oinp_international_graduate:
+      urls:
+        - https://www.ontario.ca/page/oinp-employer-job-offer-international-student-stream
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pnp_ontario
+      country: canada
+
+    oinp_masters_graduate:
+      urls:
+        - https://www.ontario.ca/page/oinp-masters-graduate-stream
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pnp_ontario
+      country: canada
+
+    oinp_phd_graduate:
+      urls:
+        - https://www.ontario.ca/page/oinp-phd-graduate-stream
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pnp_ontario
+      country: canada
+
+    oinp_french:
+      urls:
+        - https://www.ontario.ca/page/ontarios-express-entry-french-speaking-skilled-worker-stream
+      crawl_depth: 0
+      use_browser: false
+      visa_type: pnp_ontario
+      country: canada
+
+    # BC PNP streams
+    bcpnp_skilled_worker:
+      urls:
+        - https://www.welcomebc.ca/immigrate-to-b-c/bc-provincial-nominee-program/skilled-workers-and-international-graduates
+      crawl_depth: 0
+      use_browser: true
+      visa_type: pnp_bc
+      country: canada
+
+    bcpnp_international_graduate:
+      urls:
+        - https://www.welcomebc.ca/immigrate-to-b-c/bc-provincial-nominee-program/skilled-workers-and-international-graduates/bc-pnp-tech
+      crawl_depth: 0
+      use_browser: true
+      visa_type: pnp_bc
+      country: canada
+
+    bcpnp_entrepreneur:
+      urls:
+        - https://www.welcomebc.ca/immigrate-to-b-c/bc-provincial-nominee-program/entrepreneurs
+      crawl_depth: 0
+      use_browser: true
+      visa_type: pnp_bc
+      country: canada
+
+    # Alberta AINP streams
+    ainp_alberta_opportunity:
+      urls:
+        - https://www.alberta.ca/alberta-opportunity-stream
+      crawl_depth: 0
+      use_browser: true
+      visa_type: pnp_alberta
+      country: canada
+
+    ainp_alberta_express_entry:
+      urls:
+        - https://www.alberta.ca/alberta-express-entry-stream
+      crawl_depth: 0
+      use_browser: true
+      visa_type: pnp_alberta
+      country: canada
+
+    ainp_rural_renewal:
+      urls:
+        - https://www.alberta.ca/rural-renewal-stream
+      crawl_depth: 0
+      use_browser: true
+      visa_type: pnp_alberta
+      country: canada
+
+    # Atlantic Immigration Program — detail pages
+    atlantic_immigration_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/atlantic-immigration/how-to-immigrate/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: atlantic_immigration
+      country: canada
+
+    atlantic_immigration_how_to_apply:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/atlantic-immigration/how-to-immigrate.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: atlantic_immigration
+      country: canada
+
+    # Start-up Visa — detail pages
+    startup_visa_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/start-visa/eligibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: startup_visa
+      country: canada
+
+    startup_visa_apply:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/start-visa/apply.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: startup_visa
+      country: canada
+
+    # Caregiver pathways — detail pages
+    caregiver_home_child:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/caregivers/child-care-home-support-worker.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: caregiver
+      country: canada
+
+    caregiver_eligibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/caregivers/child-care-home-support-worker.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: caregiver
+      country: canada
+
+    # Permanent residence pathways — additional
+    pr_card_renew:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/new-immigrants/pr-card/apply-renew-replace.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: permanent_residence
+      country: canada
+
+    pr_travel_document:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/new-immigrants/pr-card/understand-pr-status.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: permanent_residence
+      country: canada
+
+    inadmissibility:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/inadmissibility.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: general
+      country: canada
+
+    language_tests_clb:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents/language-requirements/language-testing.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: general
+      country: canada
+
+    credential_recognition:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/documents/education-assessment.html
+      crawl_depth: 0
+      use_browser: false
+      visa_type: general
+      country: canada
 
 draws:
-  canada_express_entry:
+  canada_express_entry_latest:
     url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html
+    use_browser: false
     country: canada
     program: express_entry
     parser: canada_draws
 
-  australia_skillselect:
-    url: https://immi.homeaffairs.gov.au/visas/working-in-australia/skillselect/invitation-rounds
-    country: australia
-    program: skillselect_189
-    parser: australia_draws
+  canada_express_entry_history:
+    url: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/mandate/policies-operational-instructions-agreements/ministerial-instructions/express-entry-rounds.html
+    use_browser: false
+    country: canada
+    program: express_entry
+    parser: canada_draws
