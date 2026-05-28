@@ -19,6 +19,7 @@ export const TurnResponseSchema = z.object({
       .optional(),
     marital_status: z.string().nullable().optional(),
     has_dependents: z.boolean().nullable().optional(),
+    date_of_birth: z.string().nullable().optional(),
   }),
   complete: z.boolean(),
   requires_review: z.array(z.string()),
@@ -38,6 +39,7 @@ export const VoiceExtractedProfileSchema = z.object({
   english_level: z.enum(["native", "fluent", "b2", "b1", "below_b1"]).nullable(),
   marital_status: z.string().nullable(),
   has_dependents: z.boolean().nullable(),
+  date_of_birth: z.string().nullable(),
   requires_review: z.array(z.string()),
 });
 

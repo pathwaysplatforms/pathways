@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getProfile } from '@/modules/auth/service';
 import { matchPathways } from '@/modules/pathways/service';
+import type { MatchResult } from '@/modules/pathways/types';
 import { MatchList } from '@/components/matching/MatchList';
 import { createRequestLogger } from '@/lib/logger';
 

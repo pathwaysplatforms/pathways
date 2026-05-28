@@ -1,8 +1,8 @@
 import type { Logger } from 'pino';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { DatabaseError } from '@/lib/errors';
-import type { MatcherProfile, MatchResult } from './types';
+import { DatabaseError, NotFoundError } from '@/lib/errors';
+import type { MatcherProfile, MatchResult, ApplicationData, StepType } from './types';
 
 // ─── CRS point tables ────────────────────────────────────────────────────────
 // Each constant is named so audits and IRCC grid updates are easy to locate.
@@ -39,6 +39,43 @@ const SPOUSE_EDU_RATIO   = 0.5;   // spouse education pts at 50% of single rate
 const SPOUSE_CLB_RATIO   = 0.5;   // spouse CLB pts at ~50% of single rate (simplified)
 const SPOUSE_WORK_RATIO  = 0.5;
 
+// ─── Age point tables (IRCC CRS section A) ───────────────────────────────────
+// Source: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/criteria-comprehensive-ranking-system/grid.html
+// Ages outside 18–44 score 0. Values are per the 2024-current IRCC grid.
+
+const AGE_PTS_NO_SPOUSE: Record<number, number> = {
+  18: 99,  19: 105,
+  20: 110, 21: 110, 22: 110, 23: 110, 24: 110,
+  25: 110, 26: 110, 27: 110, 28: 110, 29: 110,
+  30: 105,
+  31: 99,  32: 94,  33: 88,  34: 83,  35: 77,
+  36: 72,  37: 66,  38: 61,  39: 55,  40: 50,
+  41: 39,  42: 28,  43: 17,  44: 6,
+};
+
+const AGE_PTS_WITH_SPOUSE: Record<number, number> = {
+  18: 90,  19: 95,
+  20: 100, 21: 100, 22: 100, 23: 100, 24: 100,
+  25: 100, 26: 100, 27: 100, 28: 100, 29: 100,
+  30: 95,
+  31: 90,  32: 85,  33: 80,  34: 75,  35: 70,
+  36: 65,  37: 60,  38: 55,  39: 50,  40: 45,
+  41: 35,  42: 25,  43: 15,  44: 5,
+};
+
+function agePts(dateOfBirth: string | null, hasSpouse: boolean): number {
+  if (!dateOfBirth) return 0;
+  const today = new Date();
+  const dob = new Date(dateOfBirth);
+  let age = today.getFullYear() - dob.getFullYear();
+  const pastBirthday =
+    today.getMonth() > dob.getMonth() ||
+    (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
+  if (!pastBirthday) age--;
+  const table = hasSpouse ? AGE_PTS_WITH_SPOUSE : AGE_PTS_NO_SPOUSE;
+  return table[age] ?? 0;
+}
+
 // ─── Additional / bonus factors ──────────────────────────────────────────────
 const PN_PTS              = 600;
 const JOB_OFFER_TEER0_PTS = 200;
@@ -50,19 +87,19 @@ const CDN_EDU_LONG_PTS    = 30;   // 3+ years
 // ─── CRS calculation ─────────────────────────────────────────────────────────
 
 /**
- * Calculates an approximate CRS score from a MatcherProfile.
+ * Calculates a CRS score from a MatcherProfile.
  *
- * Note: Age is not yet captured in the profiles schema and contributes up to
- * 110 pts. Without it this function will underestimate by ~110 pts for
- * applicants aged 18–35. Age scoring will be added in a future voice-agent
- * extension (sprint to be scheduled).
+ * Includes: education, language, Canadian work, age, spouse factors, and bonus factors.
+ * Skill transferability is not yet implemented (~50–100 pts depending on profile).
  *
- * Mental check — single applicant, no age, bachelor's (112), CLB 9 all (128),
- * no Canadian work: 240 pts. Add age 30 (110) → 350 pts. Add skill
- * transferability (not yet implemented) → ~450 pts.
+ * Mental check — single applicant, age 30 (105), bachelor's (112), CLB 9 all (128),
+ * no Canadian work: 345 pts. Add skill transferability → ~450 pts.
  */
 export function calculateCRS(profile: MatcherProfile): number {
   const hasSpouse = profile.spouse_coming_to_canada === true;
+
+  // ── Age ────────────────────────────────────────────────────────────────────
+  const agePtsVal = agePts(profile.date_of_birth, hasSpouse);
 
   // ── Education ──────────────────────────────────────────────────────────────
   let eduPts = 0;
@@ -117,7 +154,7 @@ export function calculateCRS(profile: MatcherProfile): number {
   const siblingPts = profile.has_sibling_in_canada ? SIBLING_PTS : 0;
 
   return (
-    eduPts + langPts + workPts +
+    agePtsVal + eduPts + langPts + workPts +
     spouseEduPts + spouseLangPts + spouseWorkPts +
     pnPts + jobOfferPts + siblingPts
   );
@@ -375,7 +412,8 @@ export async function matchPathways(
       spouse_clb_speaking, spouse_clb_listening,
       spouse_clb_reading, spouse_clb_writing,
       spouse_canadian_work_years,
-      has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada
+      has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada,
+      date_of_birth
     `)
     .eq('id', profileId)
     .single();
@@ -387,14 +425,11 @@ export async function matchPathways(
   const profile = profileRow as MatcherProfile;
 
   // ── Query 2: active express-entry pathways ──────────────────────────────────
-  // Note: pathways table has no program_type column yet. Filtering by slug
-  // prefix is the interim approach. Add program_type column in a future
-  // migration and update this query.
   const { data: pathwayRows, error: pathwayErr } = await db
     .from('pathways')
-    .select('id, slug, title, official_name, description, processing_time_min, processing_time_max')
+    .select('id, slug, title, official_name, description, processing_time_min, processing_time_max, program_type')
     .eq('is_active', true)
-    .like('slug', 'express-entry%');
+    .like('program_type', 'express_entry%');
 
   if (pathwayErr) {
     throw new DatabaseError('Failed to fetch pathways', {}, pathwayErr);
@@ -426,8 +461,12 @@ export async function matchPathways(
     const eligibility = checkEligibility(pw.slug as string, profile);
     const ita = getITALikelihood(pw.slug as string, crsScore, latestByType);
 
-    // Age is not in the profiles schema — always flag as missing_data
-    const missingData = [...new Set([...eligibility.missingData, 'age'])];
+    const missingData = [
+      ...new Set([
+        ...eligibility.missingData,
+        ...(profile.date_of_birth === null ? ['date_of_birth'] : []),
+      ]),
+    ];
 
     return {
       pathway: {
@@ -438,7 +477,7 @@ export async function matchPathways(
         description:         pw.description as string,
         processing_time_min: pw.processing_time_min as string,
         processing_time_max: pw.processing_time_max as string,
-        program_type:        'express_entry',
+        program_type:        pw.program_type as string,
       },
       eligible:         eligibility.eligible,
       crs_score:        crsScore,
@@ -465,4 +504,98 @@ export async function matchPathways(
 
   logger.info({ action: 'matchPathways.done', profileId, count: results.length, crsScore });
   return results;
+}
+
+// ─── Application data fetcher ─────────────────────────────────────────────────
+
+/** Fetches an application and its ordered pathway steps from the database. */
+export async function getApplicationData(
+  applicationId: string,
+  logger: Logger,
+): Promise<ApplicationData> {
+  logger.info({ action: 'getApplicationData.start', applicationId });
+
+  // supabase types are stale pending `supabase gen types --local`
+  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+
+  // ── Query 1: application with nested pathway ───────────────────────────────
+  const { data: appRow, error: appErr } = await db
+    .from('applications')
+    .select(`
+      id,
+      status,
+      submitted_at,
+      pathway:pathways!pathway_id (
+        id,
+        slug,
+        title,
+        official_name
+      )
+    `)
+    .eq('id', applicationId)
+    .single();
+
+  if (appErr || !appRow) {
+    if (appErr?.code === 'PGRST116') {
+      throw new NotFoundError('Application not found', { applicationId });
+    }
+    throw new DatabaseError('Failed to fetch application', { applicationId }, appErr ?? undefined);
+  }
+
+  type AppRow = {
+    id: string;
+    status: string;
+    submitted_at: string | null;
+    pathway: { id: string; slug: string; title: string; official_name: string };
+  };
+  const app = appRow as unknown as AppRow;
+
+  // ── Query 2: pathway steps ordered by step_number ──────────────────────────
+  const { data: stepRows, error: stepsErr } = await db
+    .from('pathway_steps')
+    .select('id, step_number, title, description, type, estimated_duration, is_optional')
+    .eq('pathway_id', app.pathway.id)
+    .order('step_number', { ascending: true });
+
+  if (stepsErr) {
+    throw new DatabaseError('Failed to fetch pathway steps', { applicationId }, stepsErr);
+  }
+
+  type StepRow = {
+    id: string;
+    step_number: number;
+    title: string;
+    description: string;
+    type: StepType;
+    estimated_duration: string;
+    is_optional: boolean;
+  };
+
+  // Derive step statuses: first step is current, rest are upcoming.
+  // Per-step completion tracking requires an application_step_completions table
+  // which is not yet in the schema.
+  const steps = (stepRows ?? [] as StepRow[]).map((s: StepRow, idx: number) => ({
+    id: s.id,
+    step_number: s.step_number,
+    title: s.title,
+    description: s.description,
+    type: s.type,
+    estimated_duration: s.estimated_duration,
+    is_optional: s.is_optional,
+    status: (idx === 0 ? 'current' : 'upcoming') as 'current' | 'upcoming',
+  }));
+
+  logger.info({ action: 'getApplicationData.done', applicationId, stepCount: steps.length });
+
+  return {
+    id: app.id,
+    status: app.status,
+    submitted_at: app.submitted_at,
+    pathway: {
+      slug: app.pathway.slug,
+      title: app.pathway.title,
+      official_name: app.pathway.official_name,
+    },
+    steps,
+  };
 }

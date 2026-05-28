@@ -1,16 +1,40 @@
+import { notFound, redirect } from 'next/navigation';
+import { getProfile } from '@/modules/auth/service';
+import { getApplicationData } from '@/modules/pathways/service';
 import { mockApplication } from '@/modules/pathways/mock-application';
 import { ApplicationLayout } from '@/components/application/ApplicationLayout';
+import { createRequestLogger } from '@/lib/logger';
+import { NotFoundError } from '@/lib/errors';
 
 interface Props {
-  params: { applicationId: string };
-  searchParams: { mock?: string };
+  params: Promise<{ applicationId: string }>;
+  searchParams: Promise<{ mock?: string }>;
 }
 
-/**
- * Route entry point: always serves mock data until the real DB fetch is wired in.
- * TODO: replace mockApplication with a real fetch using params.applicationId once
- * the backend application matcher is ready.
- */
-export default function ApplicationPage({ params: _params, searchParams: _searchParams }: Props) {
-  return <ApplicationLayout application={mockApplication} />;
+/** Serves real application data from the DB, or mock data when ?mock=true. */
+export default async function ApplicationPage({ params, searchParams }: Props) {
+  const { applicationId } = await params;
+  const { mock } = await searchParams;
+
+  if (mock === 'true') {
+    return <ApplicationLayout application={mockApplication} />;
+  }
+
+  const profile = await getProfile();
+  if (!profile) {
+    redirect('/auth/login');
+  }
+
+  const correlationId = `app-${applicationId}-${Date.now()}`;
+  const logger = createRequestLogger(correlationId);
+
+  try {
+    const application = await getApplicationData(applicationId, logger);
+    return <ApplicationLayout application={application} />;
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      notFound();
+    }
+    throw err;
+  }
 }

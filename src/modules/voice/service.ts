@@ -29,6 +29,7 @@ Collect all of these fields across the conversation:
 - english_level: one of: native, fluent, b2, b1, below_b1
 - marital_status: one of: single, married, divorced, widowed, common-law
 - has_dependents: whether they have children or other dependents (boolean)
+- date_of_birth: their date of birth in YYYY-MM-DD format (used for CRS age scoring)
 
 ## CONVERSATION RULES
 - The conversation has already started with a greeting. Do not re-greet. Continue collecting fields.
@@ -58,6 +59,7 @@ If the user answers multiple fields at once or volunteers future fields:
 - has_degree, has_criminal_record, has_dependents: output as boolean true or false. "No convictions" → false. "Yes I have kids" → true.
 - english_level: map naturally. "I'm a native speaker" → native. "I speak English well" → fluent. If unclear, ask directly.
 - degree_level: map "masters" or "master's" → master. "PhD" or "doctorate" → phd. "Bachelor's" or "undergraduate" → bachelor.
+- date_of_birth: always output in YYYY-MM-DD format. "March 15th 1990" → "1990-03-15". "15/03/1990" → "1990-03-15". Ask naturally: "What is your date of birth?" If the user gives only a year, output just that year as YYYY-01-01 and add date_of_birth to requires_review.
 
 ## OUTPUT FORMAT — CRITICAL
 You MUST respond with ONLY a valid raw JSON object. No prose, no markdown, no code fences, no explanation before or after the JSON. Your entire response must be directly parseable by JSON.parse() with zero preprocessing.
@@ -200,6 +202,7 @@ function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProf
     english_level: partial.english_level ?? null,
     marital_status: partial.marital_status ?? null,
     has_dependents: partial.has_dependents ?? null,
+    date_of_birth: partial.date_of_birth ?? null,
     requires_review: partial.requires_review ?? [],
   };
 }
@@ -396,6 +399,7 @@ export async function finalizeVoiceSession(
       english_level: extractedProfile.english_level,
       marital_status: extractedProfile.marital_status,
       has_dependents: extractedProfile.has_dependents,
+      date_of_birth: extractedProfile.date_of_birth,
     })
     .eq("id", profileId);
 

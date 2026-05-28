@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DatabaseError } from '@/lib/errors';
+import { DatabaseError, NotFoundError } from '@/lib/errors';
 
 vi.mock('@/lib/supabase/server');
 vi.mock('@/lib/logger', () => ({
@@ -14,14 +14,14 @@ vi.mock('next/headers', () => ({
 }));
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { calculateCRS, matchPathways } from '../service';
+import { calculateCRS, matchPathways, getApplicationData } from '../service';
 import type { MatcherProfile } from '../types';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
-/** FSW-eligible single applicant with bachelor's + CLB 9 + no Canadian work. */
+/** FSW-eligible single applicant with bachelor's + CLB 9 + no Canadian work. No DOB → age pts = 0. */
 function makeProfile(overrides: Partial<MatcherProfile> = {}): MatcherProfile {
   return {
     id: 'profile-1',
@@ -48,6 +48,7 @@ function makeProfile(overrides: Partial<MatcherProfile> = {}): MatcherProfile {
     has_provincial_nomination: false,
     has_canadian_job_offer: false,
     has_sibling_in_canada: false,
+    date_of_birth: null,
     ...overrides,
   };
 }
@@ -61,8 +62,16 @@ function makePathwayRow(overrides: Record<string, unknown> = {}) {
     description: 'For skilled workers with foreign work experience.',
     processing_time_min: '6 months',
     processing_time_max: '12 months',
+    program_type: 'express_entry',
     ...overrides,
   };
+}
+
+/** Returns a YYYY-MM-DD date string that yields exactly `age` years old today. */
+function dobForAge(age: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - age, 0, 1); // Jan 1, guarantees birthday has passed
+  return d.toISOString().split('T')[0];
 }
 
 // ─── DB mock helpers ──────────────────────────────────────────────────────────
@@ -87,13 +96,13 @@ function makeChain(result: QueryResult) {
   return chain;
 }
 
-interface MockSetup {
+interface MatcherMockSetup {
   profileResult: QueryResult;
   pathwaysResult?: QueryResult;
   drawsResult?: QueryResult;
 }
 
-function setupClient(setup: MockSetup) {
+function setupMatcherClient(setup: MatcherMockSetup) {
   const {
     profileResult,
     pathwaysResult = { data: [], error: null },
@@ -101,9 +110,31 @@ function setupClient(setup: MockSetup) {
   } = setup;
 
   const fromFn = vi.fn().mockImplementation((table: string) => {
-    if (table === 'profiles')         return makeChain(profileResult);
-    if (table === 'pathways')         return makeChain(pathwaysResult);
+    if (table === 'profiles')          return makeChain(profileResult);
+    if (table === 'pathways')          return makeChain(pathwaysResult);
     if (table === 'immigration_draws') return makeChain(drawsResult);
+    return makeChain({ data: null, error: null });
+  });
+
+  vi.mocked(createSupabaseServerClient).mockReturnValue(
+    { from: fromFn } as unknown as ReturnType<typeof createSupabaseServerClient>,
+  );
+}
+
+interface AppMockSetup {
+  applicationResult: QueryResult;
+  stepsResult?: QueryResult;
+}
+
+function setupAppClient(setup: AppMockSetup) {
+  const {
+    applicationResult,
+    stepsResult = { data: [], error: null },
+  } = setup;
+
+  const fromFn = vi.fn().mockImplementation((table: string) => {
+    if (table === 'applications')  return makeChain(applicationResult);
+    if (table === 'pathway_steps') return makeChain(stepsResult);
     return makeChain({ data: null, error: null });
   });
 
@@ -115,8 +146,8 @@ function setupClient(setup: MockSetup) {
 // ─── calculateCRS ─────────────────────────────────────────────────────────────
 
 describe('calculateCRS', () => {
-  it('returns 240 for bachelor + CLB 9 all four + no Canadian work (known baseline)', () => {
-    // Education: bachelors=112, CLB 9 × 4=128, Canadian work 0=0
+  it('returns 240 for bachelor + CLB 9 all four + no Canadian work + no DOB (known baseline)', () => {
+    // Education: bachelors=112, CLB 9 × 4=128, Canadian work 0=0, age=0 (dob null)
     expect(calculateCRS(makeProfile())).toBe(240);
   });
 
@@ -132,11 +163,12 @@ describe('calculateCRS', () => {
       has_provincial_nomination: null,
       has_canadian_job_offer: null,
       has_sibling_in_canada: null,
+      date_of_birth: null,
     });
     expect(calculateCRS(empty)).toBe(0);
   });
 
-  it('returns 356 for PhD + CLB 10 all four + 5 years Canadian work (high-score applicant)', () => {
+  it('returns 356 for PhD + CLB 10 all four + 5 years Canadian work + no DOB', () => {
     // PhD=140, CLB 10 × 4=136, Canadian 5yr=80
     const score = calculateCRS(makeProfile({
       education_level: 'phd',
@@ -212,6 +244,47 @@ describe('calculateCRS', () => {
     }));
     expect(withSpouseData).toBe(240);
   });
+
+  // ── Age scoring ─────────────────────────────────────────────────────────────
+
+  it('returns 0 age pts when date_of_birth is null', () => {
+    const withDob = calculateCRS(makeProfile({ date_of_birth: null }));
+    const withoutDob = calculateCRS(makeProfile({ date_of_birth: null }));
+    expect(withDob).toBe(withoutDob);
+    expect(withDob).toBe(240);
+  });
+
+  it('adds 110 age pts for a single applicant aged 20–29', () => {
+    const score = calculateCRS(makeProfile({ date_of_birth: dobForAge(25) }));
+    expect(score).toBe(240 + 110); // 350
+  });
+
+  it('adds 105 age pts for a single applicant exactly aged 30', () => {
+    const score = calculateCRS(makeProfile({ date_of_birth: dobForAge(30) }));
+    expect(score).toBe(240 + 105); // 345
+  });
+
+  it('returns 0 age pts for a single applicant aged 45 or older', () => {
+    const score = calculateCRS(makeProfile({ date_of_birth: dobForAge(45) }));
+    expect(score).toBe(240); // no age pts
+  });
+
+  it('uses with-spouse age table (100 pts for age 20–29) when spouse_coming_to_canada is true', () => {
+    const score = calculateCRS(makeProfile({
+      date_of_birth: dobForAge(25),
+      spouse_coming_to_canada: true,
+    }));
+    // 100 (age with spouse, 25) + 240 (base) = 340
+    expect(score).toBe(240 + 100);
+  });
+
+  it('uses with-spouse age table (95 pts for age 30) when spouse_coming_to_canada is true', () => {
+    const score = calculateCRS(makeProfile({
+      date_of_birth: dobForAge(30),
+      spouse_coming_to_canada: true,
+    }));
+    expect(score).toBe(240 + 95);
+  });
 });
 
 // ─── matchPathways ────────────────────────────────────────────────────────────
@@ -222,7 +295,7 @@ describe('matchPathways', () => {
   });
 
   it('returns a MatchResult for an eligible FSW applicant', async () => {
-    setupClient({
+    setupMatcherClient({
       profileResult: { data: makeProfile(), error: null },
       pathwaysResult: { data: [makePathwayRow()], error: null },
     });
@@ -237,19 +310,30 @@ describe('matchPathways', () => {
     expect(results[0].criteria_missing).toHaveLength(0);
   });
 
-  it('always includes age in missing_data because the profiles schema has no age column', async () => {
-    setupClient({
-      profileResult: { data: makeProfile(), error: null },
+  it('includes date_of_birth in missing_data when profile has no date_of_birth', async () => {
+    setupMatcherClient({
+      profileResult: { data: makeProfile({ date_of_birth: null }), error: null },
       pathwaysResult: { data: [makePathwayRow()], error: null },
     });
 
     const results = await matchPathways('profile-1', mockLogger as never);
 
-    expect(results[0].missing_data).toContain('age');
+    expect(results[0].missing_data).toContain('date_of_birth');
+  });
+
+  it('does not include date_of_birth in missing_data when profile has a date_of_birth', async () => {
+    setupMatcherClient({
+      profileResult: { data: makeProfile({ date_of_birth: dobForAge(30) }), error: null },
+      pathwaysResult: { data: [makePathwayRow()], error: null },
+    });
+
+    const results = await matchPathways('profile-1', mockLogger as never);
+
+    expect(results[0].missing_data).not.toContain('date_of_birth');
   });
 
   it('throws DatabaseError when profile is not found', async () => {
-    setupClient({
+    setupMatcherClient({
       profileResult: { data: null, error: { code: 'PGRST116', message: 'No rows found' } },
     });
 
@@ -259,7 +343,7 @@ describe('matchPathways', () => {
   });
 
   it('returns an empty array when no active express-entry pathways exist', async () => {
-    setupClient({
+    setupMatcherClient({
       profileResult: { data: makeProfile(), error: null },
       pathwaysResult: { data: [], error: null },
     });
@@ -270,7 +354,7 @@ describe('matchPathways', () => {
   });
 
   it('uses FALLBACK_CUTOFFS when immigration_draws is empty', async () => {
-    setupClient({
+    setupMatcherClient({
       profileResult: { data: makeProfile(), error: null },
       pathwaysResult: { data: [makePathwayRow()], error: null },
       drawsResult: { data: [], error: null },
@@ -285,7 +369,7 @@ describe('matchPathways', () => {
 
   it('marks ita_likelihood as high when CRS score is ≥ cutoff + 20', async () => {
     // Score: PhD(140) + CLB10×4(136) + 5yr Canadian(80) + PN(600) = 956 — well above any cutoff
-    setupClient({
+    setupMatcherClient({
       profileResult: {
         data: makeProfile({
           education_level: 'phd',
@@ -309,7 +393,7 @@ describe('matchPathways', () => {
   });
 
   it('sorts eligible results before ineligible ones', async () => {
-    setupClient({
+    setupMatcherClient({
       profileResult: {
         // TEER 4 → FSW ineligible; but still gets a result
         data: makeProfile({ noc_teer_category: 4 }),
@@ -327,12 +411,11 @@ describe('matchPathways', () => {
     const results = await matchPathways('profile-1', mockLogger as never);
 
     expect(results).toHaveLength(2);
-    // All ineligible with TEER 4 — both eligible should be false
     expect(results.every((r) => !r.eligible)).toBe(true);
   });
 
   it('marks CEC applicant ineligible when canadian_work_years is 0', async () => {
-    setupClient({
+    setupMatcherClient({
       profileResult: {
         data: makeProfile({ canadian_work_years: 0, canadian_work_recent: false }),
         error: null,
@@ -347,5 +430,113 @@ describe('matchPathways', () => {
 
     expect(results[0].eligible).toBe(false);
     expect(results[0].criteria_missing.some((m) => m.includes('Canadian work'))).toBe(true);
+  });
+});
+
+// ─── getApplicationData ───────────────────────────────────────────────────────
+
+describe('getApplicationData', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeAppRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'app-1',
+      status: 'in_progress',
+      submitted_at: null,
+      pathway: {
+        id: 'pathway-1',
+        slug: 'express-entry-fsw',
+        title: 'Federal Skilled Worker',
+        official_name: 'Federal Skilled Worker Program',
+      },
+      ...overrides,
+    };
+  }
+
+  function makeStepRow(n: number, overrides: Record<string, unknown> = {}) {
+    return {
+      id: `step-${n}`,
+      step_number: n,
+      title: `Step ${n}`,
+      description: `Description for step ${n}`,
+      type: 'information',
+      estimated_duration: '1 week',
+      is_optional: false,
+      ...overrides,
+    };
+  }
+
+  it('returns ApplicationData with correct pathway and ordered steps', async () => {
+    setupAppClient({
+      applicationResult: { data: makeAppRow(), error: null },
+      stepsResult: {
+        data: [makeStepRow(1), makeStepRow(2, { type: 'document_upload' })],
+        error: null,
+      },
+    });
+
+    const result = await getApplicationData('app-1', mockLogger as never);
+
+    expect(result.id).toBe('app-1');
+    expect(result.status).toBe('in_progress');
+    expect(result.submitted_at).toBeNull();
+    expect(result.pathway.slug).toBe('express-entry-fsw');
+    expect(result.steps).toHaveLength(2);
+    expect(result.steps[0].status).toBe('current');
+    expect(result.steps[1].status).toBe('upcoming');
+    expect(result.steps[1].type).toBe('document_upload');
+  });
+
+  it('returns ApplicationData with empty steps when pathway has no steps', async () => {
+    setupAppClient({
+      applicationResult: { data: makeAppRow(), error: null },
+      stepsResult: { data: [], error: null },
+    });
+
+    const result = await getApplicationData('app-1', mockLogger as never);
+
+    expect(result.steps).toHaveLength(0);
+  });
+
+  it('throws NotFoundError when application does not exist', async () => {
+    setupAppClient({
+      applicationResult: {
+        data: null,
+        error: { code: 'PGRST116', message: 'No rows found' },
+      },
+    });
+
+    await expect(
+      getApplicationData('missing-app', mockLogger as never),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('throws DatabaseError on unexpected application query failure', async () => {
+    setupAppClient({
+      applicationResult: {
+        data: null,
+        error: { code: '500', message: 'connection timeout' },
+      },
+    });
+
+    await expect(
+      getApplicationData('app-1', mockLogger as never),
+    ).rejects.toBeInstanceOf(DatabaseError);
+  });
+
+  it('includes submitted_at when application has been submitted', async () => {
+    setupAppClient({
+      applicationResult: {
+        data: makeAppRow({ submitted_at: '2026-05-01T00:00:00Z', status: 'submitted' }),
+        error: null,
+      },
+    });
+
+    const result = await getApplicationData('app-1', mockLogger as never);
+
+    expect(result.submitted_at).toBe('2026-05-01T00:00:00Z');
+    expect(result.status).toBe('submitted');
   });
 });

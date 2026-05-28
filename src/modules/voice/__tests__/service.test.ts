@@ -102,6 +102,7 @@ const validExtracted: VoiceExtractedProfile = {
   english_level: "fluent",
   marital_status: "single",
   has_dependents: false,
+  date_of_birth: "1990-03-15",
   requires_review: [],
 };
 

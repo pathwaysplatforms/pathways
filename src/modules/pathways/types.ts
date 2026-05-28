@@ -61,6 +61,8 @@ export interface MatcherProfile {
   has_provincial_nomination: boolean | null;
   has_canadian_job_offer: boolean | null;
   has_sibling_in_canada: boolean | null;
+  // Age (IRCC CRS section A — up to 110 pts for single, 100 for with-spouse)
+  date_of_birth: string | null;
 }
 
 /** A single ranked pathway match result — computed on demand, never stored. */
@@ -91,4 +93,9 @@ export interface Application {
   pathway: ApplicationPathway;
   status: string;
   steps: ApplicationStep[];
+}
+
+/** Database-sourced application record. Extends Application with submission metadata. */
+export interface ApplicationData extends Application {
+  submitted_at: string | null;
 }
