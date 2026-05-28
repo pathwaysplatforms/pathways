@@ -23,22 +23,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <main className="min-h-screen bg-bg-base flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo + tagline */}
         <div className="text-center">
           <Link href="/" className="inline-block">
-            <span className="text-2xl font-bold text-text-primary tracking-tight">Pathways</span>
+            <span className="text-[28px] font-medium text-text-primary tracking-tight">Pathways</span>
           </Link>
           <p className="mt-2 text-sm text-text-secondary">
             {t("auth_subtitle")}
           </p>
         </div>
 
-        {/* Auth card */}
-        <div className="card p-8">
+        <div className="bg-bg-surface border border-border-light rounded-panel p-8 space-y-6">
           <LoginForm errorMessage={errorMessage} />
         </div>
 
-        {/* Trust chips */}
         <div className="space-y-2">
           {[
             { icon: ShieldCheck, text: t("landing_trust_1") },

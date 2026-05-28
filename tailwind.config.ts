@@ -25,7 +25,7 @@ const config: Config = {
       colors: {
         // Backgrounds
         bg: {
-          base: "#F8F9FA",      // page background — near white
+          base: "#EDEEF2",      // page background — light grey
           surface: "#FFFFFF",   // card / panel surface
           subtle: "#F1F3F4",    // input backgrounds, dividers
           muted: "#E8EAED",     // skeleton loaders, disabled states
@@ -46,19 +46,19 @@ const config: Config = {
           disabled: "#D1D5DB",
         },
 
-        // Accent — dark aquamarine green
+        // Accent — teal
         accent: {
-          50:  "#ECFDF8",
-          100: "#D0FAF0",
-          200: "#A3F4E2",
-          300: "#6EEACD",
-          400: "#2DD4B0",
-          500: "#0FA896",   // ← primary accent (use this most)
-          600: "#0D8F80",
-          700: "#0B7269",
-          800: "#0A5A54",
-          900: "#083D3A",
-          950: "#042220",
+          50:  "#ebfafb",
+          100: "#cdf3f5",
+          200: "#9de8ec",
+          300: "#5cd4db",
+          400: "#1ab8c4",
+          500: "#14909c",   // ← primary accent (use this most)
+          600: "#107581",
+          700: "#0d5d68",
+          800: "#0a4750",
+          900: "#072f38",
+          950: "#041e25",
         },
 
         // Status colors — used sparingly for state indicators only
@@ -122,7 +122,7 @@ const config: Config = {
         "card-lg":"0 8px 24px 0 rgba(0,0,0,0.09), 0 4px 8px -2px rgba(0,0,0,0.05)",
         sidebar:  "2px 0 12px 0 rgba(0,0,0,0.05)",
         // Accent card / button sheen shadow
-        accent:   "0 4px 20px 0 rgba(15,168,150,0.30), 0 1px 4px 0 rgba(15,168,150,0.20)",
+        accent:   "0 4px 20px 0 rgba(20,144,156,0.30), 0 1px 4px 0 rgba(20,144,156,0.20)",
       },
 
       // ─── Transitions ──────────────────────────────────────────────

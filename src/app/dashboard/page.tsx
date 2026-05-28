@@ -5,6 +5,7 @@ import { getDashboardData } from '@/modules/dashboard/service';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { DemoStateBar } from '@/components/demo/DemoStateBar';
 import { Suspense } from 'react';
 import { resetOnboarding } from '@/app/actions/onboarding';
 
@@ -28,7 +29,7 @@ export default async function DashboardPage() {
   } catch (err) {
     logger.error({ action: 'dashboard.error', userId: user.id, err });
     return (
-      <DashboardShell avatarInitials="?">
+      <DashboardShell avatarInitials="?" firstName="">
         <div className="flex flex-1 items-center justify-center p-7">
           <div className="card max-w-md w-full text-center">
             <h2 className="card-title mb-2">Something went wrong</h2>
@@ -47,23 +48,29 @@ export default async function DashboardPage() {
   logger.info({ action: 'dashboard.complete', userId: user.id, state: dashboardData.state });
 
   return (
-    <DashboardShell
-      avatarInitials={dashboardData.avatarInitials}
-      applicationId={dashboardData.applicationId}
-    >
-      <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardGrid data={dashboardData} />
-      </Suspense>
-      <div className="flex justify-center pb-7">
-        <form action={resetOnboarding}>
-          <button
-            type="submit"
-            className="text-sm text-text-secondary underline underline-offset-4 hover:text-text-primary transition-colors"
-          >
-            Redo my onboarding profile
-          </button>
-        </form>
-      </div>
-    </DashboardShell>
+    <>
+      <DashboardShell
+        avatarInitials={dashboardData.avatarInitials}
+        firstName={dashboardData.firstName}
+        applicationId={dashboardData.applicationId}
+      >
+        <Suspense fallback={<DashboardSkeleton />}>
+          <DashboardGrid data={dashboardData} />
+        </Suspense>
+        <div className="flex justify-center pb-7">
+          <form action={resetOnboarding}>
+            <button
+              type="submit"
+              className="text-sm text-text-secondary underline underline-offset-4 hover:text-text-primary transition-colors"
+            >
+              Redo my onboarding profile
+            </button>
+          </form>
+        </div>
+      </DashboardShell>
+      {process.env.NEXT_PUBLIC_DEMO_ENABLED === 'true' && (
+        <DemoStateBar currentState={dashboardData.state} />
+      )}
+    </>
   );
 }

@@ -1,35 +1,35 @@
 'use client';
 
-/** Loading skeleton matching the 3-column dashboard grid layout. */
+/** Loading skeleton matching the new 2-column bento dashboard layout. */
 export function DashboardSkeleton() {
   return (
-    <div className="flex flex-col gap-5 p-7 flex-1">
-      {/* Top bar skeleton */}
-      <div className="flex justify-between items-start">
-        <div className="flex flex-col gap-2">
-          <div className="h-5 w-48 bg-bg-muted rounded animate-pulse" />
-          <div className="h-3 w-32 bg-bg-muted rounded animate-pulse" />
+    <div
+      className="flex flex-1 min-h-0 overflow-hidden"
+      style={{ gap: 14, padding: '0 28px 28px' }}
+    >
+      {/* Left column */}
+      <div className="flex flex-col flex-1 min-h-0" style={{ gap: 14 }}>
+        {/* Greeting skeleton */}
+        <div className="flex flex-col gap-2 flex-shrink-0">
+          <div className="h-2.5 w-24 bg-bg-muted rounded animate-pulse" />
+          <div className="h-6 w-52 bg-bg-muted rounded animate-pulse" />
         </div>
-        <div className="h-6 w-28 bg-bg-muted rounded-badge animate-pulse" />
+
+        {/* Card row skeleton */}
+        <div
+          className="grid grid-cols-2 flex-shrink-0"
+          style={{ gap: 14, height: 155 }}
+        >
+          <div className="rounded-card bg-bg-muted animate-pulse h-full" />
+          <div className="rounded-card bg-bg-muted animate-pulse h-full" />
+        </div>
+
+        {/* Map card skeleton */}
+        <div className="rounded-card bg-bg-muted animate-pulse flex-1 min-h-0" />
       </div>
 
-      {/* 3-column grid skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 flex-1">
-        {/* Col 1 */}
-        <div className="flex flex-col gap-5">
-          <div className="card bg-bg-muted animate-pulse" style={{ minHeight: 180 }} />
-          <div className="card bg-bg-muted animate-pulse" style={{ minHeight: 180 }} />
-        </div>
-
-        {/* Col 2 */}
-        <div className="card bg-bg-muted animate-pulse" style={{ minHeight: 380 }} />
-
-        {/* Col 3 */}
-        <div className="flex flex-col gap-5">
-          <div className="card bg-bg-muted animate-pulse" style={{ flex: '3' }} />
-          <div className="card bg-bg-muted animate-pulse" style={{ flex: '2' }} />
-        </div>
-      </div>
+      {/* Right column skeleton */}
+      <div className="flex-shrink-0 rounded-card bg-bg-muted animate-pulse" style={{ width: 220 }} />
     </div>
   );
 }
