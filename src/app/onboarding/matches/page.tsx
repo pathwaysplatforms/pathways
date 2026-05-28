@@ -1,27 +1,60 @@
-import { redirect } from "next/navigation";
-import { getProfile } from "@/modules/auth/service";
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { getProfile } from '@/modules/auth/service';
+import { matchPathways } from '@/modules/pathways/service';
+import { MatchList } from '@/components/matching/MatchList';
+import { createRequestLogger } from '@/lib/logger';
 
-/** Pathway matches stub — shown after the user confirms their review. */
+/**
+ * Server component: runs the pathway matcher and renders ranked MatchCards.
+ * Only the "Select pathway" button inside each card is client-side.
+ */
 export default async function MatchesPage() {
   const profile = await getProfile();
-  if (!profile || profile.onboarding_status !== "complete") {
-    redirect("/onboarding");
+
+  if (!profile || profile.onboarding_status !== 'complete') {
+    redirect('/onboarding');
+  }
+
+  const correlationId = `matches-${profile.id}-${Date.now()}`;
+  const logger = createRequestLogger(correlationId);
+
+  let matches: MatchResult[] = []
+  try {
+    matches = await matchPathways(profile.id, logger);
+  } catch {
+    matches = [];
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 px-4">
-      <div className="max-w-md w-full text-center space-y-4">
-        <h1 className="text-2xl font-medium text-neutral-900">Your pathways are ready</h1>
-        <p className="text-sm text-neutral-500">
-          We&apos;re matching your profile to the best immigration routes.
-          This feature is coming soon.
-        </p>
-        <a
+    <main className="min-h-screen bg-bg-base">
+      <div className="max-w-2xl mx-auto px-6 py-12">
+
+        {/* Back link */}
+        <Link
           href="/dashboard"
-          className="inline-block h-10 px-6 rounded-md bg-blue-600 text-white text-sm font-medium leading-10 hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1 text-text-tertiary hover:text-text-secondary transition-colors mb-6"
+          style={{ fontSize: '13px', fontWeight: 500 }}
         >
-          Go to dashboard
-        </a>
+          ← My Dashboard
+        </Link>
+
+        {/* Page header */}
+        <div className="mb-8">
+          <p className="label-eyebrow mb-2">Onboarding</p>
+          <h1
+            className="text-text-primary font-bold"
+            style={{ fontSize: '28px', letterSpacing: '-0.02em', lineHeight: 1.2 }}
+          >
+            Your Pathway Matches
+          </h1>
+          <p className="text-text-secondary mt-2" style={{ fontSize: '15px', lineHeight: '1.6' }}>
+            Based on your profile, here are the immigration pathways you may be eligible for.
+          </p>
+        </div>
+
+        <MatchList matches={matches} />
+
       </div>
     </main>
   );
