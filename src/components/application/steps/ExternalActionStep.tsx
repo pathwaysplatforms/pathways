@@ -2,15 +2,23 @@
 
 import { ExternalLink } from 'lucide-react';
 import type { ApplicationStep } from '@/modules/pathways/types';
+import { completeStep } from '@/app/applications/actions';
 
 interface Props {
   step: ApplicationStep;
+  applicationId: string;
   isConfirmed: boolean;
   onConfirm: (confirmed: boolean) => void;
 }
 
 /** Renders instructions for an off-platform action plus a confirmation checkbox. */
-export function ExternalActionStep({ step, isConfirmed, onConfirm }: Props) {
+export function ExternalActionStep({ step, applicationId, isConfirmed, onConfirm }: Props) {
+  const handleChange = async (checked: boolean) => {
+    onConfirm(checked);
+    if (checked) {
+      await completeStep(applicationId, step.id);
+    }
+  };
   return (
     <div>
       <p className="label-eyebrow mb-3">What you need to do</p>
@@ -38,7 +46,7 @@ export function ExternalActionStep({ step, isConfirmed, onConfirm }: Props) {
             type="checkbox"
             className="sr-only"
             checked={isConfirmed}
-            onChange={(e) => onConfirm(e.target.checked)}
+            onChange={(e) => handleChange(e.target.checked)}
           />
           <div
             className={[

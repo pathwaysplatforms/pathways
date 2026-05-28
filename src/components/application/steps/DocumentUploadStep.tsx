@@ -3,14 +3,17 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import type { DocumentRequirement } from '@/modules/pathways/types';
+import { completeStep } from '@/app/applications/actions';
 import { DocumentUploadModal } from '../modals/DocumentUploadModal';
 
 interface Props {
   document: DocumentRequirement;
+  applicationId: string;
+  stepId: string;
 }
 
 /** Upload CTA for a document_upload step — triggers DocumentUploadModal on click. */
-export function DocumentUploadStep({ document }: Props) {
+export function DocumentUploadStep({ document, applicationId, stepId }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [isUploaded, setIsUploaded] = useState(false);
 
@@ -70,9 +73,10 @@ export function DocumentUploadStep({ document }: Props) {
         <DocumentUploadModal
           document={document}
           onClose={() => setModalOpen(false)}
-          onSuccess={() => {
+          onSuccess={async () => {
             setIsUploaded(true);
             setModalOpen(false);
+            await completeStep(applicationId, stepId);
           }}
         />
       )}

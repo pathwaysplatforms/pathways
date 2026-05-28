@@ -19,6 +19,7 @@ export interface ApplicationStep {
   status: StepStatus;
   estimated_duration: string;
   is_optional: boolean;
+  document_requirement_id: string | null;
   document?: DocumentRequirement;
 }
 

@@ -19,6 +19,7 @@ export const mockApplication: Application = {
       status: 'completed',
       estimated_duration: '1 day',
       is_optional: false,
+      document_requirement_id: null,
     },
     {
       id: 'step-2',
@@ -29,6 +30,7 @@ export const mockApplication: Application = {
       status: 'current',
       estimated_duration: '4–8 weeks',
       is_optional: false,
+      document_requirement_id: null,
       document: {
         name: 'Language Test Results',
         description:
@@ -48,6 +50,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '4–8 weeks',
       is_optional: false,
+      document_requirement_id: null,
       document: {
         name: 'ECA Report',
         description:
@@ -67,6 +70,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '2–4 weeks',
       is_optional: false,
+      document_requirement_id: null,
       document: {
         name: 'Employment Reference Letters',
         description:
@@ -86,6 +90,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '1 week',
       is_optional: false,
+      document_requirement_id: null,
       document: {
         name: 'Bank Statements',
         description:
@@ -106,6 +111,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '1–2 days',
       is_optional: false,
+      document_requirement_id: null,
     },
     {
       id: 'step-7',
@@ -116,6 +122,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '1–12 months',
       is_optional: false,
+      document_requirement_id: null,
     },
     {
       id: 'step-8',
@@ -127,6 +134,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '2–4 weeks',
       is_optional: false,
+      document_requirement_id: null,
     },
     {
       id: 'step-9',
@@ -137,6 +145,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '2–4 weeks',
       is_optional: false,
+      document_requirement_id: null,
     },
     {
       id: 'step-10',
@@ -147,6 +156,7 @@ export const mockApplication: Application = {
       status: 'upcoming',
       estimated_duration: '1–6 months',
       is_optional: false,
+      document_requirement_id: null,
     },
   ],
 };

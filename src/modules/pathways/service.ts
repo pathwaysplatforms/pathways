@@ -550,16 +550,52 @@ export async function getApplicationData(
   };
   const app = appRow as unknown as AppRow;
 
-  // ── Query 2: pathway steps ordered by step_number ──────────────────────────
+  // ── Query 2: pathway steps with document_requirements join ─────────────────
   const { data: stepRows, error: stepsErr } = await db
     .from('pathway_steps')
-    .select('id, step_number, title, description, type, estimated_duration, is_optional')
+    .select(`
+      id,
+      step_number,
+      title,
+      description,
+      type,
+      estimated_duration,
+      is_optional,
+      document_requirement_id,
+      document_requirement:document_requirements!document_requirement_id (
+        name,
+        description,
+        document_type,
+        validity_period,
+        validation_rules
+      )
+    `)
     .eq('pathway_id', app.pathway.id)
     .order('step_number', { ascending: true });
 
   if (stepsErr) {
     throw new DatabaseError('Failed to fetch pathway steps', { applicationId }, stepsErr);
   }
+
+  // ── Query 3: completed step IDs for this application ──────────────────────
+  const { data: completionRows, error: completionsErr } = await db
+    .from('application_step_completions')
+    .select('step_id')
+    .eq('application_id', applicationId);
+
+  if (completionsErr) {
+    throw new DatabaseError('Failed to fetch step completions', { applicationId }, completionsErr);
+  }
+
+  const completedIds = new Set<string>((completionRows ?? []).map((r: { step_id: string }) => r.step_id));
+
+  type DocReqRow = {
+    name: string;
+    description: string;
+    document_type: string;
+    validity_period: string | null;
+    validation_rules: Record<string, unknown> | null;
+  };
 
   type StepRow = {
     id: string;
@@ -569,21 +605,54 @@ export async function getApplicationData(
     type: StepType;
     estimated_duration: string;
     is_optional: boolean;
+    document_requirement_id: string | null;
+    document_requirement: DocReqRow | null;
   };
 
-  // Derive step statuses: first step is current, rest are upcoming.
-  // Per-step completion tracking requires an application_step_completions table
-  // which is not yet in the schema.
-  const steps = (stepRows ?? [] as StepRow[]).map((s: StepRow, idx: number) => ({
-    id: s.id,
-    step_number: s.step_number,
-    title: s.title,
-    description: s.description,
-    type: s.type,
-    estimated_duration: s.estimated_duration,
-    is_optional: s.is_optional,
-    status: (idx === 0 ? 'current' : 'upcoming') as 'current' | 'upcoming',
-  }));
+  // Derive step statuses from completion set:
+  // completed → completed, first non-completed → current, rest → upcoming
+  let foundCurrent = false;
+  const steps = ((stepRows ?? []) as unknown as StepRow[]).map((s: StepRow) => {
+    let status: 'completed' | 'current' | 'upcoming';
+    if (completedIds.has(s.id)) {
+      status = 'completed';
+    } else if (!foundCurrent) {
+      foundCurrent = true;
+      status = 'current';
+    } else {
+      status = 'upcoming';
+    }
+
+    const doc = s.document_requirement;
+    const validationRules = doc?.validation_rules as {
+      accepted_formats?: string[];
+      max_size_mb?: number;
+    } | null;
+
+    return {
+      id: s.id,
+      step_number: s.step_number,
+      title: s.title,
+      description: s.description,
+      type: s.type,
+      estimated_duration: s.estimated_duration,
+      is_optional: s.is_optional,
+      document_requirement_id: s.document_requirement_id,
+      status,
+      ...(s.type === 'document_upload' && doc
+        ? {
+            document: {
+              name: doc.name,
+              description: doc.description,
+              document_type: doc.document_type,
+              validity_period: doc.validity_period,
+              accepted_formats: validationRules?.accepted_formats ?? [],
+              max_size_mb: validationRules?.max_size_mb ?? 10,
+            },
+          }
+        : {}),
+    };
+  });
 
   logger.info({ action: 'getApplicationData.done', applicationId, stepCount: steps.length });
 

@@ -124,17 +124,20 @@ function setupMatcherClient(setup: MatcherMockSetup) {
 interface AppMockSetup {
   applicationResult: QueryResult;
   stepsResult?: QueryResult;
+  completionsResult?: QueryResult;
 }
 
 function setupAppClient(setup: AppMockSetup) {
   const {
     applicationResult,
     stepsResult = { data: [], error: null },
+    completionsResult = { data: [], error: null },
   } = setup;
 
   const fromFn = vi.fn().mockImplementation((table: string) => {
-    if (table === 'applications')  return makeChain(applicationResult);
-    if (table === 'pathway_steps') return makeChain(stepsResult);
+    if (table === 'applications')                   return makeChain(applicationResult);
+    if (table === 'pathway_steps')                  return makeChain(stepsResult);
+    if (table === 'application_step_completions')   return makeChain(completionsResult);
     return makeChain({ data: null, error: null });
   });
 
@@ -464,6 +467,19 @@ describe('getApplicationData', () => {
       type: 'information',
       estimated_duration: '1 week',
       is_optional: false,
+      document_requirement_id: null,
+      document_requirement: null,
+      ...overrides,
+    };
+  }
+
+  function makeDocReq(overrides: Record<string, unknown> = {}) {
+    return {
+      name: 'IELTS Score Report',
+      description: 'Official IELTS result document',
+      document_type: 'language_test',
+      validity_period: '2 years',
+      validation_rules: { accepted_formats: ['pdf', 'jpg'], max_size_mb: 5 },
       ...overrides,
     };
   }
@@ -487,6 +503,62 @@ describe('getApplicationData', () => {
     expect(result.steps[0].status).toBe('current');
     expect(result.steps[1].status).toBe('upcoming');
     expect(result.steps[1].type).toBe('document_upload');
+  });
+
+  it('marks completed steps and sets first non-completed step as current', async () => {
+    setupAppClient({
+      applicationResult: { data: makeAppRow(), error: null },
+      stepsResult: {
+        data: [makeStepRow(1), makeStepRow(2), makeStepRow(3)],
+        error: null,
+      },
+      completionsResult: { data: [{ step_id: 'step-1' }], error: null },
+    });
+
+    const result = await getApplicationData('app-1', mockLogger as never);
+
+    expect(result.steps[0].status).toBe('completed');
+    expect(result.steps[1].status).toBe('current');
+    expect(result.steps[2].status).toBe('upcoming');
+  });
+
+  it('populates step.document from document_requirements for document_upload steps', async () => {
+    const docReq = makeDocReq();
+    setupAppClient({
+      applicationResult: { data: makeAppRow(), error: null },
+      stepsResult: {
+        data: [
+          makeStepRow(1, {
+            type: 'document_upload',
+            document_requirement_id: 'doc-req-1',
+            document_requirement: docReq,
+          }),
+        ],
+        error: null,
+      },
+    });
+
+    const result = await getApplicationData('app-1', mockLogger as never);
+
+    expect(result.steps[0].document).toBeDefined();
+    expect(result.steps[0].document?.name).toBe('IELTS Score Report');
+    expect(result.steps[0].document?.accepted_formats).toEqual(['pdf', 'jpg']);
+    expect(result.steps[0].document?.max_size_mb).toBe(5);
+    expect(result.steps[0].document?.validity_period).toBe('2 years');
+  });
+
+  it('does not populate step.document for non-upload steps even if document_requirement present', async () => {
+    setupAppClient({
+      applicationResult: { data: makeAppRow(), error: null },
+      stepsResult: {
+        data: [makeStepRow(1, { type: 'information', document_requirement: makeDocReq() })],
+        error: null,
+      },
+    });
+
+    const result = await getApplicationData('app-1', mockLogger as never);
+
+    expect(result.steps[0].document).toBeUndefined();
   });
 
   it('returns ApplicationData with empty steps when pathway has no steps', async () => {

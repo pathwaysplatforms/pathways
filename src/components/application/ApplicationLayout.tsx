@@ -72,6 +72,7 @@ export function ApplicationLayout({ application }: Props) {
                 step={currentStep}
                 stepNumber={currentStepIdx + 1}
                 totalSteps={totalSteps}
+                applicationId={application.id}
                 onNext={handleNext}
                 onBack={handleBack}
                 canGoBack={currentStepIdx > 0}
