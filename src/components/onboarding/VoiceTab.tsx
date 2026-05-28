@@ -62,10 +62,14 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const gladiaWsRef = useRef<WebSocket | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const currentTranscriptRef = useRef<string>("");
   const animFrameRef = useRef<number | null>(null);
   const isProcessingTurnRef = useRef(false);
   const pendingSpeechEndRef = useRef<boolean>(false);
+  const isStartingRef = useRef(false);
+  const turnAbortRef = useRef<AbortController | null>(null);
+  const speechEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cleanup = useCallback(() => {
     if (animFrameRef.current !== null) {
@@ -83,6 +87,18 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
     pendingSpeechEndRef.current = false;
     if (audioContextRef.current?.state !== "closed") {
       audioContextRef.current?.close();
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (turnAbortRef.current) {
+      turnAbortRef.current.abort();
+      turnAbortRef.current = null;
+    }
+    if (speechEndTimerRef.current !== null) {
+      clearTimeout(speechEndTimerRef.current);
+      speechEndTimerRef.current = null;
     }
   }, []);
 
@@ -105,6 +121,8 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
   const sendTurn = useCallback(async (transcript: string) => {
     if (!sessionIdRef.current) return;
 
+    if (turnAbortRef.current) turnAbortRef.current.abort();
+    turnAbortRef.current = new AbortController();
     isProcessingTurnRef.current = true;
     pendingSpeechEndRef.current = false;
     setOrbState("thinking");
@@ -112,6 +130,7 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
     try {
       const res = await fetch("/api/voice/turn", {
         method: "POST",
+        signal: turnAbortRef.current.signal,
         headers: {
           "Content-Type": "application/json",
           "x-session-start": String(sessionStartMsRef.current),
@@ -189,9 +208,15 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
       }
 
       isProcessingTurnRef.current = false;
+      turnAbortRef.current = null;
       currentTranscriptRef.current = "";
       setOrbState("listening");
-    } catch {
+    } catch (err) {
+      turnAbortRef.current = null;
+      if (err instanceof Error && err.name === "AbortError") {
+        isProcessingTurnRef.current = false;
+        return;
+      }
       setError("Something went wrong. Please try again.");
       setOrbState("listening");
       isProcessingTurnRef.current = false;
@@ -221,14 +246,19 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
       }
     }
     if (data.type === "speech_end" && !isProcessingTurnRef.current) {
-      const t = currentTranscriptRef.current.trim();
-      if (t.length > 0) {
-        pendingSpeechEndRef.current = false;
-        currentTranscriptRef.current = "";
-        void sendTurn(t);
-      } else {
-        pendingSpeechEndRef.current = true;
-      }
+      if (speechEndTimerRef.current !== null) clearTimeout(speechEndTimerRef.current);
+      speechEndTimerRef.current = setTimeout(() => {
+        speechEndTimerRef.current = null;
+        if (isProcessingTurnRef.current) return;
+        const t = currentTranscriptRef.current.trim();
+        if (t.length > 0) {
+          pendingSpeechEndRef.current = false;
+          currentTranscriptRef.current = "";
+          void sendTurn(t);
+        } else {
+          pendingSpeechEndRef.current = true;
+        }
+      }, 300);
     }
   }, [sendTurn]);
 
@@ -249,6 +279,7 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
         const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
+        // TODO: migrate to AudioWorkletNode (requires separate .js worklet file in /public)
         const processor = audioCtx.createScriptProcessor(2048, 1, 1);
         source.connect(processor);
         processor.connect(audioCtx.destination);
@@ -268,6 +299,8 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
   }, [handleGladiaMessage, startAmplitudeLoop]);
 
   const begin = useCallback(async () => {
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
     setError(null);
     let stream: MediaStream | undefined;
     try {
@@ -293,47 +326,53 @@ export function VoiceTab({ onProfileUpdate, onSwitchToChat }: VoiceTabProps) {
       setStarted(true);
       setOrbState("speaking");
 
-      const greetRes = await fetch("/api/voice/turn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-session-start": String(sessionStartMsRef.current) },
-        body: JSON.stringify({ sessionId: sessionData.sessionId, transcript: "", history: historyRef.current }),
-      });
-      if (!greetRes.ok || !greetRes.body) throw new Error("Failed to get opening greeting");
+      // Only fetch the opening greeting for fresh sessions. For resumed sessions the history
+      // already contains the conversation — replaying the intro greeting would be confusing.
+      if (!sessionData.resumed || historyRef.current.length === 0) {
+        const greetRes = await fetch("/api/voice/turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-session-start": String(sessionStartMsRef.current) },
+          // Always pass history: [] so the greeting fast-path fires unconditionally.
+          body: JSON.stringify({ sessionId: sessionData.sessionId, transcript: "", history: [] }),
+        });
+        if (!greetRes.ok || !greetRes.body) throw new Error("Failed to get opening greeting");
 
-      const greetReader = greetRes.body.getReader();
-      const greetDecoder = new TextDecoder();
-      let greetBuffer = "";
-      let greetAudio = "";
-      let greetMessage = "";
+        const greetReader = greetRes.body.getReader();
+        const greetDecoder = new TextDecoder();
+        let greetBuffer = "";
+        let greetAudio = "";
+        let greetMessage = "";
 
-      while (true) {
-        const { done, value } = await greetReader.read();
-        if (done) break;
-        greetBuffer += greetDecoder.decode(value, { stream: true });
-        const lines = greetBuffer.split("\n");
-        greetBuffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (!json) continue;
-          let event: unknown;
-          try { event = JSON.parse(json); } catch { continue; }
-          const e = event as { type: string; audioBase64?: string; message?: string };
-          if (e.type === "audio" && e.audioBase64) greetAudio = e.audioBase64;
-          if (e.type === "meta" && e.message) greetMessage = e.message;
+        while (true) {
+          const { done, value } = await greetReader.read();
+          if (done) break;
+          greetBuffer += greetDecoder.decode(value, { stream: true });
+          const lines = greetBuffer.split("\n");
+          greetBuffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (!json) continue;
+            let event: unknown;
+            try { event = JSON.parse(json); } catch { continue; }
+            const e = event as { type: string; audioBase64?: string; message?: string };
+            if (e.type === "error") throw new Error(e.message ?? "Greeting stream error");
+            if (e.type === "audio" && e.audioBase64) greetAudio = e.audioBase64;
+            if (e.type === "meta" && e.message) greetMessage = e.message;
+          }
         }
-      }
 
-      if (!greetAudio || !greetMessage) throw new Error("Greeting stream incomplete");
-      if (historyRef.current.length === 0) {
+        if (!greetMessage) throw new Error("Greeting stream incomplete");
         historyRef.current = [{ role: "assistant", content: greetMessage }];
+        if (greetAudio) await playAudio(greetAudio);
       }
-      await playAudio(greetAudio);
 
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      mediaStreamRef.current = stream;
       audioContextRef.current = new AudioContext({ sampleRate: 16000 });
       setOrbState("listening");
     } catch (err) {
+      isStartingRef.current = false;
       setStarted(false);
       setOrbState("idle");
       if (err instanceof DOMException && err.name === "NotAllowedError") {

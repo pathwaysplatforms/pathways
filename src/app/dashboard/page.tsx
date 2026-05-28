@@ -6,6 +6,7 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { Suspense } from 'react';
+import { resetOnboarding } from '@/app/actions/onboarding';
 
 /** Server component: authenticates the user, fetches dashboard data, renders shell. */
 export default async function DashboardPage() {
@@ -53,6 +54,16 @@ export default async function DashboardPage() {
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardGrid data={dashboardData} />
       </Suspense>
+      <div className="flex justify-center pb-7">
+        <form action={resetOnboarding}>
+          <button
+            type="submit"
+            className="text-sm text-text-secondary underline underline-offset-4 hover:text-text-primary transition-colors"
+          >
+            Redo my onboarding profile
+          </button>
+        </form>
+      </div>
     </DashboardShell>
   );
 }

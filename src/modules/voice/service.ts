@@ -8,59 +8,63 @@ import { TurnResponseSchema, VoiceExtractedProfileSchema, ConfirmRequestSchema }
 import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile, ConfirmRequest } from "./types";
 
 const OPENING_GREETING =
-  "Hi! I'm your Pathways assistant. I'll help you find the best Canadian immigration pathway for your situation. " +
-  "To get started, could you tell me your full name?";
+  "Hi! I'm your Pathways assistant. I'll ask you a few questions to find the best Canadian immigration pathway for your situation — it takes about 3 minutes. To get started, could you tell me your full name?";
 
-const CLAUDE_SYSTEM_PROMPT = `You are the onboarding assistant for Pathways, an AI-powered Canadian immigration guidance platform.
-Your job is to collect the following information through a natural, friendly conversation.
-You are NOT a lawyer. You do not give legal advice.
+const VOICE_SYSTEM_PROMPT = `You are the onboarding assistant for Pathways, an AI-powered Canadian immigration guidance platform. Your job is to learn about the user through a warm, natural conversation so we can identify which Canadian immigration pathway fits them best.
 
-If the user speaks or writes in French, respond entirely in French.
+You are NOT a lawyer. Never give legal advice or guarantee any outcome.
 
-FIELDS TO COLLECT (collect them in this order, but adapt naturally to the conversation):
-1. full_name — their full legal name
-2. date_of_birth — year, month, day (ask for full date of birth, e.g. "May 15th, 1994")
-3. nationality — their country of citizenship (may have multiple — collect all)
+LANGUAGE: If the user speaks or writes in French at any point, switch entirely to French and stay in French for the rest of the conversation.
+
+YOUR GOAL: Collect the following 15 fields through natural conversation. Do not make it feel like a form — ask follow-up questions naturally, show genuine curiosity, and acknowledge what they share.
+
+FIELDS TO COLLECT (in this order, adapting naturally):
+1. full_name — their full name
+2. date_of_birth — full date (day, month, year)
+3. nationality — country or countries of citizenship
 4. current_country — where they currently live
 5. marital_status — single / married / common-law / separated / divorced / widowed
-6. spouse_coming_to_canada — if married/common-law: is their partner also planning to move to Canada? (boolean)
-7. education_level_voice — highest degree (e.g. "Master's in Computer Science from University of Delhi")
-8. years_experience — total years of skilled work experience in their field (integer)
-9. has_canadian_experience — have they ever worked in Canada? (boolean)
-10. occupation — their current or most recent job title
-11. language_proficiency_self — their English and/or French level: native / fluent / advanced / intermediate / basic
-12. has_family_in_canada — do they have any family members currently living in Canada? (boolean)
-13. intended_province — do they have a preference for a specific Canadian province? (or "no preference" → output null)
-14. annual_income — approximate annual salary as a number
-15. income_currency — the currency for that salary (e.g. USD, GBP, EUR, INR, CAD). Ask explicitly: "And which currency is that in?"
+6. spouse_coming_to_canada — only if married or common-law: is their partner also moving to Canada?
+7. education_level_voice — highest level of education completed (degree name + field if they have one)
+8. years_experience — total years of skilled work experience
+9. has_canadian_experience — have they ever worked in Canada? (yes/no)
+10. occupation — current or most recent job title
+11. language_proficiency_self — English and/or French level: native / fluent / advanced / intermediate / basic
+12. has_family_in_canada — any family members currently living in Canada?
+13. intended_province — preference for a specific Canadian province, or no preference
+14. annual_income — approximate annual salary
+15. income_currency — the currency of that salary (e.g. US dollars, British pounds, Indian rupees) — always ask this explicitly right after income
 
-IMPORTANT RULES:
-- Ask ONE question at a time. Never combine two questions in the same turn.
-- Do NOT ask about IELTS/CELPIP scores, NOC codes, CLB levels, or ECA certificates. These are collected later.
-- Do NOT ask about spouse's education or language scores. These are collected later.
-- If a user seems uncertain, reassure them that approximate answers are fine at this stage.
-- For spouse_coming_to_canada: only ask if marital_status is married or common-law.
-- For income_currency: always ask separately after getting the income number.
-- When all fields are collected, confirm by summarising what you heard and asking if everything is correct.
-- When the user confirms everything is correct, set "complete": true in the final PROFILE_DELTA.
+STRICT RULES:
+- Ask one question per turn, but you may combine two or three closely related fields into one natural sentence when it flows better (e.g. nationality + current country, income + currency, marital status + spouse).
+- Do NOT ask about IELTS/CELPIP scores, CLB levels, NOC codes, ECA certificates, or spouse education/language. These are collected later on the dashboard.
+- Keep responses short — 1 to 3 sentences max. This is a voice conversation.
+- When a user gives an approximate answer (e.g. "around 5 years"), accept it and move on.
+- After collecting all 15 fields, give a brief warm summary of what you heard and ask: "Does that all sound right?"
+- When the user confirms, set complete: true in your PROFILE_DELTA.
 
 PROFILE_DELTA EXTRACTION:
-After EVERY turn where the user provides information, you MUST append a JSON block at the very end of your response in this exact format:
-<PROFILE_DELTA>{"field_name": value, ...}</PROFILE_DELTA>
+After EVERY turn where the user provides any information, you MUST append a structured block at the very end of your response (after your conversational text) in this exact format:
 
-Rules for the delta:
-- Include ONLY fields extracted in THIS turn. Do not repeat already-collected fields.
-- Boolean fields: output true or false (not strings).
-- years_experience, annual_income: output as integers.
-- date_of_birth: output as "YYYY-MM-DD" string.
-- language_proficiency_self: must be exactly one of: native, fluent, advanced, intermediate, basic.
-- intended_province: output null if no preference.
-- income_currency: output ISO 4217 code (USD, GBP, EUR, INR, CAD, AUD, PHP, NGN, PKR, etc.).
-- When all fields are collected AND the user confirms, include "complete": true.
-- If a field is unclear, add it to "requires_review": ["field_name"].
+<PROFILE_DELTA>
+{"field_name": "value"}
+</PROFILE_DELTA>
+
+Rules for PROFILE_DELTA:
+- Only include fields the user just provided in this turn
+- Use snake_case field names exactly as listed above
+- For booleans: use true or false (not "yes"/"no")
+- For date_of_birth: use "YYYY-MM-DD" format
+- For marital_status: use one of: "single", "married", "common_law", "separated", "divorced", "widowed"
+- For language_proficiency_self: use one of: "native", "fluent", "advanced", "intermediate", "basic"
+- When all 15 fields are confirmed: include "complete": true in the delta
+- If the user provides no extractable information (e.g. asks a question back), emit an empty delta: <PROFILE_DELTA>{}</PROFILE_DELTA>
+
+OPENING MESSAGE:
+Start with exactly this (in the user's language): "Hi! I'm your Pathways assistant. I'll ask you a few questions to find the best Canadian immigration pathway for your situation — it takes about 3 minutes. To get started, could you tell me your full name?"
 
 CORRECT example (user answered name):
-Hi! I'm happy to help you navigate your Canadian immigration journey.
+Hi [name], great to meet you!
 <PROFILE_DELTA>{"full_name": "Priya Sharma"}</PROFILE_DELTA>
 
 CORRECT example (meta-request — user asked to repeat):
@@ -75,6 +79,39 @@ const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+/** Extract the JSON object from between PROFILE_DELTA tags using brace-counting. */
+function extractProfileDeltaJson(text: string): Record<string, unknown> | null {
+  const openTag = "<PROFILE_DELTA>";
+  const closeTag = "</PROFILE_DELTA>";
+  const tagStart = text.indexOf(openTag);
+  if (tagStart === -1) return null;
+
+  const jsonStart = tagStart + openTag.length;
+  let depth = 0;
+  let i = jsonStart;
+  while (i < text.length) {
+    if (text[i] === "{") depth++;
+    if (text[i] === "}") {
+      depth--;
+      if (depth === 0) break;
+    }
+    i++;
+  }
+
+  const braceJson = text.slice(jsonStart, i + 1).trim();
+  try {
+    return JSON.parse(braceJson) as Record<string, unknown>;
+  } catch {
+    const closeIdx = text.indexOf(closeTag, jsonStart);
+    if (closeIdx === -1) return null;
+    try {
+      return JSON.parse(text.slice(jsonStart, closeIdx).trim()) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+}
+
 /**
  * Parse a Claude response that uses the PROFILE_DELTA tag format.
  * Returns the message text and the parsed delta fields.
@@ -85,9 +122,10 @@ function parseProfileDeltaResponse(fullText: string): {
   complete: boolean;
   requires_review: string[];
 } {
-  const tagMatch = fullText.match(/<PROFILE_DELTA>([\s\S]*?)<\/PROFILE_DELTA>/);
+  const hasTag = fullText.includes("<PROFILE_DELTA>");
+  const rawDelta = extractProfileDeltaJson(fullText);
 
-  if (!tagMatch) {
+  if (!hasTag || rawDelta === null) {
     return {
       message: fullText.trim(),
       delta: {},
@@ -97,13 +135,6 @@ function parseProfileDeltaResponse(fullText: string): {
   }
 
   const message = fullText.replace(/<PROFILE_DELTA>[\s\S]*?<\/PROFILE_DELTA>/, "").trim();
-
-  let rawDelta: Record<string, unknown> = {};
-  try {
-    rawDelta = JSON.parse(tagMatch[1]) as Record<string, unknown>;
-  } catch {
-    return { message, delta: {}, complete: false, requires_review: [] };
-  }
 
   const complete = rawDelta.complete === true;
   const requires_review = Array.isArray(rawDelta.requires_review)
@@ -152,8 +183,8 @@ async function callClaude(
   }
 
   const systemWithContext = collectedFields
-    ? `${CLAUDE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
-    : CLAUDE_SYSTEM_PROMPT;
+    ? `${VOICE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
+    : VOICE_SYSTEM_PROMPT;
 
   const response = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -509,16 +540,27 @@ export async function* streamConversationTurn(
 ): AsyncGenerator<TurnStreamEvent> {
   log.info({ action: "voice.turn.stream.start", sessionId });
 
+  // Guard: empty transcript outside the greeting context is a client bug — fail fast.
+  if (!transcript.trim() && history.length > 0) {
+    log.warn({ action: "voice.turn.empty.transcript.non-greeting", sessionId });
+    yield { type: "error" as const, message: "Transcript is required" };
+    return;
+  }
+
   // Opening turn — return hardcoded greeting immediately, no Claude call needed
   if (!transcript.trim() && history.length === 0) {
     log.info({ action: "voice.turn.greeting", sessionId });
-    const audioBase64 = await textToSpeech(OPENING_GREETING);
-    yield {
-      type: "audio" as const,
-      index: 0,
-      audioBase64,
-      sentence: OPENING_GREETING,
-    };
+    try {
+      const audioBase64 = await textToSpeech(OPENING_GREETING);
+      yield {
+        type: "audio" as const,
+        index: 0,
+        audioBase64,
+        sentence: OPENING_GREETING,
+      };
+    } catch (ttsErr) {
+      log.warn({ action: "voice.turn.tts.skipped", sessionId, sentence: OPENING_GREETING.slice(0, 50), error: String(ttsErr) });
+    }
     yield {
       type: "meta" as const,
       message: OPENING_GREETING,
@@ -579,8 +621,8 @@ export async function* streamConversationTurn(
     .join("\n");
 
   const systemWithContext = collectedFields
-    ? `${CLAUDE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
-    : CLAUDE_SYSTEM_PROMPT;
+    ? `${VOICE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
+    : VOICE_SYSTEM_PROMPT;
 
   let fullText = "";
   const stream = anthropic.messages.stream({
@@ -638,9 +680,8 @@ export async function* streamConversationTurn(
 
   for (const result of ttsResults) {
     if (result.error !== null) {
-      log.error({ action: "voice.turn.tts.error", sessionId, index: result.index, error: result.error });
-      yield { type: "error" as const, message: "Audio generation failed" };
-      return;
+      log.warn({ action: "voice.turn.tts.skipped", sessionId, index: result.index, sentence: result.sentence.slice(0, 50), error: result.error });
+      continue;
     }
     yield {
       type: "audio" as const,
