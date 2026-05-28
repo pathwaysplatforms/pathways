@@ -1,0 +1,65 @@
+@property --orb-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.pathways-orb {
+  display: grid;
+  grid-template-areas: "s";
+  overflow: hidden;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgba(83,74,183,0.12),
+    0 8px 40px rgba(83,74,183,0.18),
+    0 0 80px rgba(83,74,183,0.08);
+}
+
+.pathways-orb::before,
+.pathways-orb::after {
+  content: "";
+  display: block;
+  grid-area: s;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.pathways-orb::before {
+  background:
+    conic-gradient(from calc(var(--orb-a) * 2) at 25% 70%, var(--c3), transparent 20% 80%, var(--c3)),
+    conic-gradient(from calc(var(--orb-a) * 2) at 45% 75%, var(--c2), transparent 30% 60%, var(--c2)),
+    conic-gradient(from calc(var(--orb-a) * -3) at 80% 20%, var(--c1), transparent 40% 60%, var(--c1)),
+    conic-gradient(from calc(var(--orb-a) * 2) at 15% 5%, var(--c2), transparent 10% 90%, var(--c2)),
+    conic-gradient(from calc(var(--orb-a) * 1) at 20% 80%, var(--c1), transparent 10% 90%, var(--c1)),
+    conic-gradient(from calc(var(--orb-a) * -2) at 85% 10%, var(--c3), transparent 20% 80%, var(--c3)),
+    var(--ob);
+  box-shadow: inset var(--ob) 0 0 var(--ss) calc(var(--ss) * 0.2);
+  filter: blur(var(--bl)) contrast(var(--ct));
+  animation: pathways-orb-spin var(--dur) linear infinite;
+}
+
+.pathways-orb::after {
+  background-image: radial-gradient(
+    circle at center,
+    var(--ob) var(--ds),
+    transparent var(--ds)
+  );
+  background-size: calc(var(--ds) * 2) calc(var(--ds) * 2);
+  backdrop-filter: blur(calc(var(--bl) * 2)) contrast(calc(var(--ct) * 2));
+  mix-blend-mode: overlay;
+  mask-image: radial-gradient(black 25%, transparent 75%);
+}
+
+@keyframes pathways-orb-spin {
+  to { --orb-a: 360deg; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pathways-orb::before { animation: none; }
+}
+
+@keyframes voice-bar {
+  0%, 100% { height: 4px; }
+  50% { height: 22px; }
+}

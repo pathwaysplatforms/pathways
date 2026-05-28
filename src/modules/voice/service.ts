@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ValidationError, DatabaseError } from "@/lib/errors";
 import { TurnResponseSchema, VoiceExtractedProfileSchema, ConfirmRequestSchema } from "./types";
 import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile, ConfirmRequest } from "./types";
+import { triggerPathwayRecognition } from "@/lib/pathway-recognition";
 
 const OPENING_GREETING =
   "Hi! I'm your Pathways assistant. I'll ask you a few questions to find the best Canadian immigration pathway for your situation — it takes about 3 minutes. To get started, could you tell me your full name?";
@@ -16,32 +17,81 @@ You are NOT a lawyer. Never give legal advice or guarantee any outcome.
 
 LANGUAGE: If the user speaks or writes in French at any point, switch entirely to French and stay in French for the rest of the conversation.
 
-YOUR GOAL: Collect the following 15 fields through natural conversation. Do not make it feel like a form — ask follow-up questions naturally, show genuine curiosity, and acknowledge what they share.
+YOUR GOAL: Collect the following fields through natural conversation. Do not make it feel like a form — ask follow-up questions naturally, show genuine curiosity, and acknowledge what they share.
 
-FIELDS TO COLLECT (in this order, adapting naturally):
+FIELDS TO COLLECT (suggested order, adapt naturally):
 1. full_name — their full name
 2. date_of_birth — full date (day, month, year)
 3. nationality — country or countries of citizenship
 4. current_country — where they currently live
 5. marital_status — single / married / common-law / separated / divorced / widowed
-6. spouse_coming_to_canada — only if married or common-law: is their partner also moving to Canada?
-7. education_level_voice — highest level of education completed (degree name + field if they have one)
-8. years_experience — total years of skilled work experience
-9. has_canadian_experience — have they ever worked in Canada? (yes/no)
-10. occupation — current or most recent job title
-11. language_proficiency_self — English and/or French level: native / fluent / advanced / intermediate / basic
-12. has_family_in_canada — any family members currently living in Canada?
-13. intended_province — preference for a specific Canadian province, or no preference
-14. annual_income — approximate annual salary
-15. income_currency — the currency of that salary (e.g. US dollars, British pounds, Indian rupees) — always ask this explicitly right after income
+6. occupation — current or most recent job title; infer noc_teer_category silently (see TEER INFERENCE below)
+7. years_experience — total years of skilled work experience
+8. canadian_work_years / foreign_work_years — ask "Has any of that work been inside Canada?" If yes, how many years and whether any in the last 3 years (canadian_work_recent). foreign_work_years = years_experience − canadian_work_years.
+9. education_level_voice — highest education (degree name + field). Also map to education_level silently.
+10. eca_obtained — if they mention a foreign degree, ask if they've had credentials assessed by WES or equivalent. Skip if they studied in Canada.
+11. language_proficiency_self — English/French level: native / fluent / advanced / intermediate / basic
+12. CLB scores — ask if they've taken IELTS, CELPIP, TEF, or TCF. If yes, get their scores and convert to CLB (see CLB CONVERSION below). If no, map from language_proficiency_self.
+13. has_family_in_canada — any family members in Canada?
+14. intended_province — province preference or no preference
+15. annual_income + income_currency — approximate salary and its currency
+16. Spouse section (only if marital_status is married or common-law):
+    - spouse_coming_to_canada — will their partner also move to Canada?
+    - If yes: spouse_education_level, then ask if partner has taken a language test → spouse_clb_*, then spouse_canadian_work_years
+    - Keep this to 2–3 questions grouped naturally
+17. Bonus factors (ask as one grouped question near the end):
+    "A few last questions that could significantly boost your immigration score — do you have a job offer from a Canadian employer, a provincial nomination, or a sibling who is a Canadian citizen or permanent resident?"
+    Extract: has_canadian_job_offer, has_provincial_nomination, has_sibling_in_canada. All default false.
+
+TEER INFERENCE (infer silently from occupation — never ask for a NOC number):
+- TEER 0: Senior managers, executives, directors, C-suite
+- TEER 1: Engineers, doctors, lawyers, architects, IT professionals, accountants, scientists, nurses, pharmacists
+- TEER 2: Technologists, paralegals, chefs, pilots, dental hygienists
+- TEER 3: Electricians, plumbers, early childhood educators, retail supervisors, carpenters
+- TEER 4: Home support workers, truck drivers, administrative assistants, food counter workers
+- TEER 5: Labourers, food service workers, cleaners, farm workers
+If ambiguous (e.g. "manager" without context, "consultant" without a field), ask one follow-up: "Is that a senior leadership role, or more of a hands-on technical position?" Add noc_teer_category to requires_review if still unclear.
+
+CLB CONVERSION (IELTS General → CLB):
+- Band 8.0–9.0 → CLB 10
+- Band 7.0–7.5 → CLB 9
+- Band 6.0–6.5 → CLB 8
+- Band 5.5 → CLB 7
+- Band 5.0 → CLB 6
+- Band 4.0–4.5 → CLB 5
+- Below 4.0 → CLB 4
+Apply the same mapped value to all four CLB fields (speaking, listening, reading, writing) unless the user gives individual sub-scores.
+If no test taken, map from language_proficiency_self: native→10, fluent→9, advanced→8, intermediate→7, basic→5.
+
+EDUCATION LEVEL MAPPING (map silently from what they said — only ask if unclear):
+- bachelor/undergraduate → bachelors
+- master/MBA/MSc → masters
+- PhD/doctorate → phd
+- diploma / 2-year college → two_year_post_secondary
+- 1-year certificate → one_year_post_secondary
+- high school / secondary → secondary
+- less than high school → less_than_secondary
+- two or more credentials → two_or_more_credentials
+If degree_level is "other" or unclear, ask one follow-up question.
 
 STRICT RULES:
-- Ask one question per turn, but you may combine two or three closely related fields into one natural sentence when it flows better (e.g. nationality + current country, income + currency, marital status + spouse).
-- Do NOT ask about IELTS/CELPIP scores, CLB levels, NOC codes, ECA certificates, or spouse education/language. These are collected later on the dashboard.
+- Ask one question per turn; combine two or three closely related fields when it flows naturally.
 - Keep responses short — 1 to 3 sentences max. This is a voice conversation.
+- Never ask for CLB numbers directly — convert from the test the user took.
+- Never ask for a NOC code — infer TEER from occupation.
 - When a user gives an approximate answer (e.g. "around 5 years"), accept it and move on.
-- After collecting all 15 fields, give a brief warm summary of what you heard and ask: "Does that all sound right?"
+- After collecting all fields, give a brief warm summary and ask: "Does that all sound right?"
 - When the user confirms, set complete: true in your PROFILE_DELTA.
+
+DATA EXTRACTION RULES:
+- clb_*: integer 0–12. Map from IELTS/CELPIP/TEF/TCF scores using table above. Apply same value to all four fields unless individual scores are given.
+- canadian_work_years: integer, 0 if no Canadian experience. foreign_work_years = years_experience − canadian_work_years.
+- canadian_work_recent: true if any Canadian experience in last 3 years.
+- foreign_work_recent: true if foreign experience within last 10 years.
+- noc_teer_category: infer silently. Add to requires_review if still unclear after one follow-up.
+- education_level: map silently. Only ask if degree_level is null or "other".
+- has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada: all default false. Set true only if explicitly mentioned.
+- spouse_* fields: only collect if marital_status is married or common-law AND spouse_coming_to_canada is true.
 
 PROFILE_DELTA EXTRACTION:
 After EVERY turn where the user provides any information, you MUST append a structured block at the very end of your response (after your conversational text) in this exact format:
@@ -51,13 +101,16 @@ After EVERY turn where the user provides any information, you MUST append a stru
 </PROFILE_DELTA>
 
 Rules for PROFILE_DELTA:
-- Only include fields the user just provided in this turn
+- Only include fields the user just provided or that you inferred in this turn
 - Use snake_case field names exactly as listed above
 - For booleans: use true or false (not "yes"/"no")
 - For date_of_birth: use "YYYY-MM-DD" format
 - For marital_status: use one of: "single", "married", "common_law", "separated", "divorced", "widowed"
 - For language_proficiency_self: use one of: "native", "fluent", "advanced", "intermediate", "basic"
-- When all 15 fields are confirmed: include "complete": true in the delta
+- For education_level: use one of: "less_than_secondary", "secondary", "one_year_post_secondary", "two_year_post_secondary", "bachelors", "two_or_more_credentials", "masters", "phd"
+- CLB fields: integer 0–12
+- noc_teer_category: integer 0–5
+- When all fields are confirmed: include "complete": true in the delta
 - If the user provides no extractable information (e.g. asks a question back), emit an empty delta: <PROFILE_DELTA>{}</PROFILE_DELTA>
 
 OPENING MESSAGE:
@@ -66,6 +119,10 @@ Start with exactly this (in the user's language): "Hi! I'm your Pathways assista
 CORRECT example (user answered name):
 Hi [name], great to meet you!
 <PROFILE_DELTA>{"full_name": "Priya Sharma"}</PROFILE_DELTA>
+
+CORRECT example (occupation inferred to TEER 1):
+That's great — software engineers are very well positioned for Express Entry!
+<PROFILE_DELTA>{"occupation": "software engineer", "noc_teer_category": 1}</PROFILE_DELTA>
 
 CORRECT example (meta-request — user asked to repeat):
 I was asking about your level of English — would you say you are a native speaker, fluent, or perhaps advanced?
@@ -145,13 +202,27 @@ function parseProfileDeltaResponse(fullText: string): {
   const { complete: _c, requires_review: _r, ...fieldData } = rawDelta;
   const typed = fieldData as Record<string, unknown>;
 
-  if (typed.years_experience !== undefined && typed.years_experience !== null) {
-    const n = parseInt(String(typed.years_experience), 10);
-    typed.years_experience = isNaN(n) ? null : n;
-  }
-  if (typed.annual_income !== undefined && typed.annual_income !== null) {
-    const n = parseInt(String(typed.annual_income), 10);
-    typed.annual_income = isNaN(n) ? null : n;
+  const integerFields = [
+    "years_experience",
+    "annual_income",
+    "clb_speaking",
+    "clb_listening",
+    "clb_reading",
+    "clb_writing",
+    "canadian_work_years",
+    "foreign_work_years",
+    "noc_teer_category",
+    "spouse_clb_speaking",
+    "spouse_clb_listening",
+    "spouse_clb_reading",
+    "spouse_clb_writing",
+    "spouse_canadian_work_years",
+  ] as const;
+  for (const field of integerFields) {
+    if (typed[field] !== undefined && typed[field] !== null) {
+      const n = parseInt(String(typed[field]), 10);
+      typed[field] = isNaN(n) ? null : n;
+    }
   }
 
   const validated = TurnResponseSchema.shape.delta.safeParse(typed);
@@ -257,7 +328,6 @@ function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProf
     nationality: partial.nationality ?? null,
     current_country: partial.current_country ?? null,
     marital_status: partial.marital_status ?? null,
-    spouse_coming_to_canada: partial.spouse_coming_to_canada ?? null,
     education_level_voice: partial.education_level_voice ?? null,
     years_experience: partial.years_experience ?? null,
     has_canadian_experience: partial.has_canadian_experience ?? null,
@@ -267,6 +337,31 @@ function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProf
     intended_province: partial.intended_province ?? null,
     annual_income: partial.annual_income ?? null,
     income_currency: partial.income_currency ?? null,
+    clb_speaking: partial.clb_speaking ?? null,
+    clb_listening: partial.clb_listening ?? null,
+    clb_reading: partial.clb_reading ?? null,
+    clb_writing: partial.clb_writing ?? null,
+    canadian_work_years: partial.canadian_work_years ?? null,
+    foreign_work_years: partial.foreign_work_years ?? null,
+    canadian_work_recent: partial.canadian_work_recent ?? null,
+    foreign_work_recent: partial.foreign_work_recent ?? null,
+    noc_teer_category: partial.noc_teer_category ?? null,
+    noc_code: partial.noc_code ?? null,
+    education_level: partial.education_level ?? null,
+    eca_obtained: partial.eca_obtained ?? null,
+    spouse_coming_to_canada: partial.spouse_coming_to_canada ?? null,
+    spouse_education_level: partial.spouse_education_level ?? null,
+    spouse_clb_speaking: partial.spouse_clb_speaking ?? null,
+    spouse_clb_listening: partial.spouse_clb_listening ?? null,
+    spouse_clb_reading: partial.spouse_clb_reading ?? null,
+    spouse_clb_writing: partial.spouse_clb_writing ?? null,
+    spouse_canadian_work_years: partial.spouse_canadian_work_years ?? null,
+    has_provincial_nomination: partial.has_provincial_nomination ?? false,
+    has_canadian_job_offer: partial.has_canadian_job_offer ?? false,
+    has_sibling_in_canada: partial.has_sibling_in_canada ?? false,
+    destination_country: partial.destination_country ?? null,
+    purpose: partial.purpose ?? null,
+    dependents: partial.dependents ?? null,
     requires_review: partial.requires_review ?? [],
   };
 }
@@ -510,8 +605,29 @@ export async function finalizeVoiceSession(
       language_proficiency_self: extractedProfile.language_proficiency_self,
       has_family_in_canada: extractedProfile.has_family_in_canada,
       education_level_voice: extractedProfile.education_level_voice,
-      spouse_coming_to_canada: extractedProfile.spouse_coming_to_canada,
       annual_income: extractedProfile.annual_income,
+      clb_speaking: extractedProfile.clb_speaking,
+      clb_listening: extractedProfile.clb_listening,
+      clb_reading: extractedProfile.clb_reading,
+      clb_writing: extractedProfile.clb_writing,
+      canadian_work_years: extractedProfile.canadian_work_years,
+      foreign_work_years: extractedProfile.foreign_work_years,
+      canadian_work_recent: extractedProfile.canadian_work_recent,
+      foreign_work_recent: extractedProfile.foreign_work_recent,
+      noc_teer_category: extractedProfile.noc_teer_category,
+      noc_code: extractedProfile.noc_code,
+      education_level: extractedProfile.education_level,
+      eca_obtained: extractedProfile.eca_obtained,
+      spouse_coming_to_canada: extractedProfile.spouse_coming_to_canada,
+      spouse_education_level: extractedProfile.spouse_education_level,
+      spouse_clb_speaking: extractedProfile.spouse_clb_speaking,
+      spouse_clb_listening: extractedProfile.spouse_clb_listening,
+      spouse_clb_reading: extractedProfile.spouse_clb_reading,
+      spouse_clb_writing: extractedProfile.spouse_clb_writing,
+      spouse_canadian_work_years: extractedProfile.spouse_canadian_work_years,
+      has_provincial_nomination: extractedProfile.has_provincial_nomination,
+      has_canadian_job_offer: extractedProfile.has_canadian_job_offer,
+      has_sibling_in_canada: extractedProfile.has_sibling_in_canada,
     })
     .eq("id", profileId);
 
@@ -710,14 +826,17 @@ export async function* streamConversationTurn(
 
   if (complete) {
     const durationSeconds = Math.round((Date.now() - sessionStartMs) / 1000);
+    const finalProfile = buildFinalProfile(updatedPartial);
     await finalizeVoiceSession(
       sessionId,
       profileId,
-      buildFinalProfile(updatedPartial),
+      finalProfile,
       updatedTranscript,
       durationSeconds,
       log
     );
+    // Fire-and-forget: write pathway_input_json for the async matching engine
+    void triggerPathwayRecognition(profileId, finalProfile, log);
   }
 
   yield {

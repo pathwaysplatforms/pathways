@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+const EducationLevelEnum = z.enum([
+  "less_than_secondary",
+  "secondary",
+  "one_year_post_secondary",
+  "two_year_post_secondary",
+  "bachelors",
+  "two_or_more_credentials",
+  "masters",
+  "phd",
+]);
+
 export const TurnResponseSchema = z.object({
   message: z.string(),
   delta: z.object({
@@ -8,7 +19,6 @@ export const TurnResponseSchema = z.object({
     nationality: z.string().nullable().optional(),
     current_country: z.string().nullable().optional(),
     marital_status: z.string().nullable().optional(),
-    spouse_coming_to_canada: z.boolean().nullable().optional(),
     education_level_voice: z.string().nullable().optional(),
     years_experience: z.number().nullable().optional(),
     has_canadian_experience: z.boolean().nullable().optional(),
@@ -21,6 +31,38 @@ export const TurnResponseSchema = z.object({
     intended_province: z.string().nullable().optional(),
     annual_income: z.number().nullable().optional(),
     income_currency: z.string().nullable().optional(),
+    // Language CLB scores
+    clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
+    clb_listening: z.number().int().min(0).max(12).nullable().optional(),
+    clb_reading: z.number().int().min(0).max(12).nullable().optional(),
+    clb_writing: z.number().int().min(0).max(12).nullable().optional(),
+    // Work experience split
+    canadian_work_years: z.number().int().min(0).nullable().optional(),
+    foreign_work_years: z.number().int().min(0).nullable().optional(),
+    canadian_work_recent: z.boolean().nullable().optional(),
+    foreign_work_recent: z.boolean().nullable().optional(),
+    // Occupation
+    noc_teer_category: z.number().int().min(0).max(5).nullable().optional(),
+    noc_code: z.string().nullable().optional(),
+    // Education structured
+    education_level: EducationLevelEnum.nullable().optional(),
+    eca_obtained: z.boolean().nullable().optional(),
+    // Spouse
+    spouse_coming_to_canada: z.boolean().nullable().optional(),
+    spouse_education_level: EducationLevelEnum.nullable().optional(),
+    spouse_clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
+    spouse_clb_listening: z.number().int().min(0).max(12).nullable().optional(),
+    spouse_clb_reading: z.number().int().min(0).max(12).nullable().optional(),
+    spouse_clb_writing: z.number().int().min(0).max(12).nullable().optional(),
+    spouse_canadian_work_years: z.number().int().min(0).nullable().optional(),
+    // CRS bonus factors
+    has_provincial_nomination: z.boolean().nullable().optional(),
+    has_canadian_job_offer: z.boolean().nullable().optional(),
+    has_sibling_in_canada: z.boolean().nullable().optional(),
+    // Additional pathway fields
+    destination_country: z.string().nullable().optional(),
+    purpose: z.string().nullable().optional(),
+    dependents: z.number().int().min(0).nullable().optional(),
   }),
   complete: z.boolean(),
   requires_review: z.array(z.string()),
@@ -32,7 +74,6 @@ export const VoiceExtractedProfileSchema = z.object({
   nationality: z.string().nullable(),
   current_country: z.string().nullable(),
   marital_status: z.string().nullable(),
-  spouse_coming_to_canada: z.boolean().nullable(),
   education_level_voice: z.string().nullable(),
   years_experience: z.number().nullable(),
   has_canadian_experience: z.boolean().nullable(),
@@ -44,6 +85,38 @@ export const VoiceExtractedProfileSchema = z.object({
   intended_province: z.string().nullable(),
   annual_income: z.number().nullable(),
   income_currency: z.string().nullable(),
+  // Language CLB scores
+  clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
+  clb_listening: z.number().int().min(0).max(12).nullable().optional(),
+  clb_reading: z.number().int().min(0).max(12).nullable().optional(),
+  clb_writing: z.number().int().min(0).max(12).nullable().optional(),
+  // Work experience split
+  canadian_work_years: z.number().int().min(0).nullable().optional(),
+  foreign_work_years: z.number().int().min(0).nullable().optional(),
+  canadian_work_recent: z.boolean().nullable().optional(),
+  foreign_work_recent: z.boolean().nullable().optional(),
+  // Occupation
+  noc_teer_category: z.number().int().min(0).max(5).nullable().optional(),
+  noc_code: z.string().nullable().optional(),
+  // Education structured
+  education_level: EducationLevelEnum.nullable().optional(),
+  eca_obtained: z.boolean().nullable().optional(),
+  // Spouse
+  spouse_coming_to_canada: z.boolean().nullable().optional(),
+  spouse_education_level: EducationLevelEnum.nullable().optional(),
+  spouse_clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
+  spouse_clb_listening: z.number().int().min(0).max(12).nullable().optional(),
+  spouse_clb_reading: z.number().int().min(0).max(12).nullable().optional(),
+  spouse_clb_writing: z.number().int().min(0).max(12).nullable().optional(),
+  spouse_canadian_work_years: z.number().int().min(0).nullable().optional(),
+  // CRS bonus factors
+  has_provincial_nomination: z.boolean().nullable().optional(),
+  has_canadian_job_offer: z.boolean().nullable().optional(),
+  has_sibling_in_canada: z.boolean().nullable().optional(),
+  // Additional pathway fields
+  destination_country: z.string().nullable().optional(),
+  purpose: z.string().nullable().optional(),
+  dependents: z.number().int().min(0).nullable().optional(),
   requires_review: z.array(z.string()),
 });
 
