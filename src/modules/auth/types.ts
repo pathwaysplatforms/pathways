@@ -32,4 +32,5 @@ export type Profile = {
   pathway_input_json: Record<string, unknown> | null;
   onboarding_step: "not_started" | "voice_in_progress" | "voice_complete" | "review" | "complete" | null;
   onboarding_method: "voice" | "chat" | "form" | null;
+  selected_pathway_slug: string | null;
 };

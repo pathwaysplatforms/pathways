@@ -4,6 +4,7 @@ import type { DashboardData } from '@/modules/dashboard/types';
 
 interface MyPathwayCardProps {
   data: DashboardData;
+  isVisible?: boolean;
 }
 
 /* ── Step node ────────────────────────────────────────────────────── */
@@ -19,14 +20,27 @@ interface StepDef {
 }
 
 function StepNode({ status, number }: { status: StepStatus; number: number }) {
-  const base = 'flex-shrink-0 flex items-center justify-center rounded-full border';
   const size = { width: 22, height: 22, fontSize: 10 };
+  const base: React.CSSProperties = {
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '50%',
+    border: '1px solid',
+  };
 
   if (status === 'done') {
     return (
       <div
-        className={`${base} bg-accent-600 border-accent-600 text-white`}
-        style={size}
+        className="pw-step-num"
+        style={{
+          ...base,
+          ...size,
+          background: 'var(--pw-ink)',
+          borderColor: 'var(--pw-ink)',
+          color: '#fff',
+        }}
       >
         <Check size={13} strokeWidth={3} />
       </div>
@@ -35,8 +49,15 @@ function StepNode({ status, number }: { status: StepStatus; number: number }) {
   if (status === 'active') {
     return (
       <div
-        className={`${base} bg-accent-50 border-accent-500 text-accent-600 font-semibold`}
-        style={size}
+        className="pw-step-num"
+        style={{
+          ...base,
+          ...size,
+          background: 'transparent',
+          borderColor: 'var(--pw-ink)',
+          color: 'var(--pw-ink)',
+          fontWeight: 600,
+        }}
       >
         {number}
       </div>
@@ -44,8 +65,14 @@ function StepNode({ status, number }: { status: StepStatus; number: number }) {
   }
   return (
     <div
-      className={`${base} border-border-light text-text-tertiary`}
-      style={size}
+      className="pw-step-num"
+      style={{
+        ...base,
+        ...size,
+        background: 'transparent',
+        borderColor: 'rgba(0,0,0,0.15)',
+        color: 'var(--pw-muted)',
+      }}
     >
       {number}
     </div>
@@ -56,22 +83,28 @@ function StepRow({
   step,
   number,
   isLast,
+  entryClass,
+  entryDelay,
 }: {
   step: StepDef;
   number: number;
   isLast: boolean;
+  entryClass: string;
+  entryDelay: number;
 }) {
   const isActive = step.status === 'active';
 
   return (
-    <div className="flex gap-3" style={{ flex: isActive ? 2.5 : 1 }}>
+    <div
+      className={`flex gap-3 ${entryClass}`}
+      style={{ flex: isActive ? 2.5 : 1, transitionDelay: `${entryDelay}ms` }}
+    >
       {/* Left: node + connector */}
       <div className="flex flex-col items-center flex-shrink-0">
         <StepNode status={step.status} number={number} />
         {!isLast && (
           <div
-            className="flex-1 bg-border-light mt-0.5"
-            style={{ width: '1.5px', minHeight: 4 }}
+            style={{ width: '1.5px', minHeight: 4, flex: 1, background: 'rgba(0,0,0,0.08)', marginTop: 2 }}
           />
         )}
       </div>
@@ -79,24 +112,46 @@ function StepRow({
       {/* Right: label + CTA */}
       <div className="flex flex-col justify-center gap-1.5 min-w-0 pb-1">
         <p
-          className={
-            step.status === 'done'
-              ? 'text-text-tertiary'
-              : step.status === 'active'
-              ? 'text-text-primary font-extrabold leading-none'
-              : 'text-text-secondary leading-none'
-          }
-          style={{ fontSize: '12px' }}
+          style={{
+            fontSize: '12px',
+            color:
+              step.status === 'done'
+                ? 'var(--pw-muted)'
+                : step.status === 'active'
+                ? 'var(--pw-ink)'
+                : 'var(--pw-muted)',
+            fontFamily: 'var(--pw-font-body)',
+            fontWeight: step.status === 'active' ? 500 : 400,
+            lineHeight: 1.2,
+          }}
         >
           {step.label}
         </p>
         {step.subtitle && (
-          <p className="text-text-tertiary" style={{ fontSize: '10px' }}>
+          <p style={{ fontSize: '10px', color: 'var(--pw-muted)', fontFamily: 'var(--pw-font-body)' }}>
             {step.subtitle}
           </p>
         )}
         {isActive && step.ctaLabel && step.ctaHref && (
-          <Link href={step.ctaHref} className="btn-primary mt-1" style={{ fontSize: '11px', padding: '6px 12px' }}>
+          <Link
+            href={step.ctaHref}
+            className="mt-1 pw-btn-primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px 14px',
+              fontSize: '11px',
+              fontFamily: 'var(--pw-font-body)',
+              fontWeight: 500,
+              color: '#fff',
+              background: 'var(--pw-ink)',
+              borderRadius: '9999px',
+              textDecoration: 'none',
+              flexShrink: 0,
+              alignSelf: 'flex-start',
+            }}
+          >
             {step.ctaLabel}
           </Link>
         )}
@@ -126,21 +181,27 @@ function CardHeader({
 }: HeaderProps) {
   return (
     <div className="flex-shrink-0" style={{ padding: '22px 22px 18px' }}>
+      <p className="pw-eyebrow">MY PATHWAY</p>
       <p
-        className="text-text-tertiary uppercase"
-        style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.12em' }}
-      >
-        MY PATHWAY
-      </p>
-      <p
-        className="text-text-primary font-extrabold leading-tight"
-        style={{ fontSize: '21px', letterSpacing: '-0.02em', marginTop: 7 }}
+        style={{
+          fontFamily: 'var(--pw-font-display)',
+          fontSize: '22px',
+          fontWeight: 400,
+          color: 'var(--pw-ink)',
+          lineHeight: 1.2,
+          marginTop: 6,
+        }}
       >
         {pathwayLabel}
       </p>
       <p
-        className="text-accent-600 font-medium italic"
-        style={{ fontSize: '12px', marginTop: 4 }}
+        style={{
+          fontFamily: 'var(--pw-font-body)',
+          fontSize: '12px',
+          fontStyle: 'italic',
+          color: 'var(--pw-muted)',
+          marginTop: 3,
+        }}
       >
         {pathwaySubtitle}
       </p>
@@ -152,39 +213,41 @@ function CardHeader({
           style={{
             display: 'flex',
             flexDirection: 'column',
-            background: 'var(--color-bg-subtle)',
+            background: 'rgba(0,0,0,0.04)',
             borderRadius: 10,
             padding: '10px 16px',
           }}
         >
+          <p className="pw-eyebrow" style={{ marginBottom: 2 }}>CRS Score</p>
           <p
-            className="text-text-tertiary uppercase"
-            style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.1em' }}
-          >
-            CRS Score
-          </p>
-          <p
-            className="font-extrabold"
-            style={{ fontSize: '36px', letterSpacing: '-0.04em', lineHeight: 1, marginTop: 3, color: 'var(--color-accent-500)' }}
+            style={{
+              fontFamily: 'var(--pw-font-display)',
+              fontSize: '36px',
+              fontWeight: 400,
+              letterSpacing: '-0.02em',
+              lineHeight: 1,
+              color: 'var(--pw-ink)',
+            }}
           >
             {crsValue}
           </p>
         </div>
 
-        {/* Pool rank — bare, no box */}
+        {/* Pool rank */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10 }}>
-          <p
-            className="text-text-tertiary uppercase"
-            style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.1em' }}
-          >
-            Pool Rank
-          </p>
+          <p className="pw-eyebrow">Pool Rank</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span
-              className="rounded-full flex-shrink-0"
-              style={{ width: 7, height: 7, background: poolDotColor }}
+              style={{ width: 7, height: 7, borderRadius: '50%', background: poolDotColor, flexShrink: 0 }}
             />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: poolRankColor }}>
+            <span
+              style={{
+                fontFamily: 'var(--pw-font-body)',
+                fontSize: '13px',
+                fontWeight: 500,
+                color: poolRankColor,
+              }}
+            >
               {poolRank}
             </span>
           </div>
@@ -194,9 +257,32 @@ function CardHeader({
   );
 }
 
+/* ── Checklist body ──────────────────────────────────────────────────── */
+
+function ChecklistBody({ steps, isVisible }: { steps: StepDef[]; isVisible: boolean }) {
+  const entryClass = `pw-entry${isVisible ? ' is-visible' : ''}`;
+  return (
+    <div
+      className="flex-1 flex flex-col min-h-0 overflow-hidden"
+      style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '12px 22px 10px' }}
+    >
+      {steps.map((step, i) => (
+        <StepRow
+          key={step.label}
+          step={step}
+          number={i + 1}
+          isLast={i === steps.length - 1}
+          entryClass={entryClass}
+          entryDelay={280 + i * 50}
+        />
+      ))}
+    </div>
+  );
+}
+
 /* ── State variants ─────────────────────────────────────────────────── */
 
-function State1({ data }: MyPathwayCardProps) {
+function State1({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
   const steps: StepDef[] = [
     { label: 'Complete profile',    status: 'active', ctaLabel: 'Finish profile →', ctaHref: '/onboarding/review' },
     { label: 'Receive pathway match', status: 'locked' },
@@ -211,16 +297,16 @@ function State1({ data }: MyPathwayCardProps) {
         pathwaySubtitle="Complete your profile to unlock"
         crsValue="—"
         poolRank="Not yet calculated"
-        poolRankColor="var(--color-text-tertiary)"
-        poolDotColor="var(--color-text-disabled)"
+        poolRankColor="var(--pw-muted)"
+        poolDotColor="rgba(0,0,0,0.15)"
       />
-      <ChecklistBody steps={steps} />
+      <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
   );
 }
 
-function State2({ data }: MyPathwayCardProps) {
-  const crs = data.profileCompleteness > 0 ? String(data.profileCompleteness) : '—';
+function State2({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
+  const crs = data.crsScore !== null ? String(data.crsScore) : '—';
   const steps: StepDef[] = [
     { label: 'Profile complete',    status: 'done' },
     { label: 'Select a pathway',    status: 'active', ctaLabel: 'Browse pathways →', ctaHref: '/pathways' },
@@ -235,16 +321,40 @@ function State2({ data }: MyPathwayCardProps) {
         pathwaySubtitle="Choose a pathway to begin"
         crsValue={crs}
         poolRank={`Top ${100 - data.profileCompleteness}% of pool`}
-        poolRankColor="#0B7269"
-        poolDotColor="#0FA896"
+        poolRankColor="var(--pw-ink)"
+        poolDotColor="var(--pw-accent)"
       />
-      <ChecklistBody steps={steps} />
+      <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
   );
 }
 
-function State3({ data }: MyPathwayCardProps) {
-  const crs = data.profileCompleteness > 0 ? String(data.profileCompleteness) : '—';
+function State2b({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
+  const crs = data.crsScore !== null ? String(data.crsScore) : '—';
+  const steps: StepDef[] = [
+    { label: 'Profile complete',       status: 'done' },
+    { label: 'Pathway selected',       status: 'done' },
+    { label: 'Begin your application', status: 'active', ctaLabel: 'Start application →', ctaHref: '/dashboard/application' },
+    { label: 'Submit application',     status: 'locked' },
+    { label: 'Receive decision',       status: 'locked' },
+  ];
+  return (
+    <>
+      <CardHeader
+        pathwayLabel={data.selectedPathwayTitle ?? 'Pathway Selected'}
+        pathwaySubtitle={data.selectedPathwayProcessingTime ?? 'Processing time varies'}
+        crsValue={crs}
+        poolRank={`Top ${100 - data.profileCompleteness}% of pool`}
+        poolRankColor="var(--pw-ink)"
+        poolDotColor="var(--pw-accent)"
+      />
+      <ChecklistBody steps={steps} isVisible={isVisible} />
+    </>
+  );
+}
+
+function State3({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
+  const crs = data.crsScore !== null ? String(data.crsScore) : '—';
   const stream = data.pathwayOfficialName ?? 'Federal Skilled Worker';
 
   const steps: StepDef[] = [
@@ -267,16 +377,16 @@ function State3({ data }: MyPathwayCardProps) {
         pathwaySubtitle={stream}
         crsValue={crs}
         poolRank="Top 15% of pool"
-        poolRankColor="#0B7269"
-        poolDotColor="#0FA896"
+        poolRankColor="var(--pw-ink)"
+        poolDotColor="var(--pw-accent)"
       />
-      <ChecklistBody steps={steps} />
+      <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
   );
 }
 
-function State4({ data }: MyPathwayCardProps) {
-  const crs = data.profileCompleteness > 0 ? String(data.profileCompleteness) : '—';
+function State4({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
+  const crs = data.crsScore !== null ? String(data.crsScore) : '—';
   const stream = data.pathwayOfficialName ?? 'Federal Skilled Worker';
 
   const steps: StepDef[] = [
@@ -296,40 +406,23 @@ function State4({ data }: MyPathwayCardProps) {
         poolRankColor="#14532D"
         poolDotColor="#22C55E"
       />
-      <ChecklistBody steps={steps} />
+      <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
   );
 }
 
-function ChecklistBody({ steps }: { steps: StepDef[] }) {
-  return (
-    <div
-      className="flex-1 flex flex-col min-h-0 overflow-hidden border-t border-border-light"
-      style={{ padding: '12px 22px 10px' }}
-    >
-      {steps.map((step, i) => (
-        <StepRow
-          key={step.label}
-          step={step}
-          number={i + 1}
-          isLast={i === steps.length - 1}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** Right-column card: accent-tinted header + step checklist. Always present. */
-export function MyPathwayCard({ data }: MyPathwayCardProps) {
+/** Right-column card: pathway header + step checklist. Always present. */
+export function MyPathwayCard({ data, isVisible = false }: MyPathwayCardProps) {
   return (
     <div
       className="flex-1 flex flex-col overflow-hidden rounded-card min-h-0"
-      style={{ boxShadow: 'var(--shadow-card-md)' }}
+      style={{ background: '#FFFFFF', borderLeft: '1px solid rgba(0,0,0,0.08)' }}
     >
-      {data.state === 'onboarding_incomplete'   && <State1 data={data} />}
-      {data.state === 'pathway_not_selected'    && <State2 data={data} />}
-      {data.state === 'application_in_progress' && <State3 data={data} />}
-      {data.state === 'application_submitted'   && <State4 data={data} />}
+      {data.state === 'onboarding_incomplete'   && <State1 data={data} isVisible={isVisible} />}
+      {data.state === 'pathway_not_selected'    && <State2 data={data} isVisible={isVisible} />}
+      {data.state === 'pathway_selected'        && <State2b data={data} isVisible={isVisible} />}
+      {data.state === 'application_in_progress' && <State3 data={data} isVisible={isVisible} />}
+      {data.state === 'application_submitted'   && <State4 data={data} isVisible={isVisible} />}
     </div>
   );
 }

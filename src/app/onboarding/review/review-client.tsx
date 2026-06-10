@@ -169,7 +169,10 @@ export function ReviewClient({ profileId, extracted, voiceSessionId, crsEstimate
         const data = (await res.json()) as { error?: { message?: string } };
         throw new Error(data.error?.message ?? "Confirmation failed");
       }
-      router.push("/onboarding/matches");
+      // Fire the pathway match in the background — don't await, don't block navigation.
+      // PathwayRecommendations will poll GET /api/pathways/match until the result lands.
+      fetch("/api/pathways/match", { method: "POST" }).catch(() => undefined);
+      router.push("/pathways/results");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);

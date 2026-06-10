@@ -30,7 +30,7 @@ function toReadableLabel(field: string): string {
   return FIELD_LABELS[field] ?? field.replace(/_/g, ' ');
 }
 
-/** Card A (accent onboarding progress) + Card B (getting started checklist) for the onboarding_incomplete state. */
+/** Card A (ink progress card) + Card B (getting started checklist) for the onboarding_incomplete state. */
 export function OnboardingIncompleteGrid({ data }: Props) {
   const pct = data.profileCompleteness;
   const missingCount = data.incompleteFields.length;
@@ -38,16 +38,17 @@ export function OnboardingIncompleteGrid({ data }: Props) {
 
   return (
     <>
-      {/* Card A — Onboarding Progress */}
+      {/* Card A — Onboarding Progress (ink dark) */}
       <div
-        className="card-accent h-full flex flex-col"
-        style={{ padding: '18px' }}
+        className="h-full flex flex-col overflow-hidden rounded-card"
+        style={{ background: 'var(--pw-ink)', padding: '28px', position: 'relative' }}
       >
         <p
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '10px',
-            fontWeight: 600,
-            color: 'rgba(255,255,255,0.6)',
+            fontWeight: 500,
+            color: 'rgba(255,255,255,0.50)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             flexShrink: 0,
@@ -57,8 +58,9 @@ export function OnboardingIncompleteGrid({ data }: Props) {
         </p>
         <p
           style={{
+            fontFamily: 'var(--pw-font-display)',
             fontSize: '48px',
-            fontWeight: 800,
+            fontWeight: 400,
             color: '#fff',
             lineHeight: 1,
             marginTop: 6,
@@ -70,8 +72,8 @@ export function OnboardingIncompleteGrid({ data }: Props) {
         {/* Progress bar */}
         <div
           style={{
-            height: '3px',
-            background: 'rgba(255,255,255,0.25)',
+            height: '2px',
+            background: 'rgba(255,255,255,0.15)',
             borderRadius: 9999,
             marginTop: 10,
             flexShrink: 0,
@@ -88,8 +90,9 @@ export function OnboardingIncompleteGrid({ data }: Props) {
         </div>
         <p
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '11px',
-            color: 'rgba(255,255,255,0.7)',
+            color: 'rgba(255,255,255,0.55)',
             marginTop: 8,
             flex: 1,
           }}
@@ -105,14 +108,15 @@ export function OnboardingIncompleteGrid({ data }: Props) {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '8px 16px',
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '13px',
-            fontWeight: 600,
-            color: '#fff',
-            background: 'rgba(255,255,255,0.15)',
-            border: '1px solid rgba(255,255,255,0.35)',
-            borderRadius: '10px',
+            fontWeight: 500,
+            color: 'var(--pw-ink)',
+            background: '#fff',
+            borderRadius: '9999px',
             textDecoration: 'none',
             flexShrink: 0,
+            transition: 'opacity 150ms',
           }}
         >
           Complete profile →
@@ -121,18 +125,15 @@ export function OnboardingIncompleteGrid({ data }: Props) {
 
       {/* Card B — Getting Started */}
       <div
-        className="h-full flex flex-col overflow-hidden rounded-card"
-        style={{
-          background: 'var(--color-bg-surface)',
-          boxShadow: 'var(--shadow-card-md)',
-          padding: '18px',
-        }}
+        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
+        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
       >
         <p
           style={{
-            fontSize: '14px',
-            fontWeight: 700,
-            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--pw-font-display)',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: 'var(--pw-ink)',
             flexShrink: 0,
             marginBottom: 12,
           }}
@@ -149,17 +150,17 @@ export function OnboardingIncompleteGrid({ data }: Props) {
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    border: '1.5px solid var(--color-accent-500)',
+                    border: '1.5px solid rgba(0,0,0,0.20)',
                     flexShrink: 0,
                   }}
                 />
-                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+                <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: '12px', fontWeight: 400, color: 'var(--pw-muted)' }}>
                   {toReadableLabel(field)}
                 </p>
               </div>
             ))
           ) : (
-            <p style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>
+            <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: '12px', color: 'var(--pw-muted)' }}>
               All sections complete.
             </p>
           )}
@@ -168,9 +169,10 @@ export function OnboardingIncompleteGrid({ data }: Props) {
         <Link
           href="/onboarding/review"
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '12px',
-            fontWeight: 700,
-            color: 'var(--color-accent-600)',
+            fontWeight: 500,
+            color: 'var(--pw-accent)',
             textDecoration: 'none',
             flexShrink: 0,
             marginTop: 10,

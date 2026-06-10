@@ -551,7 +551,7 @@ export function VoiceTab({
               lineHeight: 1.5,
             }}
           >
-            We'll ask a few questions to understand your situation. Usually 3 minutes.
+            We&apos;ll ask a few questions to understand your situation. Usually 3 minutes.
           </p>
           <button
             onClick={() => void begin()}

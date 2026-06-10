@@ -3,6 +3,7 @@ import type { Tables } from '@/types/database';
 export type DashboardState =
   | 'onboarding_incomplete'
   | 'pathway_not_selected'
+  | 'pathway_selected'
   | 'application_in_progress'
   | 'application_submitted';
 
@@ -27,6 +28,35 @@ export interface ApplicationStep {
   description: string;
   estimatedDuration: string;
   status: 'complete' | 'current' | 'upcoming';
+}
+
+/** An official link or form associated with a pathway step. */
+export interface StepResource {
+  label: string;
+  url: string;
+  type: 'official' | 'form' | 'external';
+}
+
+/** A pre-written email template for a pathway step. */
+export interface StepEmailTemplate {
+  subject: string;
+  recipientHint: string;
+  body: string;
+}
+
+/** ApplicationStep enriched with optional resource and email data. */
+export interface EnrichedApplicationStep extends ApplicationStep {
+  resources?: StepResource[];
+  emailTemplates?: StepEmailTemplate[];
+}
+
+/** Minimal profile fields passed to client components for template resolution. */
+export interface ProfileContext {
+  fullName: string | null;
+  occupation: string | null;
+  degreeLevel: string | null;
+  degreeField: string | null;
+  nationality: string | null;
 }
 
 export interface DashboardDocument {
@@ -72,6 +102,18 @@ export interface DashboardData {
   completedDocumentsCount: number;
 
   recommendations: Recommendation[];
+
+  crsScore: number | null;
+  crsRangeLow: number | null;
+  crsRangeHigh: number | null;
+  crsConfidence: string | null;
+
+  selectedPathwaySlug: string | null;
+  selectedPathwayTitle: string | null;
+  selectedPathwayProcessingTime: string | null;
+  selectedPathwaySteps: EnrichedApplicationStep[];
+
+  profileContext: ProfileContext;
 }
 
 /** Onboarding step definitions derived from known profile sections. */

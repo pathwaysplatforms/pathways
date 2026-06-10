@@ -15,13 +15,14 @@ export function DashboardShell({
   applicationId,
 }: DashboardShellProps) {
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-bg-base">
+    <div className="h-screen overflow-hidden flex flex-col bg-white">
       <TopNav
         avatarInitials={avatarInitials}
         firstName={firstName}
         applicationId={applicationId}
       />
-      <main className="flex-1 overflow-hidden flex flex-col">
+      <main className="flex-1 overflow-hidden flex flex-col relative">
+        <div className="pw-dot-grid" aria-hidden="true" />
         {children}
       </main>
     </div>

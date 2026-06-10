@@ -8,11 +8,6 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      // ─── Typography ───────────────────────────────────────────────
-      fontFamily: {
-        sans: ["Urbanist", "sans-serif"],
-        display: ["Urbanist", "sans-serif"],
-      },
       fontWeight: {
         normal: "400",
         medium: "500",
@@ -21,8 +16,24 @@ const config: Config = {
         extrabold: "800",
       },
  
+      // ─── Typography ───────────────────────────────────────────────
+      fontFamily: {
+        sans:    ["Urbanist", "sans-serif"],
+        display: ["Urbanist", "sans-serif"],
+        body:    ["DM Sans", "system-ui", "sans-serif"],
+      },
+
       // ─── Color Palette ────────────────────────────────────────────
       colors: {
+        // Swiss Particle Brutalism palette
+        pw: {
+          bg:       "#FFFFFF",
+          ink:      "#0D0D0D",
+          muted:    "#6B6B6B",
+          accent:   "#1A56DB",
+          particle: "#1A1A1A",
+          surface:  "#F7F7F5",
+        },
         // Backgrounds
         bg: {
           base: "#EDEEF2",      // page background — light grey

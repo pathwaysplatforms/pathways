@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Route, Files, User, type LucideIcon } from 'lucide-react';
 
@@ -17,38 +18,41 @@ interface NavItemDef {
   disabled: boolean;
 }
 
-/** Horizontal top navigation bar. */
+/** Horizontal top navigation bar — white, hairline border, Swiss typography. */
 export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps) {
   const pathname = usePathname();
+  const [tabsReady, setTabsReady] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setTabsReady(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   const navItems: NavItemDef[] = [
-    { label: 'Dashboard',   icon: LayoutDashboard, href: '/dashboard',                                               disabled: false },
-    { label: 'Application', icon: Route,            href: applicationId ? `/applications/${applicationId}` : '#',   disabled: !applicationId },
-    { label: 'Documents',   icon: Files,            href: applicationId ? `/applications/${applicationId}/documents` : '#', disabled: !applicationId },
-    { label: 'Profile',     icon: User,             href: '#',                                                       disabled: true },
+    { label: 'Dashboard',   icon: LayoutDashboard, href: '/dashboard',               disabled: false },
+    { label: 'Application', icon: Route,            href: '/dashboard/application',   disabled: false },
+    { label: 'Documents',   icon: Files,            href: '/dashboard/documents',     disabled: false },
+    { label: 'Profile',     icon: User,             href: '/dashboard/profile',       disabled: false },
   ];
 
   return (
     <nav
-      className="h-16 flex items-center justify-between px-8 flex-shrink-0 bg-bg-base"
+      className="h-16 flex items-center justify-between px-8 flex-shrink-0 bg-white border-b border-black/[0.08]"
       aria-label="Main navigation"
     >
-      {/* Logo */}
+      {/* Wordmark */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <span
-          className="text-text-primary font-extrabold"
-          style={{ fontSize: '20px', letterSpacing: '-0.02em' }}
+          className="text-pw-ink"
+          style={{ fontFamily: 'var(--pw-font-display)', fontSize: 20 }}
         >
           Pathways
         </span>
-        <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" aria-hidden="true" />
+        <span className="w-1.5 h-1.5 rounded-full bg-pw-accent flex-shrink-0" aria-hidden="true" />
       </div>
 
-      {/* Nav links — pill container */}
-      <div
-        className="flex items-center gap-1 rounded-full px-1.5 py-1"
-        style={{ background: 'var(--color-bg-subtle)' }}
-      >
+      {/* Nav links */}
+      <div className="flex items-center h-full">
         {navItems.map(({ label, icon: Icon, href, disabled }) => {
           const isActive = !disabled && (pathname === href || (href !== '#' && pathname.startsWith(href)));
 
@@ -56,8 +60,13 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
             return (
               <span
                 key={label}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-text-disabled cursor-not-allowed select-none"
-                style={{ fontSize: '14px', fontWeight: 500 }}
+                className="flex items-center gap-2 px-4 h-full cursor-not-allowed select-none"
+                style={{
+                  fontSize: 14,
+                  fontWeight: 400,
+                  fontFamily: 'var(--pw-font-body)',
+                  color: 'rgba(0,0,0,0.2)',
+                }}
               >
                 <Icon size={14} />
                 {label}
@@ -65,17 +74,24 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
             );
           }
 
+          const tabClass = [
+            'pw-nav-tab',
+            'flex items-center gap-2 px-4 h-full',
+            isActive ? 'active' : '',
+            !tabsReady ? 'no-transition' : '',
+          ].filter(Boolean).join(' ');
+
           return (
             <Link
               key={label}
               href={href}
-              className={[
-                'flex items-center gap-2 px-4 py-2 rounded-full transition-colors',
-                isActive
-                  ? 'bg-bg-surface text-accent-600 shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-surface/70',
-              ].join(' ')}
-              style={{ fontSize: '14px', fontWeight: isActive ? 600 : 500 }}
+              className={tabClass}
+              style={{
+                fontSize: 14,
+                fontWeight: 400,
+                fontFamily: 'var(--pw-font-body)',
+                color: isActive ? 'var(--pw-ink)' : 'var(--pw-muted)',
+              }}
             >
               <Icon size={14} />
               {label}
@@ -84,14 +100,21 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
         })}
       </div>
 
-      {/* User */}
+      {/* User avatar */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <span className="text-text-secondary" style={{ fontSize: '14px', fontWeight: 500 }}>
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 500,
+            fontFamily: 'var(--pw-font-body)',
+            color: 'var(--pw-muted)',
+          }}
+        >
           {firstName}
         </span>
         <div
-          className="flex items-center justify-center rounded-full bg-accent-600 text-white select-none flex-shrink-0"
-          style={{ width: 34, height: 34, fontSize: 12, fontWeight: 600 }}
+          className="flex items-center justify-center rounded-full bg-pw-ink text-white select-none flex-shrink-0"
+          style={{ width: 34, height: 34, fontSize: 12, fontFamily: 'var(--pw-font-body)' }}
           aria-label="User avatar"
         >
           {avatarInitials}

@@ -16,32 +16,18 @@ export function PathwayNotSelectedGrid({ data }: Props) {
     <>
       {/* Card A — Application / Pathway Selection */}
       <div
-        className="h-full flex flex-col overflow-hidden rounded-card"
-        style={{
-          background: 'var(--color-bg-surface)',
-          boxShadow: 'var(--shadow-card-md)',
-          padding: '18px',
-        }}
+        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
+        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
       >
-        <p
-          style={{
-            fontSize: '10px',
-            fontWeight: 600,
-            color: 'var(--color-text-tertiary)',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            flexShrink: 0,
-          }}
-        >
-          Application
-        </p>
+        <p className="pw-eyebrow" style={{ flexShrink: 0 }}>Application</p>
 
         <p
           style={{
-            fontSize: '16px',
-            fontWeight: 800,
-            color: 'var(--color-text-primary)',
-            marginTop: 4,
+            fontFamily: 'var(--pw-font-display)',
+            fontSize: '18px',
+            fontWeight: 400,
+            color: 'var(--pw-ink)',
+            marginTop: 6,
             flexShrink: 0,
           }}
         >
@@ -52,49 +38,48 @@ export function PathwayNotSelectedGrid({ data }: Props) {
         {crs !== null && (
           <div className="flex items-center gap-3 mt-3 flex-shrink-0">
             <div>
-              <p style={{ fontSize: '28px', fontWeight: 300, color: 'var(--color-text-primary)', lineHeight: 1, letterSpacing: '-0.03em' }}>
+              <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '28px', fontWeight: 400, color: 'var(--pw-ink)', lineHeight: 1 }}>
                 {crs}
               </p>
-              <p style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                CRS score
-              </p>
+              <p className="pw-eyebrow" style={{ marginTop: 2 }}>CRS score</p>
             </div>
-            <div style={{ width: '0.5px', alignSelf: 'stretch', background: 'var(--color-border-light)', margin: '2px 0' }} />
+            <div style={{ width: '0.5px', alignSelf: 'stretch', background: 'rgba(0,0,0,0.08)', margin: '2px 0' }} />
             {topPct !== null && (
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#0FA896' }} />
-                  <p style={{ fontSize: '12px', color: '#0B7269', fontWeight: 600 }}>Top {topPct}%</p>
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--pw-accent)' }} />
+                  <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: '12px', color: 'var(--pw-ink)', fontWeight: 500 }}>Top {topPct}%</p>
                 </div>
-                <p style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', marginTop: 2 }}>of pool</p>
+                <p className="pw-eyebrow" style={{ marginTop: 2 }}>of pool</p>
               </div>
             )}
           </div>
         )}
 
         {topRec && (
-          <p style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', marginTop: 8, flex: 1, overflow: 'hidden' }}>
+          <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: '11px', color: 'var(--pw-muted)', marginTop: 8, flex: 1, overflow: 'hidden' }}>
             Recommended:{' '}
-            <span style={{ color: 'var(--color-accent-600)', fontWeight: 600 }}>{topRec.name}</span>
+            <span style={{ color: 'var(--pw-accent)', fontWeight: 500 }}>{topRec.name}</span>
           </p>
         )}
         {!topRec && <div style={{ flex: 1 }} />}
 
         <Link
           href="/pathways"
+          className="pw-btn-primary"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '8px 16px',
+            padding: '9px 18px',
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '13px',
-            fontWeight: 600,
+            fontWeight: 500,
             color: '#fff',
-            background: 'var(--color-accent-500)',
-            borderRadius: '10px',
+            background: 'var(--pw-ink)',
+            borderRadius: '9999px',
             textDecoration: 'none',
             flexShrink: 0,
-            boxShadow: 'var(--shadow-accent)',
           }}
         >
           Browse pathways →
@@ -103,18 +88,14 @@ export function PathwayNotSelectedGrid({ data }: Props) {
 
       {/* Card B — Documents (locked) */}
       <div
-        className="h-full flex flex-col items-center justify-center overflow-hidden rounded-card"
-        style={{
-          background: 'var(--color-bg-surface)',
-          boxShadow: 'var(--shadow-card-md)',
-          padding: '18px',
-        }}
+        className="h-full flex flex-col items-center justify-center overflow-hidden rounded-card bg-white"
+        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
       >
-        <Lock size={28} className="text-text-disabled" style={{ marginBottom: 10 }} />
-        <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+        <Lock size={28} style={{ color: 'var(--pw-muted)', marginBottom: 10 }} />
+        <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '16px', fontWeight: 400, color: 'var(--pw-ink)', marginBottom: 6 }}>
           Documents
         </p>
-        <p style={{ fontSize: '12px', color: 'var(--color-text-tertiary)', textAlign: 'center' }}>
+        <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: '12px', color: 'var(--pw-muted)', textAlign: 'center' }}>
           Unlocks after selecting a pathway
         </p>
       </div>

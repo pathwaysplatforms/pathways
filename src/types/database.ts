@@ -655,6 +655,7 @@ export type Database = {
           second_lang_reading: number | null
           second_lang_speaking: number | null
           second_lang_writing: number | null
+          selected_pathway_slug: string | null
           spouse_canadian_work_years: number | null
           spouse_clb_listening: number | null
           spouse_clb_reading: number | null
@@ -723,6 +724,7 @@ export type Database = {
           second_lang_reading?: number | null
           second_lang_speaking?: number | null
           second_lang_writing?: number | null
+          selected_pathway_slug?: string | null
           spouse_canadian_work_years?: number | null
           spouse_clb_listening?: number | null
           spouse_clb_reading?: number | null
@@ -791,6 +793,7 @@ export type Database = {
           second_lang_reading?: number | null
           second_lang_speaking?: number | null
           second_lang_writing?: number | null
+          selected_pathway_slug?: string | null
           spouse_canadian_work_years?: number | null
           spouse_clb_listening?: number | null
           spouse_clb_reading?: number | null

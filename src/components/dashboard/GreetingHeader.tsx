@@ -2,6 +2,7 @@
 
 interface GreetingHeaderProps {
   firstName: string;
+  isVisible?: boolean;
 }
 
 function getGreeting(): string {
@@ -19,23 +20,36 @@ function getFormattedDate(): string {
   });
 }
 
-/** Date line + personalised greeting above the card row. */
-export function GreetingHeader({ firstName }: GreetingHeaderProps) {
+/** Date line + personalised greeting + animated hairline above the card row. */
+export function GreetingHeader({ firstName, isVisible = false }: GreetingHeaderProps) {
+  const vis = isVisible ? ' is-visible' : '';
   return (
     <div className="flex-shrink-0">
       <p
-        className="text-text-tertiary uppercase tracking-widest font-semibold"
-        style={{ fontSize: '11px', letterSpacing: '0.08em' }}
+        className={`pw-eyebrow pw-entry${vis}`}
+        style={{ transitionDelay: '0ms' }}
       >
         {getFormattedDate()}
       </p>
       <h1
-        className="text-text-primary font-extrabold tracking-tight leading-tight mt-1"
-        style={{ fontSize: '26px' }}
+        className={`pw-entry${vis}`}
+        style={{
+          fontFamily: 'var(--pw-font-display)',
+          fontSize: '34px',
+          fontWeight: 400,
+          color: 'var(--pw-ink)',
+          lineHeight: 1.15,
+          marginTop: 4,
+          transitionDelay: '60ms',
+        }}
       >
         {getGreeting()},{' '}
-        <span className="text-accent-500">{firstName}.</span>
+        <em style={{ fontStyle: 'italic' }}>{firstName}.</em>
       </h1>
+      <hr
+        className={`pw-rule-reveal${vis}`}
+        style={{ marginTop: 12, transitionDelay: '120ms' }}
+      />
     </div>
   );
 }

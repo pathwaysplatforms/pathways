@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -64,6 +65,18 @@
     rgba(255,255,255,0.30) 52%,
     transparent 70%
   );
+
+  /* ─── Swiss Particle Brutalism tokens ────────────────────────── */
+  --pw-bg:       #FFFFFF;
+  --pw-ink:      #0D0D0D;
+  --pw-muted:    #6B6B6B;
+  --pw-rule:     rgba(0, 0, 0, 0.08);
+  --pw-accent:   #1A56DB;
+  --pw-particle: #1A1A1A;
+  --pw-surface:  #F7F7F5;
+
+  --pw-font-display: 'Instrument Serif', Georgia, serif;
+  --pw-font-body:    'DM Sans', system-ui, sans-serif;
 }
 
 /* ─── Base Reset ─────────────────────────────────────────────────── */
@@ -340,6 +353,44 @@ html, body {
     margin: 16px 0;
   }
 
+  /* Swiss Particle Brutalism — font utilities */
+  .font-display {
+    font-family: var(--pw-font-display);
+  }
+
+  .font-body {
+    font-family: var(--pw-font-body);
+  }
+
+  /* Swiss eyebrow label */
+  .pw-eyebrow {
+    font-family: var(--pw-font-body);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--pw-muted);
+  }
+
+  /* Swiss hairline rule — static (used on landing, pathways, onboarding) */
+  .pw-rule {
+    border: none;
+    border-top: 1px solid var(--pw-rule);
+  }
+
+  /* Swiss card — border only, no shadow */
+  .pw-card {
+    border: 1px solid var(--pw-rule);
+    border-radius: 12px;
+    background: var(--pw-bg);
+    padding: 28px;
+    transition: border-color 150ms ease;
+  }
+
+  .pw-card:hover {
+    border-color: rgba(0, 0, 0, 0.18);
+  }
+
 }
 
 /* ─── Sheen keyframe ─────────────────────────────────────────────── */
@@ -349,12 +400,6 @@ html, body {
 }
 
 /* ─── Card expand transition (future use) ────────────────────────── */
-/*
-  When a card is promoted to full-screen, apply the `.card-expanding`
-  class to animate it filling the viewport.
-  The JS/React side handles toggling the class and setting a fixed
-  position with the card's getBoundingClientRect() as the origin.
-*/
 .card-expanding {
   position: fixed;
   z-index: 50;
@@ -372,4 +417,188 @@ html, body {
   width: 100vw !important;
   height: 100vh !important;
   border-radius: 0 !important;
+}
+
+/* ─── Dot grid ───────────────────────────────────────────────────── */
+.pw-dot-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(circle, rgba(26, 26, 26, 0.5) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.04;
+}
+
+/* ─── Grain overlay ──────────────────────────────────────────────── */
+.pw-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ─── Entry animations ───────────────────────────────────────────── */
+@keyframes pw-entry {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pw-entry {
+  animation: pw-entry 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Transition kept for JS-triggered is-visible path (dashboard components) */
+  transition: opacity 500ms ease, transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-entry-delay-1 { animation-delay: 55ms; }
+.pw-entry-delay-2 { animation-delay: 110ms; }
+.pw-entry-delay-3 { animation-delay: 165ms; }
+.pw-entry-delay-4 { animation-delay: 220ms; }
+.pw-entry-delay-5 { animation-delay: 275ms; }
+
+.pw-entry-right {
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 600ms ease, transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-entry.is-visible,
+.pw-entry-right.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ─── Animated hairline rule (Swiss content pages) ──────────────── */
+@keyframes pw-rule-reveal {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.pw-rule-line {
+  height: 1px;
+  background: var(--pw-rule);
+  transform-origin: left;
+  animation: pw-rule-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 80ms;
+}
+
+/* ─── Rule reveal (dashboard greeting only) ──────────────────────── */
+.pw-rule-reveal {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-rule-reveal.is-visible {
+  transform: scaleX(1);
+}
+
+/* ─── Swiss buttons ──────────────────────────────────────────────── */
+.pw-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-family: var(--pw-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--pw-ink);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms ease, transform 120ms ease;
+}
+
+.pw-btn-primary:hover  { background: var(--pw-accent); }
+.pw-btn-primary:active { transform: scale(0.97); }
+
+.pw-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 27px;
+  font-family: var(--pw-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pw-ink);
+  background: transparent;
+  border: 1px solid var(--pw-ink);
+  border-radius: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.pw-btn-secondary:hover  { background: var(--pw-ink); color: #fff; }
+.pw-btn-secondary:active { transform: scale(0.97); }
+
+/* ─── Nav tab indicator ──────────────────────────────────────────── */
+.pw-nav-tab {
+  position: relative;
+  transition: color 150ms ease;
+}
+
+.pw-nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--pw-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-nav-tab.active::after {
+  transform: scaleX(1);
+}
+
+.pw-nav-tab.no-transition::after {
+  transition: none;
+}
+
+/* ─── Step circle ────────────────────────────────────────────────── */
+.pw-step-num {
+  transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+}
+
+/* ─── Redo link ──────────────────────────────────────────────────── */
+.pw-redo-link {
+  opacity: 0.5;
+  transition: color 150ms ease, opacity 150ms ease;
+}
+
+.pw-redo-link:hover {
+  opacity: 1;
+  color: #0D0D0D;
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pw-entry,
+  .pw-entry-right,
+  .pw-rule-reveal,
+  .pw-rule-line {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  .pw-btn-primary,
+  .pw-btn-secondary {
+    transition: none !important;
+  }
 }
