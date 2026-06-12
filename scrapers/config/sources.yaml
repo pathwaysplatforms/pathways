@@ -42,6 +42,16 @@ pathways:
       visa_type: express_entry_fst
       country: canada
 
+    # Express Entry — STEM category-based selection draws
+    express_entry_stem:
+      urls:
+        - https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations/category-based-selection.html
+      crawl_depth: 1
+      use_browser: false
+      visa_type: express_entry_stem
+      country: canada
+      high_change: true
+
     # CRS — critical for score calculators
     express_entry_crs:
       urls:

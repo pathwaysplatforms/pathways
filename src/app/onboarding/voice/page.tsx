@@ -1,20 +1,16 @@
 import { redirect } from "next/navigation";
 import { getProfile } from "@/modules/auth/service";
-import { VoiceClient } from "./voice-client";
+import { OnboardingLayout } from "@/components/onboarding/OnboardingLayout";
 
-/** Full-screen voice onboarding interface — no sidebar, no nav. */
+/** Voice/chat/form onboarding interface — no sidebar, no nav. */
 export default async function VoicePage() {
   const profile = await getProfile();
-  if (
-    profile?.onboarding_status === "voice_complete" ||
-    profile?.onboarding_status === "complete"
-  ) {
+  if (profile?.onboarding_step === "voice_complete") {
     redirect("/onboarding/review");
   }
+  if (profile?.onboarding_step === "complete") {
+    redirect("/dashboard");
+  }
 
-  return (
-    <main className="fixed inset-0 flex flex-col items-center justify-center bg-neutral-50">
-      <VoiceClient />
-    </main>
-  );
+  return <OnboardingLayout />;
 }

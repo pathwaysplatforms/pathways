@@ -38,7 +38,7 @@ const WALLET_FALLBACK: WalletCardDef[] = [
     rotate: -1.5,
   },
   {
-    gradient: 'linear-gradient(135deg, #0D8F80 0%, #0B7269 100%)',
+    gradient: 'linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)',
     label: 'PASSPORT',
     badge: 'Valid',
     rotate: 0,
@@ -49,7 +49,7 @@ function buildWalletCards(documents: DashboardData['documents']): WalletCardDef[
   if (!documents.length) return WALLET_FALLBACK;
 
   const STATUS_COLORS: Record<string, string> = {
-    verified: 'linear-gradient(135deg, #0D8F80 0%, #0B7269 100%)',
+    verified: 'linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)',
     uploaded: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
     pending:  'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
     expiring: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
@@ -68,7 +68,7 @@ function buildWalletCards(documents: DashboardData['documents']): WalletCardDef[
   return cards;
 }
 
-/** Card A (accent progress) + Card B (document wallet) for the application_in_progress state. */
+/** Card A (ink progress card) + Card B (document wallet) for the application_in_progress state. */
 export function ApplicationInProgressGrid({ data }: Props) {
   const pct =
     data.totalStepsCount > 0
@@ -80,23 +80,24 @@ export function ApplicationInProgressGrid({ data }: Props) {
     ? `Step ${currentStep.stepNumber} of ${data.totalStepsCount} · ${currentStep.label}`
     : `${data.completedStepsCount} of ${data.totalStepsCount} steps complete`;
 
-  const appHref = data.applicationId ? `/applications/${data.applicationId}` : '/dashboard';
+  const appHref = '/dashboard/application';
   const docsHref = data.applicationId ? `/applications/${data.applicationId}/documents` : '#';
 
   const walletCards = buildWalletCards(data.documents);
 
   return (
     <>
-      {/* Card A — Application Progress */}
+      {/* Card A — Application Progress (ink dark) */}
       <div
-        className="card-accent h-full flex flex-col"
-        style={{ padding: '18px' }}
+        className="h-full flex flex-col overflow-hidden rounded-card"
+        style={{ background: 'var(--pw-ink)', padding: '28px' }}
       >
         <p
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '10px',
-            fontWeight: 600,
-            color: 'rgba(255,255,255,0.6)',
+            fontWeight: 500,
+            color: 'rgba(255,255,255,0.50)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             flexShrink: 0,
@@ -106,8 +107,9 @@ export function ApplicationInProgressGrid({ data }: Props) {
         </p>
         <p
           style={{
+            fontFamily: 'var(--pw-font-display)',
             fontSize: '48px',
-            fontWeight: 800,
+            fontWeight: 400,
             color: '#fff',
             lineHeight: 1,
             marginTop: 6,
@@ -119,8 +121,8 @@ export function ApplicationInProgressGrid({ data }: Props) {
         {/* Progress bar */}
         <div
           style={{
-            height: '3px',
-            background: 'rgba(255,255,255,0.25)',
+            height: '2px',
+            background: 'rgba(255,255,255,0.15)',
             borderRadius: 9999,
             marginTop: 10,
             flexShrink: 0,
@@ -137,8 +139,9 @@ export function ApplicationInProgressGrid({ data }: Props) {
         </div>
         <p
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '11px',
-            color: 'rgba(255,255,255,0.7)',
+            color: 'rgba(255,255,255,0.55)',
             marginTop: 8,
             flex: 1,
             overflow: 'hidden',
@@ -153,14 +156,15 @@ export function ApplicationInProgressGrid({ data }: Props) {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '8px 16px',
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '13px',
-            fontWeight: 600,
-            color: '#fff',
-            background: 'rgba(255,255,255,0.15)',
-            border: '1px solid rgba(255,255,255,0.35)',
-            borderRadius: '10px',
+            fontWeight: 500,
+            color: 'var(--pw-ink)',
+            background: '#fff',
+            borderRadius: '9999px',
             textDecoration: 'none',
             flexShrink: 0,
+            transition: 'opacity 150ms',
           }}
         >
           Open application →
@@ -169,26 +173,20 @@ export function ApplicationInProgressGrid({ data }: Props) {
 
       {/* Card B — Documents Wallet */}
       <div
-        className="h-full flex flex-col overflow-hidden rounded-card"
-        style={{
-          background: 'var(--color-bg-surface)',
-          boxShadow: 'var(--shadow-card-md)',
-          padding: '18px',
-        }}
+        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
+        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
       >
         <div className="flex items-center justify-between flex-shrink-0" style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+          <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '16px', fontWeight: 400, color: 'var(--pw-ink)' }}>
             Documents
           </p>
           <Link
             href={docsHref}
             style={{
+              fontFamily: 'var(--pw-font-body)',
               fontSize: '12px',
-              fontWeight: 600,
-              color: 'var(--color-accent-600)',
-              background: 'var(--color-accent-50)',
-              padding: '3px 10px',
-              borderRadius: '8px',
+              fontWeight: 500,
+              color: 'var(--pw-accent)',
               textDecoration: 'none',
             }}
           >
@@ -220,6 +218,7 @@ export function ApplicationInProgressGrid({ data }: Props) {
                 {card.label ? (
                   <p
                     style={{
+                      fontFamily: 'var(--pw-font-body)',
                       fontSize: '10px',
                       fontWeight: 700,
                       color: 'rgba(255,255,255,0.9)',
@@ -239,6 +238,7 @@ export function ApplicationInProgressGrid({ data }: Props) {
                 {card.badge && (
                   <span
                     style={{
+                      fontFamily: 'var(--pw-font-body)',
                       fontSize: '9px',
                       fontWeight: 600,
                       color: 'rgba(255,255,255,0.85)',

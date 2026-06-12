@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -251,6 +231,176 @@ export type Database = {
           },
         ]
       }
+      immigration_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          country: string
+          created_at: string
+          embedding: string | null
+          id: string
+          source_id: string
+          token_count: number | null
+          visa_type: string | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          country: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          source_id: string
+          token_count?: number | null
+          visa_type?: string | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          country?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          source_id?: string
+          token_count?: number | null
+          visa_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "immigration_chunks_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "immigration_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      immigration_draws: {
+        Row: {
+          country: string
+          cutoff_score: number | null
+          draw_date: string
+          draw_type: string | null
+          id: string
+          invitations_issued: number | null
+          program: string
+          raw_data: Json
+          round_number: number | null
+          scraped_at: string
+          source_url: string | null
+          tie_breaking_date: string | null
+        }
+        Insert: {
+          country: string
+          cutoff_score?: number | null
+          draw_date: string
+          draw_type?: string | null
+          id?: string
+          invitations_issued?: number | null
+          program: string
+          raw_data?: Json
+          round_number?: number | null
+          scraped_at?: string
+          source_url?: string | null
+          tie_breaking_date?: string | null
+        }
+        Update: {
+          country?: string
+          cutoff_score?: number | null
+          draw_date?: string
+          draw_type?: string | null
+          id?: string
+          invitations_issued?: number | null
+          program?: string
+          raw_data?: Json
+          round_number?: number | null
+          scraped_at?: string
+          source_url?: string | null
+          tie_breaking_date?: string | null
+        }
+        Relationships: []
+      }
+      immigration_occupation_lists: {
+        Row: {
+          anzsco_code: string | null
+          country: string
+          id: string
+          noc_code: string | null
+          occupation_title: string
+          priority_level: string | null
+          program: string
+          scraped_at: string
+          source_url: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          anzsco_code?: string | null
+          country: string
+          id?: string
+          noc_code?: string | null
+          occupation_title: string
+          priority_level?: string | null
+          program: string
+          scraped_at?: string
+          source_url?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          anzsco_code?: string | null
+          country?: string
+          id?: string
+          noc_code?: string | null
+          occupation_title?: string
+          priority_level?: string | null
+          program?: string
+          scraped_at?: string
+          source_url?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
+      immigration_sources: {
+        Row: {
+          content_hash: string
+          country: string
+          id: string
+          is_active: boolean
+          metadata: Json
+          raw_markdown: string
+          scraped_at: string
+          source_url: string
+          title: string | null
+          visa_type: string | null
+        }
+        Insert: {
+          content_hash: string
+          country: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          raw_markdown: string
+          scraped_at?: string
+          source_url: string
+          title?: string | null
+          visa_type?: string | null
+        }
+        Update: {
+          content_hash?: string
+          country?: string
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          raw_markdown?: string
+          scraped_at?: string
+          source_url?: string
+          title?: string | null
+          visa_type?: string | null
+        }
+        Relationships: []
+      }
       pathway_categories: {
         Row: {
           description: string
@@ -322,15 +472,33 @@ export type Database = {
           fee_gbp: number
           id: string
           is_active: boolean
+          max_teer_level: number | null
+          min_clb_listening: number | null
+          min_clb_listening_teer23: number | null
+          min_clb_reading: number | null
+          min_clb_reading_teer23: number | null
+          min_clb_speaking: number | null
+          min_clb_speaking_teer23: number | null
+          min_clb_writing: number | null
+          min_clb_writing_teer23: number | null
+          min_fsw_points: number | null
           min_salary_gbp: number
           min_years_experience: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
+          program_type: string | null
+          requires_canadian_experience: boolean | null
           requires_degree: boolean
+          requires_eca: boolean | null
           requires_english_test: boolean
+          requires_proof_of_funds: boolean | null
+          requires_stem_occupation: boolean | null
+          settlement_funds_cad: number | null
           slug: string
           title: string
+          typical_crs_max: number | null
+          typical_crs_min: number | null
           updated_at: string
         }
         Insert: {
@@ -344,15 +512,33 @@ export type Database = {
           fee_gbp: number
           id?: string
           is_active?: boolean
+          max_teer_level?: number | null
+          min_clb_listening?: number | null
+          min_clb_listening_teer23?: number | null
+          min_clb_reading?: number | null
+          min_clb_reading_teer23?: number | null
+          min_clb_speaking?: number | null
+          min_clb_speaking_teer23?: number | null
+          min_clb_writing?: number | null
+          min_clb_writing_teer23?: number | null
+          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
+          program_type?: string | null
+          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
+          requires_eca?: boolean | null
           requires_english_test?: boolean
+          requires_proof_of_funds?: boolean | null
+          requires_stem_occupation?: boolean | null
+          settlement_funds_cad?: number | null
           slug: string
           title: string
+          typical_crs_max?: number | null
+          typical_crs_min?: number | null
           updated_at?: string
         }
         Update: {
@@ -366,15 +552,33 @@ export type Database = {
           fee_gbp?: number
           id?: string
           is_active?: boolean
+          max_teer_level?: number | null
+          min_clb_listening?: number | null
+          min_clb_listening_teer23?: number | null
+          min_clb_reading?: number | null
+          min_clb_reading_teer23?: number | null
+          min_clb_speaking?: number | null
+          min_clb_speaking_teer23?: number | null
+          min_clb_writing?: number | null
+          min_clb_writing_teer23?: number | null
+          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name?: string
           processing_time_max?: string
           processing_time_min?: string
+          program_type?: string | null
+          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
+          requires_eca?: boolean | null
           requires_english_test?: boolean
+          requires_proof_of_funds?: boolean | null
+          requires_stem_occupation?: boolean | null
+          settlement_funds_cad?: number | null
           slug?: string
           title?: string
+          typical_crs_max?: number | null
+          typical_crs_min?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -396,7 +600,7 @@ export type Database = {
       }
       profiles: {
         Row: {
-          annual_salary_gbp: number | null
+          annual_income: number | null
           auth_user_id: string
           canadian_education_years: number | null
           canadian_work_recent: boolean | null
@@ -407,25 +611,32 @@ export type Database = {
           clb_writing: number | null
           created_at: string
           current_country: string | null
+          date_of_birth: string | null
           degree_field: string | null
           degree_level: string | null
           eca_obtained: boolean | null
           education_level: string | null
+          education_level_voice: string | null
           email: string | null
           english_level: string | null
           foreign_work_recent: boolean | null
           foreign_work_years: number | null
           full_name: string | null
+          has_canadian_experience: boolean | null
           has_canadian_job_offer: boolean | null
           has_criminal_record: boolean | null
           has_degree: boolean | null
           has_dependents: boolean | null
+          has_family_in_canada: boolean | null
           has_provincial_nomination: boolean | null
           has_sibling_in_canada: boolean | null
           has_trade_certificate: boolean | null
           id: string
+          income_currency: string | null
           incomplete_fields: string[] | null
+          intended_province: string | null
           is_admin: boolean
+          language_proficiency_self: string | null
           marital_status: string | null
           nationality: string | null
           nclc_listening: number | null
@@ -435,12 +646,16 @@ export type Database = {
           noc_code: string | null
           noc_teer_category: number | null
           occupation: string | null
+          onboarding_method: string | null
           onboarding_status: string
+          onboarding_step: string | null
+          pathway_input_json: Json | null
           profile_completeness_pct: number | null
           second_lang_listening: number | null
           second_lang_reading: number | null
           second_lang_speaking: number | null
           second_lang_writing: number | null
+          selected_pathway_slug: string | null
           spouse_canadian_work_years: number | null
           spouse_clb_listening: number | null
           spouse_clb_reading: number | null
@@ -454,7 +669,7 @@ export type Database = {
           years_experience: number | null
         }
         Insert: {
-          annual_salary_gbp?: number | null
+          annual_income?: number | null
           auth_user_id: string
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
@@ -465,25 +680,32 @@ export type Database = {
           clb_writing?: number | null
           created_at?: string
           current_country?: string | null
+          date_of_birth?: string | null
           degree_field?: string | null
           degree_level?: string | null
           eca_obtained?: boolean | null
           education_level?: string | null
+          education_level_voice?: string | null
           email?: string | null
           english_level?: string | null
           foreign_work_recent?: boolean | null
           foreign_work_years?: number | null
           full_name?: string | null
+          has_canadian_experience?: boolean | null
           has_canadian_job_offer?: boolean | null
           has_criminal_record?: boolean | null
           has_degree?: boolean | null
           has_dependents?: boolean | null
+          has_family_in_canada?: boolean | null
           has_provincial_nomination?: boolean | null
           has_sibling_in_canada?: boolean | null
           has_trade_certificate?: boolean | null
           id?: string
+          income_currency?: string | null
           incomplete_fields?: string[] | null
+          intended_province?: string | null
           is_admin?: boolean
+          language_proficiency_self?: string | null
           marital_status?: string | null
           nationality?: string | null
           nclc_listening?: number | null
@@ -493,12 +715,16 @@ export type Database = {
           noc_code?: string | null
           noc_teer_category?: number | null
           occupation?: string | null
+          onboarding_method?: string | null
           onboarding_status?: string
+          onboarding_step?: string | null
+          pathway_input_json?: Json | null
           profile_completeness_pct?: number | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
           second_lang_speaking?: number | null
           second_lang_writing?: number | null
+          selected_pathway_slug?: string | null
           spouse_canadian_work_years?: number | null
           spouse_clb_listening?: number | null
           spouse_clb_reading?: number | null
@@ -512,7 +738,7 @@ export type Database = {
           years_experience?: number | null
         }
         Update: {
-          annual_salary_gbp?: number | null
+          annual_income?: number | null
           auth_user_id?: string
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
@@ -523,25 +749,32 @@ export type Database = {
           clb_writing?: number | null
           created_at?: string
           current_country?: string | null
+          date_of_birth?: string | null
           degree_field?: string | null
           degree_level?: string | null
           eca_obtained?: boolean | null
           education_level?: string | null
+          education_level_voice?: string | null
           email?: string | null
           english_level?: string | null
           foreign_work_recent?: boolean | null
           foreign_work_years?: number | null
           full_name?: string | null
+          has_canadian_experience?: boolean | null
           has_canadian_job_offer?: boolean | null
           has_criminal_record?: boolean | null
           has_degree?: boolean | null
           has_dependents?: boolean | null
+          has_family_in_canada?: boolean | null
           has_provincial_nomination?: boolean | null
           has_sibling_in_canada?: boolean | null
           has_trade_certificate?: boolean | null
           id?: string
+          income_currency?: string | null
           incomplete_fields?: string[] | null
+          intended_province?: string | null
           is_admin?: boolean
+          language_proficiency_self?: string | null
           marital_status?: string | null
           nationality?: string | null
           nclc_listening?: number | null
@@ -551,12 +784,16 @@ export type Database = {
           noc_code?: string | null
           noc_teer_category?: number | null
           occupation?: string | null
+          onboarding_method?: string | null
           onboarding_status?: string
+          onboarding_step?: string | null
+          pathway_input_json?: Json | null
           profile_completeness_pct?: number | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
           second_lang_speaking?: number | null
           second_lang_writing?: number | null
+          selected_pathway_slug?: string | null
           spouse_canadian_work_years?: number | null
           spouse_clb_listening?: number | null
           spouse_clb_reading?: number | null
@@ -614,7 +851,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_immigration_chunks: {
+        Args: {
+          filter_country?: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_text: string
+          country: string
+          id: string
+          similarity: number
+          source_url: string
+          visa_type: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -743,11 +995,7 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
 } as const
-

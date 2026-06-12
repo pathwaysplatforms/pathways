@@ -24,12 +24,11 @@ export function ApplicationSubmittedGrid({ data }: Props) {
     <>
       {/* Card A — Submission Confirmed */}
       <div
-        className="h-full flex flex-col overflow-hidden rounded-card"
+        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
         style={{
-          background: 'var(--color-bg-surface)',
-          boxShadow: 'var(--shadow-card-md)',
-          padding: '18px',
+          border: '1px solid rgba(0,0,0,0.08)',
           borderLeft: '3px solid #22C55E',
+          padding: '28px',
         }}
       >
         <CheckCircle2
@@ -38,9 +37,10 @@ export function ApplicationSubmittedGrid({ data }: Props) {
         />
         <p
           style={{
-            fontSize: '15px',
-            fontWeight: 800,
-            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--pw-font-display)',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: 'var(--pw-ink)',
             marginTop: 8,
             flexShrink: 0,
           }}
@@ -49,8 +49,9 @@ export function ApplicationSubmittedGrid({ data }: Props) {
         </p>
         <p
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '11px',
-            color: 'var(--color-text-secondary)',
+            color: 'var(--pw-muted)',
             marginTop: 5,
             flex: 1,
           }}
@@ -59,45 +60,50 @@ export function ApplicationSubmittedGrid({ data }: Props) {
         </p>
         <p
           style={{
+            fontFamily: 'var(--pw-font-body)',
             fontSize: '11px',
-            color: 'var(--color-text-tertiary)',
+            color: 'var(--pw-muted)',
             flexShrink: 0,
             marginBottom: 10,
           }}
         >
           Submitted {submittedDate}
         </p>
-        <Link href={appHref} className="btn-secondary" style={{ fontSize: '13px', padding: '7px 14px' }}>
+        <Link
+          href={appHref}
+          className="pw-btn-secondary"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '7px 16px',
+            fontFamily: 'var(--pw-font-body)',
+            fontSize: '13px',
+            fontWeight: 500,
+            color: 'var(--pw-ink)',
+            background: 'transparent',
+            border: '1px solid rgba(0,0,0,0.15)',
+            borderRadius: '9999px',
+            textDecoration: 'none',
+            flexShrink: 0,
+          }}
+        >
           View application →
         </Link>
       </div>
 
       {/* Card B — Key Dates */}
       <div
-        className="h-full flex flex-col overflow-hidden rounded-card"
-        style={{
-          background: 'var(--color-bg-surface)',
-          boxShadow: 'var(--shadow-card-md)',
-          padding: '18px',
-        }}
+        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
+        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
       >
+        <p className="pw-eyebrow" style={{ flexShrink: 0 }}>What&apos;s Next</p>
         <p
           style={{
-            fontSize: '10px',
-            fontWeight: 600,
-            color: 'var(--color-text-tertiary)',
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-            flexShrink: 0,
-          }}
-        >
-          What&apos;s Next
-        </p>
-        <p
-          style={{
-            fontSize: '14px',
-            fontWeight: 700,
-            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--pw-font-display)',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: 'var(--pw-ink)',
             marginTop: 4,
             marginBottom: 12,
             flexShrink: 0,
@@ -110,13 +116,13 @@ export function ApplicationSubmittedGrid({ data }: Props) {
           {[
             { dot: '#F59E0B', label: 'Biometrics deadline', value: '—' },
             { dot: '#3B82F6', label: 'Medical exam window', value: '—' },
-            { dot: '#0FA896', label: 'Est. IRCC decision',  value: '—' },
+            { dot: 'var(--pw-accent)', label: 'Est. IRCC decision',  value: '—' },
           ].map(({ dot, label, value }, i) => (
             <div
               key={label}
               style={{
                 paddingBottom: 8,
-                borderBottom: i < 2 ? '0.5px solid var(--color-border-light)' : 'none',
+                borderBottom: i < 2 ? '0.5px solid rgba(0,0,0,0.08)' : 'none',
               }}
             >
               <div className="flex items-center justify-between">
@@ -125,13 +131,14 @@ export function ApplicationSubmittedGrid({ data }: Props) {
                     className="w-2 h-2 rounded-full flex-shrink-0"
                     style={{ background: dot }}
                   />
-                  <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{label}</p>
+                  <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: '12px', color: 'var(--pw-muted)' }}>{label}</p>
                 </div>
                 <p
                   style={{
+                    fontFamily: 'var(--pw-font-body)',
                     fontSize: '12px',
-                    fontWeight: 600,
-                    color: value === '—' ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+                    fontWeight: 500,
+                    color: value === '—' ? 'var(--pw-muted)' : 'var(--pw-ink)',
                   }}
                 >
                   {value}

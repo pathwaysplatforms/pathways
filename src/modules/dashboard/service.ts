@@ -7,10 +7,13 @@ import type {
   DashboardData,
   DashboardState,
   ApplicationStep,
+  EnrichedApplicationStep,
+  StepResource,
   DashboardDocument,
   OnboardingStep,
   Recommendation,
   RecommendedPathway,
+  ProfileContext,
 } from './types';
 import { ONBOARDING_STEPS_META, STEP_FIELDS } from './types';
 
@@ -41,7 +44,12 @@ function deriveDashboardState(
   application: ApplicationWithPathway | null
 ): DashboardState {
   if (profile.onboarding_status !== 'complete') return 'onboarding_incomplete';
-  if (!application) return 'pathway_not_selected';
+  if (!application) {
+    const slug = (profile as Record<string, unknown>).selected_pathway_slug;
+    return typeof slug === 'string' && slug.length > 0
+      ? 'pathway_selected'
+      : 'pathway_not_selected';
+  }
   if (!application.submitted_at) return 'application_in_progress';
   return 'application_submitted';
 }
@@ -198,6 +206,22 @@ export async function getDashboardData(
 
   const profile = profileData as Tables<'profiles'>;
 
+  // Extract CRS estimate from pathway_input_json
+  const pathwayInput = profile.pathway_input_json as Record<string, unknown> | null;
+  const crsEstimate = pathwayInput?.crs_estimate as {
+    range_low: number;
+    range_high: number;
+    confidence: string;
+    based_on: string[];
+  } | null ?? null;
+
+  const crsScore = crsEstimate
+    ? Math.round((crsEstimate.range_low + crsEstimate.range_high) / 2)
+    : null;
+  const crsRangeLow = crsEstimate?.range_low ?? null;
+  const crsRangeHigh = crsEstimate?.range_high ?? null;
+  const crsConfidence = crsEstimate?.confidence ?? null;
+
   // Step 2: fetch application joined with pathway
   const { data: applicationData, error: applicationError } = await db
     .from('applications')
@@ -295,8 +319,84 @@ export async function getDashboardData(
   ).length;
   const pendingDocumentsCount = mandatoryDocs.length - completedDocumentsCount;
 
-  const completedStepsCount = applicationSteps.filter((s) => s.status === 'complete').length;
-  const totalStepsCount = applicationSteps.length;
+  let completedStepsCount = applicationSteps.filter((s) => s.status === 'complete').length;
+  let totalStepsCount = applicationSteps.length;
+
+  // Step 4: fetch selected pathway by slug when no application exists yet
+  let selectedPathwaySlug: string | null = null;
+  let selectedPathwayTitle: string | null = null;
+  let selectedPathwayProcessingTime: string | null = null;
+  let selectedPathwaySteps: ApplicationStep[] = [];
+
+  const rawSlug = (profile as Record<string, unknown>).selected_pathway_slug;
+  if (typeof rawSlug === 'string' && rawSlug.length > 0 && !appWithPathway) {
+    selectedPathwaySlug = rawSlug;
+
+    const { data: slugPathwayData } = await db
+      .from('pathways')
+      .select('id, title, processing_time_min, processing_time_max')
+      .eq('slug', selectedPathwaySlug)
+      .maybeSingle();
+
+    if (slugPathwayData) {
+      const sp = slugPathwayData as {
+        id: string;
+        title: string;
+        processing_time_min: string;
+        processing_time_max: string;
+      };
+      selectedPathwayTitle = sp.title;
+      selectedPathwayProcessingTime = formatProcessingTime(sp.processing_time_min, sp.processing_time_max);
+
+      const { data: slugStepsData } = await db
+        .from('pathway_steps')
+        .select('id, step_number, title, description, estimated_duration, resources')
+        .eq('pathway_id', sp.id)
+        .order('step_number', { ascending: true });
+
+      const rawSteps = (slugStepsData ?? []) as {
+        id: string;
+        step_number: number;
+        title: string;
+        description: string;
+        estimated_duration: string;
+        resources: StepResource[] | null;
+      }[];
+
+      selectedPathwaySteps = rawSteps.map((s, idx): EnrichedApplicationStep => ({
+        id: s.id,
+        stepNumber: s.step_number,
+        label: s.title,
+        description: s.description,
+        estimatedDuration: s.estimated_duration,
+        status: idx === 0 ? 'current' : 'upcoming',
+        resources: Array.isArray(s.resources) ? s.resources : [],
+      }));
+
+      // Fetch step progress for selected pathway
+      const { data: progressRows } = await db
+        .from('pathway_progress')
+        .select('status')
+        .eq('profile_id', profile.id)
+        .eq('pathway_slug', rawSlug as string);
+
+      const progressData = (progressRows ?? []) as { status: string }[];
+      const completedFromProgress = progressData.filter((r) => r.status === 'complete').length;
+      const totalFromProgress = progressData.length;
+
+      completedStepsCount = completedFromProgress;
+      totalStepsCount = totalFromProgress > 0 ? totalFromProgress : selectedPathwaySteps.length;
+    }
+  }
+
+  const profileCtx = profile as Record<string, unknown>;
+  const profileContext: ProfileContext = {
+    fullName: profile.full_name ?? null,
+    occupation: (profileCtx.occupation as string | null | undefined) ?? null,
+    degreeLevel: (profileCtx.degree_level as string | null | undefined) ?? null,
+    degreeField: (profileCtx.degree_field as string | null | undefined) ?? null,
+    nationality: (profileCtx.nationality as string | null | undefined) ?? null,
+  };
 
   const data: DashboardData = {
     state,
@@ -321,6 +421,15 @@ export async function getDashboardData(
     pendingDocumentsCount,
     completedDocumentsCount,
     recommendations: deriveRecommendations(profile),
+    crsScore,
+    crsRangeLow,
+    crsRangeHigh,
+    crsConfidence,
+    selectedPathwaySlug,
+    selectedPathwayTitle,
+    selectedPathwayProcessingTime,
+    selectedPathwaySteps,
+    profileContext,
   };
 
   logger.info({

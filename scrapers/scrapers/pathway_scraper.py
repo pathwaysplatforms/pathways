@@ -16,6 +16,7 @@ from pipeline.embedder import embed_chunks
 from pipeline.upserter import upsert_source, upsert_chunks
 from utils.hash_utils import compute_hash
 from utils.logger import get_logger
+from extractor import run_extraction
 
 load_dotenv()
 logger = get_logger(__name__)
@@ -57,6 +58,15 @@ class PathwayScraper(BaseScraper):
                 self._process_pathway(country, visa_key, cfg, dry_run, stats)
 
         self._print_summary(stats, dry_run)
+
+        if not dry_run:
+            logger.info("Running pathway extraction pass...")
+            extraction_summary = run_extraction(country="canada")
+            logger.info(
+                f"Extraction complete: processed={extraction_summary['processed']}, "
+                f"skipped={extraction_summary['skipped']}, "
+                f"failed={extraction_summary['failed']}"
+            )
 
     def _process_pathway(
         self,

@@ -4,10 +4,11 @@ import { useState, useTransition } from "react";
 import { signInWithEmailAction, signInWithGoogleAction } from "./actions";
 
 interface LoginFormProps {
-  hasError: boolean;
+  errorMessage: string | null;
 }
 
-export function LoginForm({ hasError }: LoginFormProps) {
+/** Passwordless email + Google OAuth form — underline-only input style. */
+export function LoginForm({ errorMessage }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [sentToEmail, setSentToEmail] = useState("");
@@ -30,28 +31,32 @@ export function LoginForm({ hasError }: LoginFormProps) {
 
   if (sent) {
     return (
-      <p className="text-sm text-text-primary leading-relaxed text-center">
+      <p
+        className="text-sm leading-relaxed text-center"
+        style={{ color: "var(--pw-ink)", fontFamily: "var(--pw-font-body)" }}
+      >
         Check your inbox — we&apos;ve sent a sign-in link to{" "}
-        <span className="font-medium">{sentToEmail}</span>.
+        <span style={{ fontFamily: "var(--pw-font-display)" }}>{sentToEmail}</span>.
       </p>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {hasError && (
-        <div className="bg-status-warning-bg border border-status-warning-border rounded-badge px-4 py-3">
-          <p className="text-sm text-status-warning-text">
-            We could not sign you in. Please try again.
+    <div className="space-y-8" style={{ fontFamily: "var(--pw-font-body)" }}>
+      {(errorMessage ?? formError) && (
+        <div className="px-4 py-3 border border-black/[0.08] rounded">
+          <p className="text-sm" style={{ color: "var(--pw-muted)" }}>
+            {errorMessage ?? formError}
           </p>
         </div>
       )}
 
-      <form onSubmit={handleEmailSubmit} className="space-y-3">
-        <div className="space-y-1.5">
+      <form onSubmit={handleEmailSubmit} className="space-y-6">
+        <div className="space-y-2">
           <label
             htmlFor="email"
-            className="block text-[11px] font-medium uppercase tracking-wide text-text-tertiary"
+            className="block text-[11px] uppercase tracking-widest"
+            style={{ color: "var(--pw-muted)" }}
           >
             Email address
           </label>
@@ -62,40 +67,58 @@ export function LoginForm({ hasError }: LoginFormProps) {
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={isPending}
-            className="w-full h-10 border border-border rounded-input px-3 text-sm text-text-primary bg-bg-subtle focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500 disabled:opacity-50 transition-colors"
+            className="w-full pb-2 bg-transparent border-0 border-b focus:outline-none focus:ring-0 text-sm disabled:opacity-50 transition-colors duration-150"
+            style={{
+              borderBottomColor: "rgba(0,0,0,0.2)",
+              color: "var(--pw-ink)",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderBottomColor = "var(--pw-ink)"; }}
+            onBlur={(e)  => { e.currentTarget.style.borderBottomColor = "rgba(0,0,0,0.2)"; }}
           />
         </div>
-
-        {formError && (
-          <p className="text-status-warning-text text-[13px] mt-1">{formError}</p>
-        )}
 
         <button
           type="submit"
           disabled={isPending}
-          className="w-full h-10 px-4 text-sm font-medium bg-accent-500 text-white rounded-btn hover:bg-accent-600 transition-colors disabled:opacity-50"
+          className="w-full py-3 rounded-full text-sm disabled:opacity-50 transition-colors duration-150"
+          style={{ background: "var(--pw-ink)", color: "#FFFFFF", fontFamily: "var(--pw-font-body)" }}
+          onMouseEnter={(e) => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.background = "var(--pw-accent)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--pw-ink)"; }}
         >
           {isPending ? "Sending…" : "Continue with email"}
         </button>
 
-        <p className="text-[13px] text-text-secondary">
-          We&apos;ll send you a secure sign-in link.
+        <p className="text-[13px]" style={{ color: "var(--pw-muted)" }}>
+          We&apos;ll send you a secure, passwordless sign-in link.
         </p>
       </form>
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border-light" />
+          <div className="w-full" style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }} />
         </div>
         <div className="relative flex justify-center">
-          <span className="bg-bg-surface px-3 text-[13px] text-text-tertiary">or</span>
+          <span
+            className="px-3 text-[13px]"
+            style={{ background: "var(--pw-bg)", color: "var(--pw-muted)" }}
+          >
+            or
+          </span>
         </div>
       </div>
 
       <form action={signInWithGoogleAction}>
         <button
           type="submit"
-          className="w-full h-10 px-4 text-sm font-medium text-text-secondary border border-border rounded-btn hover:border-border-strong transition-colors"
+          className="w-full py-3 rounded-full text-sm border transition-colors duration-150"
+          style={{
+            borderColor: "rgba(0,0,0,0.12)",
+            color: "var(--pw-ink)",
+            background: "transparent",
+            fontFamily: "var(--pw-font-body)",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--pw-ink)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,0,0,0.12)"; }}
         >
           Continue with Google
         </button>
@@ -105,15 +128,27 @@ export function LoginForm({ hasError }: LoginFormProps) {
         <>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border-light" />
+              <div className="w-full" style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }} />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-bg-surface px-3 text-[13px] text-text-tertiary">or</span>
+              <span
+                className="px-3 text-[13px]"
+                style={{ background: "var(--pw-bg)", color: "var(--pw-muted)" }}
+              >
+                or
+              </span>
             </div>
           </div>
           <a
             href="/auth/demo"
-            className="flex items-center justify-center w-full h-10 px-4 text-sm font-medium bg-accent-50 text-accent-700 border border-accent-200 rounded-btn hover:bg-accent-100 transition-colors"
+            className="flex items-center justify-center w-full py-3 text-sm rounded-full border transition-colors duration-150"
+            style={{
+              borderColor: "rgba(0,0,0,0.08)",
+              color: "var(--pw-muted)",
+              fontFamily: "var(--pw-font-body)",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--pw-ink)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--pw-muted)"; }}
           >
             Demo login
           </a>
