@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -7,10 +7,30 @@
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -70,6 +90,45 @@ export type Database = {
             columns: ["requirement_id"]
             isOneToOne: false
             referencedRelation: "document_requirements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_step_completions: {
+        Row: {
+          application_id: string
+          completed_at: string
+          id: string
+          notes: string | null
+          step_id: string
+        }
+        Insert: {
+          application_id: string
+          completed_at?: string
+          id?: string
+          notes?: string | null
+          step_id: string
+        }
+        Update: {
+          application_id?: string
+          completed_at?: string
+          id?: string
+          notes?: string | null
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_step_completions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_step_completions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "pathway_steps"
             referencedColumns: ["id"]
           },
         ]
@@ -422,35 +481,179 @@ export type Database = {
         }
         Relationships: []
       }
+      pathway_documents: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          country_code: string
+          created_at: string
+          embedding: string | null
+          id: string
+          metadata: Json
+          pathway_id: string
+          pathway_name: string
+          pathway_type: string
+          source_date: string | null
+          source_url: string | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          country_code: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json
+          pathway_id: string
+          pathway_name: string
+          pathway_type: string
+          source_date?: string | null
+          source_url?: string | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          country_code?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json
+          pathway_id?: string
+          pathway_name?: string
+          pathway_type?: string
+          source_date?: string | null
+          source_url?: string | null
+        }
+        Relationships: []
+      }
+      pathway_matches: {
+        Row: {
+          id: string
+          matched_at: string
+          profile_snapshot: Json
+          summary: string
+          top_pathways: Json
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          matched_at?: string
+          profile_snapshot: Json
+          summary?: string
+          top_pathways: Json
+          user_id: string
+        }
+        Update: {
+          id?: string
+          matched_at?: string
+          profile_snapshot?: Json
+          summary?: string
+          top_pathways?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pathway_matches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pathway_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          pathway_slug: string
+          profile_id: string
+          status: string
+          step_id: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          pathway_slug: string
+          profile_id: string
+          status?: string
+          step_id: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          pathway_slug?: string
+          profile_id?: string
+          status?: string
+          step_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pathway_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pathway_progress_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "pathway_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pathway_steps: {
         Row: {
           description: string
+          document_requirement_id: string | null
           estimated_duration: string
           id: string
           is_optional: boolean
           pathway_id: string
+          resources: Json | null
           step_number: number
           title: string
+          type: string
         }
         Insert: {
           description: string
+          document_requirement_id?: string | null
           estimated_duration: string
           id?: string
           is_optional?: boolean
           pathway_id: string
+          resources?: Json | null
           step_number: number
           title: string
+          type?: string
         }
         Update: {
           description?: string
+          document_requirement_id?: string | null
           estimated_duration?: string
           id?: string
           is_optional?: boolean
           pathway_id?: string
+          resources?: Json | null
           step_number?: number
           title?: string
+          type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pathway_steps_document_requirement_id_fkey"
+            columns: ["document_requirement_id"]
+            isOneToOne: false
+            referencedRelation: "document_requirements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pathway_steps_pathway_id_fkey"
             columns: ["pathway_id"]
@@ -472,33 +675,16 @@ export type Database = {
           fee_gbp: number
           id: string
           is_active: boolean
-          max_teer_level: number | null
-          min_clb_listening: number | null
-          min_clb_listening_teer23: number | null
-          min_clb_reading: number | null
-          min_clb_reading_teer23: number | null
-          min_clb_speaking: number | null
-          min_clb_speaking_teer23: number | null
-          min_clb_writing: number | null
-          min_clb_writing_teer23: number | null
-          min_fsw_points: number | null
           min_salary_gbp: number
           min_years_experience: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
           program_type: string | null
-          requires_canadian_experience: boolean | null
           requires_degree: boolean
-          requires_eca: boolean | null
           requires_english_test: boolean
-          requires_proof_of_funds: boolean | null
-          requires_stem_occupation: boolean | null
-          settlement_funds_cad: number | null
           slug: string
           title: string
-          typical_crs_max: number | null
-          typical_crs_min: number | null
           updated_at: string
         }
         Insert: {
@@ -512,33 +698,16 @@ export type Database = {
           fee_gbp: number
           id?: string
           is_active?: boolean
-          max_teer_level?: number | null
-          min_clb_listening?: number | null
-          min_clb_listening_teer23?: number | null
-          min_clb_reading?: number | null
-          min_clb_reading_teer23?: number | null
-          min_clb_speaking?: number | null
-          min_clb_speaking_teer23?: number | null
-          min_clb_writing?: number | null
-          min_clb_writing_teer23?: number | null
-          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
           program_type?: string | null
-          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
-          requires_eca?: boolean | null
           requires_english_test?: boolean
-          requires_proof_of_funds?: boolean | null
-          requires_stem_occupation?: boolean | null
-          settlement_funds_cad?: number | null
           slug: string
           title: string
-          typical_crs_max?: number | null
-          typical_crs_min?: number | null
           updated_at?: string
         }
         Update: {
@@ -552,33 +721,16 @@ export type Database = {
           fee_gbp?: number
           id?: string
           is_active?: boolean
-          max_teer_level?: number | null
-          min_clb_listening?: number | null
-          min_clb_listening_teer23?: number | null
-          min_clb_reading?: number | null
-          min_clb_reading_teer23?: number | null
-          min_clb_speaking?: number | null
-          min_clb_speaking_teer23?: number | null
-          min_clb_writing?: number | null
-          min_clb_writing_teer23?: number | null
-          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name?: string
           processing_time_max?: string
           processing_time_min?: string
           program_type?: string | null
-          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
-          requires_eca?: boolean | null
           requires_english_test?: boolean
-          requires_proof_of_funds?: boolean | null
-          requires_stem_occupation?: boolean | null
-          settlement_funds_cad?: number | null
           slug?: string
           title?: string
-          typical_crs_max?: number | null
-          typical_crs_min?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -597,6 +749,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      posts: {
+        Row: {
+          ai_summary: string | null
+          author_id: string | null
+          body: string | null
+          cover_seed: string | null
+          created_at: string | null
+          excerpt: string | null
+          id: string
+          published_at: string | null
+          slug: string
+          source_name: string | null
+          source_url: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          author_id?: string | null
+          body?: string | null
+          cover_seed?: string | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug: string
+          source_name?: string | null
+          source_url?: string | null
+          status?: string
+          tags?: string[] | null
+          title: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          author_id?: string | null
+          body?: string | null
+          cover_seed?: string | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug?: string
+          source_name?: string | null
+          source_url?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -867,6 +1076,24 @@ export type Database = {
           visa_type: string
         }[]
       }
+      match_pathway_documents: {
+        Args: {
+          filter_country?: string
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_text: string
+          country_code: string
+          id: string
+          metadata: Json
+          pathway_id: string
+          pathway_name: string
+          pathway_type: string
+          similarity: number
+          source_url: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -995,6 +1222,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
