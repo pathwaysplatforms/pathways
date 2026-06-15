@@ -3,8 +3,10 @@ import { getT } from "@/lib/i18n";
 import { setLocale } from "@/app/actions/locale";
 import { ShieldCheck, RefreshCw, BookOpen, MapPin, Users, Award } from "lucide-react";
 import { GlobeCanvas } from "@/components/GlobeCanvas";
-import { HalftoneTexture } from "@/components/HalftoneTexture";
 import { CircleGuide } from "@/components/CircleGuide";
+import { ParticleField } from "@/components/fx/ParticleField";
+import { Reveal } from "@/components/fx/Reveal";
+import { AnimatedNumber } from "@/components/fx/AnimatedNumber";
 
 /** Marketing landing page — Swiss Particle Brutalism aesthetic. */
 export default async function LandingPage() {
@@ -50,7 +52,7 @@ export default async function LandingPage() {
             </Link>
             <Link
               href="/auth/login?intent=signup"
-              className="text-sm font-body px-5 py-2 rounded-full bg-pw-ink text-white hover:bg-pw-accent transition-colors duration-150"
+              className="pw-focus text-sm font-sans px-5 py-2 rounded-full bg-pw-ink text-white hover:bg-pw-accent transition-colors duration-150"
             >
               Get started
             </Link>
@@ -60,7 +62,7 @@ export default async function LandingPage() {
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="relative min-h-[calc(100vh-3.5rem)] flex items-center overflow-hidden bg-pw-bg">
-        <HalftoneTexture />
+        <ParticleField density={0.7} opacity={0.05} parallax={10} />
 
         <div className="relative z-10 max-w-6xl mx-auto px-6 w-full py-20 md:py-0">
           <div className="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
@@ -80,7 +82,7 @@ export default async function LandingPage() {
               <div className="flex flex-col sm:flex-row items-start gap-4">
                 <Link
                   href="/auth/login?intent=signup"
-                  className="px-8 py-3 rounded-full bg-pw-ink text-white text-sm font-body hover:bg-pw-accent transition-colors duration-150 inline-block"
+                  className="pw-focus px-8 py-3 rounded-full bg-pw-ink text-white text-sm font-sans hover:bg-pw-accent transition-colors duration-150 inline-block"
                 >
                   {t("landing_cta")}
                 </Link>
@@ -135,13 +137,15 @@ export default async function LandingPage() {
       {/* ── How it works ───────────────────────────────────────────────── */}
       <section className="py-20 bg-pw-bg">
         <div className="max-w-6xl mx-auto px-6">
-          <p className="pw-eyebrow text-center mb-3">How it works</p>
-          <h2
-            className="text-3xl md:text-4xl text-pw-ink text-center mb-16 leading-tight"
-            style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
-          >
-            Three steps to your immigration roadmap
-          </h2>
+          <Reveal>
+            <p className="pw-eyebrow text-center mb-3">How it works</p>
+            <h2
+              className="text-3xl md:text-4xl text-pw-ink text-center mb-16 leading-tight"
+              style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+            >
+              Three steps to your immigration roadmap
+            </h2>
+          </Reveal>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
@@ -162,8 +166,8 @@ export default async function LandingPage() {
                 desc: "Receive a prioritised list of pathways you qualify for, with a step-by-step checklist and document tracker.",
                 icon: MapPin,
               },
-            ].map(({ step, title, desc, icon: Icon }) => (
-              <div key={step} className="flex flex-col gap-4">
+            ].map(({ step, title, desc, icon: Icon }, i) => (
+              <Reveal key={step} delayMs={i * 70} className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
                   <span className="pw-eyebrow text-pw-accent">{step}</span>
                   <div className="w-8 h-8 rounded-full border border-black/[0.08] flex items-center justify-center shrink-0">
@@ -179,7 +183,7 @@ export default async function LandingPage() {
                   </h3>
                   <p className="text-sm text-pw-muted leading-relaxed">{desc}</p>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -190,13 +194,15 @@ export default async function LandingPage() {
       {/* ── Supported pathways ─────────────────────────────────────────── */}
       <section className="py-20 bg-pw-bg">
         <div className="max-w-6xl mx-auto px-6">
-          <p className="pw-eyebrow text-center mb-3">Pathways we cover</p>
-          <h2
-            className="text-3xl md:text-4xl text-pw-ink text-center mb-16 leading-tight"
-            style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
-          >
-            The main routes to Canadian permanent residence
-          </h2>
+          <Reveal>
+            <p className="pw-eyebrow text-center mb-3">Pathways we cover</p>
+            <h2
+              className="text-3xl md:text-4xl text-pw-ink text-center mb-16 leading-tight"
+              style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+            >
+              The main routes to Canadian permanent residence
+            </h2>
+          </Reveal>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
@@ -214,10 +220,10 @@ export default async function LandingPage() {
                 name: "Family Sponsorship",
                 desc: "Canadian citizens and permanent residents can sponsor eligible family members including spouses, children, and parents.",
               },
-            ].map(({ emoji, name, desc }) => (
+            ].map(({ emoji, name, desc }, i) => (
+              <Reveal key={name} delayMs={i * 70}>
               <div
-                key={name}
-                className="pw-card p-6 flex flex-col gap-4 hover:border-black/20 transition-colors duration-150 cursor-default"
+                className="pw-card pw-interactive p-6 flex flex-col gap-4 cursor-default h-full"
               >
                 <span className="text-3xl" role="img">{emoji}</span>
                 <div>
@@ -231,11 +237,12 @@ export default async function LandingPage() {
                 </div>
                 <a
                   href="#"
-                  className="mt-auto text-sm text-pw-muted hover:text-pw-ink transition-colors duration-150"
+                  className="pw-focus mt-auto text-sm text-pw-muted hover:text-pw-ink transition-colors duration-150"
                 >
                   Learn more →
                 </a>
               </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -248,19 +255,19 @@ export default async function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-wrap justify-center gap-16">
             {[
-              { stat: "71+",  label: "Official IRCC sources indexed" },
-              { stat: "3 min", label: "Average profile completion"  },
-              { stat: "80+",  label: "PNP streams tracked"          },
-            ].map(({ stat, label }) => (
-              <div key={label} className="text-center">
+              { value: 71, suffix: "+",    label: "Official IRCC sources indexed" },
+              { value: 3,  suffix: " min", label: "Average profile completion"    },
+              { value: 80, suffix: "+",    label: "PNP streams tracked"           },
+            ].map(({ value, suffix, label }, i) => (
+              <Reveal key={label} delayMs={i * 70} className="text-center">
                 <p
                   className="text-4xl md:text-5xl text-pw-ink mb-1"
                   style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
                 >
-                  {stat}
+                  <AnimatedNumber value={value} suffix={suffix} />
                 </p>
                 <p className="text-sm text-pw-muted">{label}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -271,6 +278,7 @@ export default async function LandingPage() {
       {/* ── CTA strip ──────────────────────────────────────────────────── */}
       <section className="py-20 bg-pw-bg text-center">
         <div className="max-w-6xl mx-auto px-6">
+          <Reveal>
           <Award size={32} className="text-pw-muted mx-auto mb-6" />
           <h2
             className="text-3xl md:text-4xl text-pw-ink mb-4 leading-tight"
@@ -283,10 +291,11 @@ export default async function LandingPage() {
           </p>
           <Link
             href="/auth/login?intent=signup"
-            className="px-10 py-3 rounded-full bg-pw-ink text-white text-sm font-body hover:bg-pw-accent transition-colors duration-150 inline-block"
+            className="pw-focus px-10 py-3 rounded-full bg-pw-ink text-white text-sm font-sans hover:bg-pw-accent transition-colors duration-150 inline-block"
           >
             {t("landing_cta")}
           </Link>
+          </Reveal>
         </div>
       </section>
 

@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { getProfile } from '@/modules/auth/service';
 import type { PathwayInput } from '@/lib/pathway-input';
 import { SwissPageShell } from '@/components/layout/SwissPageShell';
-import { CrsDotsCanvas } from '@/components/crs/CrsDotsCanvas';
 
 const CRS_MAX = 1200;
 const RECENT_CUTOFF = 480;
@@ -30,7 +29,54 @@ const SCORE_FACTORS = [
   },
 ] as const;
 
-/** CRS score explainer page with dot density canvas. */
+type EffortLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+interface ImprovementLever {
+  points: number;
+  name: string;
+  description: string;
+  effort: EffortLevel;
+  effortDetail: string;
+}
+
+const IMPROVEMENT_LEVERS: ImprovementLever[] = [
+  {
+    points: 600,
+    name: 'Provincial nomination',
+    description: 'A nomination adds 600 CRS points — near-certain ITA at next draw.',
+    effort: 'HIGH',
+    effortDetail: 'months to years',
+  },
+  {
+    points: 50,
+    name: 'Improve language scores to CLB 10',
+    description: 'Moving all four IELTS abilities from CLB 9 to 10 adds 32–50 points.',
+    effort: 'MEDIUM',
+    effortDetail: 'weeks of study',
+  },
+  {
+    points: 25,
+    name: 'Add French language scores',
+    description: 'A TEF Canada result at B2+ adds 15–25 bonus points.',
+    effort: 'LOW',
+    effortDetail: 'achievable in 1–2 months',
+  },
+  {
+    points: 80,
+    name: 'Gain one year of Canadian work experience',
+    description: 'One year of skilled work in Canada adds up to 80 core points.',
+    effort: 'HIGH',
+    effortDetail: 'requires work permit first',
+  },
+];
+
+const EFFORT_COLORS: Record<EffortLevel, string> = {
+  HIGH: '#E24B4A',
+  MEDIUM: '#EF9F27',
+  LOW: '#639922',
+};
+
+/** CRS score explainer page — typographic hero with improvement levers and pool grid. */
 export default async function CrsPage() {
   const profile = await getProfile();
   if (!profile) redirect('/auth/login');
@@ -40,28 +86,48 @@ export default async function CrsPage() {
   const crsHigh = pathwayInput?.crs_estimate.range_high ?? null;
   const hasScore = crsLow !== null && crsHigh !== null && (crsLow > 0 || crsHigh > 0);
 
+  const scoreLow = hasScore && crsLow !== null ? crsLow : 0;
+  const scoreHigh = hasScore && crsHigh !== null ? crsHigh : 0;
+
   const today = new Date().toLocaleDateString('en-CA', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
 
+  const scoreLowPct = (scoreLow / CRS_MAX) * 100;
+  const scoreHighPct = (scoreHigh / CRS_MAX) * 100;
+  const cutoffPct = (RECENT_CUTOFF / CRS_MAX) * 100;
+
+  // Proportional factor estimates from crsLow — rough approximation only
+  const factorEstimates: number[] = [
+    Math.round((scoreLow / CRS_MAX) * 460),
+    0,
+    Math.round((scoreLow / CRS_MAX) * 100),
+    0,
+  ];
+
+  const poolLowPct = scoreLow / CRS_MAX;
+  const poolHighPct = scoreHigh / CRS_MAX;
+  const poolCutoffPct = RECENT_CUTOFF / CRS_MAX;
+
   return (
     <SwissPageShell>
       <main className="max-w-5xl mx-auto px-6 py-20 relative z-10">
 
-        {/* ── Header ── */}
+        {/* ── Section 1: Header ── */}
         <div className="mb-16">
           <p className="pw-eyebrow pw-entry">CRS SCORE</p>
           <div className="pw-rule-line mt-3 mb-6 pw-entry pw-entry-delay-1" />
           <h1
-            className="pw-entry pw-entry-delay-2 leading-tight mb-3"
+            className="pw-entry pw-entry-delay-2"
             style={{
               fontFamily: 'var(--pw-font-display)',
               fontWeight: 400,
               fontSize: 'clamp(2.5rem, 6vw, 5rem)',
               color: 'var(--pw-ink)',
               lineHeight: 1.05,
+              marginBottom: '12px',
             }}
           >
             Comprehensive<br />Ranking System
@@ -72,7 +138,6 @@ export default async function CrsPage() {
               fontFamily: 'var(--pw-font-body)',
               color: 'var(--pw-muted)',
               fontSize: '15px',
-              marginTop: '12px',
               maxWidth: '480px',
             }}
           >
@@ -81,15 +146,8 @@ export default async function CrsPage() {
           </p>
         </div>
 
-        {/* ── Score card (dark) ── */}
-        <div
-          className="pw-entry pw-entry-delay-4 mb-16"
-          style={{
-            background: '#0D0D0D',
-            borderRadius: 0,
-            padding: '40px 48px',
-          }}
-        >
+        {/* ── Section 2: Score hero ── */}
+        <div className="mb-16 pw-entry pw-entry-delay-4">
           <p
             style={{
               fontFamily: 'var(--pw-font-body)',
@@ -97,8 +155,8 @@ export default async function CrsPage() {
               fontWeight: 500,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.4)',
-              marginBottom: '16px',
+              color: 'var(--pw-muted)',
+              marginBottom: '8px',
             }}
           >
             YOUR ESTIMATED SCORE
@@ -107,217 +165,441 @@ export default async function CrsPage() {
           <p
             style={{
               fontFamily: 'var(--pw-font-display)',
-              fontSize: '88px',
+              fontSize: 'clamp(5rem, 12vw, 8rem)',
               fontWeight: 400,
-              color: '#FFFFFF',
+              color: 'var(--pw-ink)',
               lineHeight: 1,
-              marginBottom: '8px',
+              marginBottom: '6px',
             }}
           >
-            {hasScore && crsLow !== null && crsHigh !== null
+            {hasScore
               ? `${crsLow} – ${crsHigh}`
-              : <span style={{ opacity: 0.3 }}>—</span>}
+              : <span style={{ opacity: 0.2 }}>—</span>}
           </p>
 
           <p
             style={{
               fontFamily: 'var(--pw-font-body)',
+              fontSize: '12px',
+              fontStyle: 'italic',
+              color: 'var(--pw-muted)',
+              marginBottom: '4px',
+            }}
+          >
+            Low confidence estimate · Complete your profile to narrow your range
+          </p>
+          <p
+            style={{
+              fontFamily: 'var(--pw-font-body)',
               fontSize: '13px',
-              color: 'rgba(255,255,255,0.5)',
-              marginBottom: '32px',
+              color: 'var(--pw-muted)',
+              marginBottom: '24px',
             }}
           >
             Based on your voice profile · {today}
           </p>
 
-          {/* Dot density canvas */}
-          <div style={{ marginBottom: '8px' }}>
-            {hasScore && crsLow !== null && crsHigh !== null ? (
-              <CrsDotsCanvas
-                scoreLow={crsLow}
-                scoreHigh={crsHigh}
-                cutoff={RECENT_CUTOFF}
-                maxScore={CRS_MAX}
+          {/* Score track */}
+          <div>
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: '3px',
+                background: 'rgba(0,0,0,0.08)',
+                borderRadius: '2px',
+              }}
+            >
+              {/* Score range fill */}
+              {hasScore && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${scoreLowPct}%`,
+                    width: `${scoreHighPct - scoreLowPct}%`,
+                    height: '3px',
+                    background: '#1A56DB',
+                  }}
+                />
+              )}
+
+              {/* Cut-off tick */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${cutoffPct}%`,
+                  width: '1px',
+                  height: '16px',
+                  top: '-6px',
+                  background: 'rgba(0,0,0,0.2)',
+                }}
               />
-            ) : (
-              <CrsDotsCanvas
-                scoreLow={0}
-                scoreHigh={0}
-                cutoff={RECENT_CUTOFF}
-                maxScore={CRS_MAX}
-              />
-            )}
+
+              {/* Score dot */}
+              {hasScore && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${scoreLowPct}%`,
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#1A56DB',
+                    top: '-2.5px',
+                    transform: 'translateX(-50%)',
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Track labels */}
+            <div
+              style={{
+                position: 'relative',
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginTop: '8px',
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'var(--pw-font-body)',
+                  fontSize: '11px',
+                  color: 'var(--pw-muted)',
+                }}
+              >
+                0
+              </span>
+
+              <span
+                style={{
+                  position: 'absolute',
+                  left: `${cutoffPct}%`,
+                  transform: 'translateX(-50%)',
+                  fontFamily: 'var(--pw-font-body)',
+                  fontSize: '11px',
+                  color: 'var(--pw-muted)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Cut-off ~480
+              </span>
+
+              {hasScore && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: `${scoreLowPct}%`,
+                    transform: 'translateX(-50%)',
+                    fontFamily: 'var(--pw-font-body)',
+                    fontSize: '11px',
+                    color: '#1A56DB',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Your range
+                </span>
+              )}
+
+              <span
+                style={{
+                  fontFamily: 'var(--pw-font-body)',
+                  fontSize: '11px',
+                  color: 'var(--pw-muted)',
+                }}
+              >
+                1,200
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Divider ── */}
+        <div className="border-t border-neutral-100 my-16" />
+
+        {/* ── Section 3: Factor breakdown ── */}
+        <div className="mb-16 pw-entry pw-entry-delay-5">
+          <p className="pw-eyebrow">HOW YOUR SCORE IS BUILT</p>
+          <div className="pw-rule-line mt-3 mb-8" />
+
+          <div>
+            {SCORE_FACTORS.map((factor, i) => {
+              const yourPts = factorEstimates[i] ?? 0;
+              const fillPct = Math.min(100, (yourPts / factor.max) * 100);
+              return (
+                <div
+                  key={factor.name}
+                  className="pw-entry"
+                  style={{
+                    padding: '20px 0',
+                    borderBottom: '1px solid rgba(0,0,0,0.08)',
+                    animationDelay: `${330 + i * 50}ms`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                      marginBottom: '10px',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: 'var(--pw-font-body)',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        color: 'var(--pw-ink)',
+                      }}
+                    >
+                      {factor.name}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--pw-font-body)',
+                        fontSize: '13px',
+                        color: 'var(--pw-muted)',
+                        flexShrink: 0,
+                        marginLeft: '16px',
+                      }}
+                    >
+                      {hasScore ? yourPts : '—'} / {factor.max}
+                    </span>
+                  </div>
+
+                  {/* Bar */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '3px',
+                      background: 'rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        width: `${hasScore ? fillPct : 0}%`,
+                        height: '3px',
+                        background: 'var(--pw-ink)',
+                      }}
+                    />
+                    {hasScore && fillPct > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: `${fillPct}%`,
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: 'var(--pw-ink)',
+                          top: '-2.5px',
+                          transform: 'translateX(-50%)',
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <p
             style={{
               fontFamily: 'var(--pw-font-body)',
-              fontSize: '10px',
-              color: 'rgba(255,255,255,0.3)',
-              textAlign: 'right',
-              marginTop: '4px',
+              fontSize: '11px',
+              fontStyle: 'italic',
+              color: 'var(--pw-muted)',
+              marginTop: '12px',
             }}
           >
-            Score range 0 – {CRS_MAX}
+            Factor breakdown is estimated. Actual scores may vary.
           </p>
         </div>
 
-        {/* ── Score breakdown ── */}
-        <div className="mb-16 pw-entry pw-entry-delay-5">
-          <p className="pw-eyebrow">HOW YOUR SCORE IS BUILT</p>
+        {/* ── Section 4: Improvement levers ── */}
+        <div className="mb-16 pw-entry" style={{ animationDelay: '450ms' }}>
+          <p className="pw-eyebrow">HOW TO IMPROVE YOUR SCORE</p>
           <div className="pw-rule-line mt-3 mb-8" />
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {SCORE_FACTORS.map((factor, i) => (
+          <div>
+            {IMPROVEMENT_LEVERS.map((lever, i) => (
               <div
-                key={factor.name}
+                key={lever.name}
                 className="pw-entry"
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
+                  gap: '20px',
                   padding: '20px 0',
                   borderBottom: '1px solid rgba(0,0,0,0.08)',
-                  animationDelay: `${330 + i * 50}ms`,
+                  animationDelay: `${500 + i * 60}ms`,
                 }}
               >
-                <div style={{ maxWidth: '60%' }}>
+                {/* Left column — point gain */}
+                <div
+                  style={{
+                    width: '72px',
+                    flexShrink: 0,
+                    textAlign: 'center',
+                  }}
+                >
                   <p
                     style={{
                       fontFamily: 'var(--pw-font-display)',
-                      fontSize: '18px',
+                      fontSize: '32px',
                       fontWeight: 400,
+                      color: '#1A56DB',
+                      lineHeight: 1,
+                    }}
+                  >
+                    +{lever.points}
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: 'var(--pw-font-body)',
+                      fontSize: '10px',
+                      color: 'var(--pw-muted)',
+                      marginTop: '2px',
+                    }}
+                  >
+                    pts
+                  </p>
+                </div>
+
+                {/* Right column — lever detail */}
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      fontFamily: 'var(--pw-font-body)',
+                      fontSize: '15px',
+                      fontWeight: 500,
                       color: 'var(--pw-ink)',
                     }}
                   >
-                    {factor.name}
+                    {lever.name}
                   </p>
                   <p
                     style={{
                       fontFamily: 'var(--pw-font-body)',
                       fontSize: '13px',
                       color: 'var(--pw-muted)',
-                      marginTop: '4px',
+                      lineHeight: 1.6,
+                      marginTop: '3px',
                     }}
                   >
-                    {factor.description}
+                    {lever.description}
                   </p>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      marginTop: '6px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: EFFORT_COLORS[lever.effort],
+                        flexShrink: 0,
+                      }}
+                    />
+                    <p
+                      style={{
+                        fontFamily: 'var(--pw-font-body)',
+                        fontSize: '10px',
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: 'var(--pw-muted)',
+                      }}
+                    >
+                      {lever.effort} EFFORT · {lever.effortDetail}
+                    </p>
+                  </div>
                 </div>
-                <p
-                  style={{
-                    fontFamily: 'var(--pw-font-display)',
-                    fontSize: '32px',
-                    fontWeight: 400,
-                    color: 'var(--pw-muted)',
-                    flexShrink: 0,
-                  }}
-                >
-                  {factor.max}
-                </p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── High impact ── */}
-        <div className="mb-16 pw-entry" style={{ animationDelay: '550ms' }}>
-          <p className="pw-eyebrow">WHAT MOVES YOUR SCORE MOST</p>
+        {/* ── Section 5: Pool position dot grid ── */}
+        <div className="mb-16 pw-entry" style={{ animationDelay: '650ms' }}>
+          <p className="pw-eyebrow">YOUR POSITION IN THE POOL</p>
           <div className="pw-rule-line mt-3 mb-8" />
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '0',
+              gridTemplateColumns: 'repeat(40, 10px)',
+              gap: '4px',
             }}
           >
-            {/* Language */}
-            <div
-              className="pw-entry"
-              style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '24px 24px 24px 0', animationDelay: '605ms' }}
-            >
-              <p
-                style={{
-                  fontFamily: 'var(--pw-font-display)',
-                  fontStyle: 'italic',
-                  fontSize: '22px',
-                  fontWeight: 400,
-                  color: 'var(--pw-ink)',
-                }}
-              >
-                Every CLB point counts.
-              </p>
-              <p
-                style={{
-                  fontFamily: 'var(--pw-font-body)',
-                  fontSize: '13px',
-                  color: 'var(--pw-muted)',
-                  marginTop: '8px',
-                }}
-              >
-                Moving from CLB 9 to CLB 10 in all abilities can add 32+ points.
-              </p>
-            </div>
+            {Array.from({ length: 400 }, (_, idx) => {
+              const pct = idx / 400;
+              let bg: string;
+              if (hasScore && pct >= poolLowPct && pct <= poolHighPct) {
+                bg = '#1A56DB';
+              } else if (pct >= poolCutoffPct) {
+                bg = 'rgba(13,13,13,0.7)';
+              } else {
+                bg = 'rgba(0,0,0,0.1)';
+              }
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    background: bg,
+                  }}
+                />
+              );
+            })}
+          </div>
 
-            {/* Canadian experience */}
-            <div
-              className="pw-entry"
-              style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '24px', animationDelay: '655ms' }}
-            >
-              <p
-                style={{
-                  fontFamily: 'var(--pw-font-display)',
-                  fontStyle: 'italic',
-                  fontSize: '22px',
-                  fontWeight: 400,
-                  color: 'var(--pw-ink)',
-                }}
-              >
-                One year changes everything.
-              </p>
-              <p
-                style={{
-                  fontFamily: 'var(--pw-font-body)',
-                  fontSize: '13px',
-                  color: 'var(--pw-muted)',
-                  marginTop: '8px',
-                }}
-              >
-                A single year of skilled work in Canada adds up to 80 core points.
-              </p>
-            </div>
-
-            {/* Provincial nomination */}
-            <div
-              className="pw-entry"
-              style={{ borderTop: '1px solid rgba(0,0,0,0.08)', padding: '24px 0 24px 24px', animationDelay: '705ms' }}
-            >
-              <p
-                style={{
-                  fontFamily: 'var(--pw-font-display)',
-                  fontStyle: 'italic',
-                  fontSize: '22px',
-                  fontWeight: 400,
-                  color: 'var(--pw-ink)',
-                }}
-              >
-                <span style={{ color: 'var(--pw-accent)' }}>600 points.</span> Near-certain.
-              </p>
-              <p
-                style={{
-                  fontFamily: 'var(--pw-font-body)',
-                  fontSize: '13px',
-                  color: 'var(--pw-muted)',
-                  marginTop: '8px',
-                }}
-              >
-                A provincial nomination adds 600 points — virtually guaranteeing an ITA.
-              </p>
-            </div>
+          {/* Legend */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '20px',
+              marginTop: '12px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {([
+              { color: '#1A56DB', label: 'Your score range' },
+              { color: 'rgba(13,13,13,0.7)', label: 'Above recent cut-off' },
+              { color: 'rgba(0,0,0,0.1)', label: 'Below cut-off' },
+            ] as const).map(({ color, label }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: 'var(--pw-font-body)',
+                    fontSize: '12px',
+                    color: 'var(--pw-muted)',
+                  }}
+                >
+                  {label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* ── Disclaimer ── */}
+        {/* ── Section 6: Disclaimer ── */}
         <div
           style={{
             fontFamily: 'var(--pw-font-body)',

@@ -71,7 +71,10 @@
       "Bash(xargs ls -la)",
       "Bash(python -c \"import extractor; print\\('OK'\\)\")",
       "Bash(dir)",
-      "Bash(echo \"Exit: $?\")"
+      "Bash(echo \"Exit: $?\")",
+      "PowerShell(npm run *)",
+      "PowerShell(npx vitest run --config vitest.config.ts)",
+      "PowerShell(npx vitest run --config vitest.config.ts tests/unit/pathway-matcher.test.ts)"
     ]
   }
 }

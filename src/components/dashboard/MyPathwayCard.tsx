@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
+import { CrsChip } from './CrsChip';
 import type { DashboardData } from '@/modules/dashboard/types';
 
 interface MyPathwayCardProps {
@@ -209,29 +210,7 @@ function CardHeader({
       {/* Stats row */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 16 }}>
         {/* CRS chip */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'rgba(0,0,0,0.04)',
-            borderRadius: 10,
-            padding: '10px 16px',
-          }}
-        >
-          <p className="pw-eyebrow" style={{ marginBottom: 2 }}>CRS Score</p>
-          <p
-            style={{
-              fontFamily: 'var(--pw-font-display)',
-              fontSize: '36px',
-              fontWeight: 400,
-              letterSpacing: '-0.02em',
-              lineHeight: 1,
-              color: 'var(--pw-ink)',
-            }}
-          >
-            {crsValue}
-          </p>
-        </div>
+        <CrsChip crsValue={crsValue} />
 
         {/* Pool rank */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10 }}>

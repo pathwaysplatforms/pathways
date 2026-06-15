@@ -7,6 +7,7 @@ import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { PathwayTrackerSection } from '@/components/dashboard/PathwayTrackerSection';
 import { DemoStateBar } from '@/components/demo/DemoStateBar';
+import { ParticleField } from '@/components/fx/ParticleField';
 import { Suspense } from 'react';
 import { resetOnboarding } from '@/app/actions/onboarding';
 
@@ -94,6 +95,16 @@ export default async function DashboardPage() {
             flexDirection: 'column',
           }}
         >
+          {/* Particle texture pinned to the scroll viewport, behind the cards */}
+          <div style={{ position: 'sticky', top: 0, height: 0, zIndex: 0, flexShrink: 0 }} aria-hidden="true">
+            <ParticleField
+              density={0.45}
+              opacity={0.04}
+              parallax={8}
+              style={{ inset: 'auto', top: 0, left: 0, width: '100%', height: 'calc(100vh - 64px)' }}
+            />
+          </div>
+
           {/* Grid occupies exactly the available viewport height */}
           <div
             style={{

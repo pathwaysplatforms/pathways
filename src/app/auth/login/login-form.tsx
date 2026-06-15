@@ -56,7 +56,7 @@ export function LoginForm({ errorMessage }: LoginFormProps) {
           <label
             htmlFor="email"
             className="block text-[11px] uppercase tracking-widest"
-            style={{ color: "var(--pw-muted)" }}
+            style={{ color: "var(--pw-muted)", fontFamily: "var(--pw-font-ui)" }}
           >
             Email address
           </label>
@@ -80,8 +80,8 @@ export function LoginForm({ errorMessage }: LoginFormProps) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full py-3 rounded-full text-sm disabled:opacity-50 transition-colors duration-150"
-          style={{ background: "var(--pw-ink)", color: "#FFFFFF", fontFamily: "var(--pw-font-body)" }}
+          className="pw-focus w-full py-3 rounded-full text-sm disabled:opacity-50 transition-colors duration-150"
+          style={{ background: "var(--pw-ink)", color: "#FFFFFF", fontFamily: "var(--pw-font-ui)" }}
           onMouseEnter={(e) => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.background = "var(--pw-accent)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--pw-ink)"; }}
         >
@@ -110,12 +110,12 @@ export function LoginForm({ errorMessage }: LoginFormProps) {
       <form action={signInWithGoogleAction}>
         <button
           type="submit"
-          className="w-full py-3 rounded-full text-sm border transition-colors duration-150"
+          className="pw-focus w-full py-3 rounded-full text-sm border transition-colors duration-150"
           style={{
             borderColor: "rgba(0,0,0,0.12)",
             color: "var(--pw-ink)",
             background: "transparent",
-            fontFamily: "var(--pw-font-body)",
+            fontFamily: "var(--pw-font-ui)",
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--pw-ink)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,0,0,0.12)"; }}
@@ -141,11 +141,11 @@ export function LoginForm({ errorMessage }: LoginFormProps) {
           </div>
           <a
             href="/auth/demo"
-            className="flex items-center justify-center w-full py-3 text-sm rounded-full border transition-colors duration-150"
+            className="pw-focus flex items-center justify-center w-full py-3 text-sm rounded-full border transition-colors duration-150"
             style={{
               borderColor: "rgba(0,0,0,0.08)",
               color: "var(--pw-muted)",
-              fontFamily: "var(--pw-font-body)",
+              fontFamily: "var(--pw-font-ui)",
             }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--pw-ink)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--pw-muted)"; }}

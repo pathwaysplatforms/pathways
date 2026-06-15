@@ -9,6 +9,8 @@ const mockInsert = vi.fn().mockResolvedValue({ error: null });
 const mockOrder = vi.fn();
 const mockLimit = vi.fn();
 const mockEq = vi.fn();
+// Second chained .eq() — awaited directly by the pathways query
+const mockEqFinal = vi.fn();
 const mockSelect = vi.fn();
 const mockFrom = vi.fn();
 const mockRpc = vi.fn();
@@ -136,9 +138,44 @@ const sampleChunk = {
   similarity: 0.92,
 };
 
+// Permissive pathway rows whose slugs match the Claude response fixture
+const PATHWAY_ROWS = [
+  "canada-express-entry-fsw",
+  "canada-pnp-ontario-oinp",
+  "germany-eu-blue-card",
+].map((slug, i) => ({
+  id: `pathway-${i + 1}`,
+  country_id: "country-1",
+  category_id: null,
+  slug,
+  title: slug,
+  official_name: null,
+  description: "Test pathway",
+  requires_degree: false,
+  min_years_experience: 0,
+  english_min_score: null,
+  requires_english_test: false,
+  additional_rules: null,
+  is_active: true,
+  min_clb_speaking: null,
+  min_clb_listening: null,
+  min_clb_reading: null,
+  min_clb_writing: null,
+  requires_eca: false,
+  typical_crs_min: null,
+  typical_crs_max: null,
+  requires_canadian_experience: false,
+  requires_proof_of_funds: false,
+  processing_time_min: null,
+  processing_time_max: null,
+  program_type: "permanent_residency",
+  pathway_categories: null,
+}));
+
 function setupSuccessfulDbMocks() {
   mockSingle.mockResolvedValue({ data: completeProfile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
+  mockEqFinal.mockResolvedValue({ data: PATHWAY_ROWS, error: null });
+  mockEq.mockReturnValue({ single: mockSingle, eq: mockEqFinal });
   mockSelect.mockReturnValue({ eq: mockEq });
 
   mockOrder.mockReturnValue({ limit: mockLimit });
@@ -210,10 +247,11 @@ describe("matchPathways", () => {
     await expect(matchPathways(USER_ID)).rejects.toThrow(DatabaseError);
   });
 
-  it("throws InternalError when pathway_documents table is empty", async () => {
+  it("still returns matches when chunk retrieval is empty (graceful RAG degradation)", async () => {
     mockRpc.mockResolvedValueOnce({ data: [], error: null });
 
-    await expect(matchPathways(USER_ID)).rejects.toThrow(InternalError);
+    const result = await matchPathways(USER_ID);
+    expect(result.top_pathways).toHaveLength(3);
   });
 
   it("throws InternalError when Claude returns invalid JSON", async () => {

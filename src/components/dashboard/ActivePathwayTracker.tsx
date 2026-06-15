@@ -11,7 +11,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { ApplicationStep } from '@/modules/dashboard/types';
+import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
+import type { EnrichedApplicationStep } from '@/modules/dashboard/types';
 
 interface TrackedPathway {
   slug: string;
@@ -21,9 +22,9 @@ interface TrackedPathway {
 
 interface ActivePathwayTrackerProps {
   pathway: TrackedPathway | null;
-  steps: ApplicationStep[];
+  steps: EnrichedApplicationStep[];
   /** When provided, step rows become clickable and open the step detail drawer. */
-  onStepClick?: (step: ApplicationStep) => void;
+  onStepClick?: (step: EnrichedApplicationStep) => void;
 }
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -68,9 +69,9 @@ function ProgressBar({ pct }: { pct: number }) {
   );
 }
 
-function StepStatusChip({ status }: { status: ApplicationStep['status'] }) {
+function StepStatusChip({ status }: { status: EnrichedApplicationStep['status'] }) {
   const styles: Record<
-    ApplicationStep['status'],
+    EnrichedApplicationStep['status'],
     { bg: string; color: string; label: string }
   > = {
     upcoming: { bg: '#F3F4F6', color: '#6B7280', label: 'To do' },
@@ -86,7 +87,7 @@ function StepStatusChip({ status }: { status: ApplicationStep['status'] }) {
         borderRadius: 9999,
         background: s.bg,
         color: s.color,
-        fontFamily: 'var(--pw-font-body)',
+        fontFamily: 'var(--pw-font-ui)',
         fontSize: 10,
         letterSpacing: '0.06em',
         textTransform: 'uppercase',
@@ -99,7 +100,7 @@ function StepStatusChip({ status }: { status: ApplicationStep['status'] }) {
   );
 }
 
-function StepCircle({ status }: { status: ApplicationStep['status'] }) {
+function StepCircle({ status }: { status: EnrichedApplicationStep['status'] }) {
   if (status === 'complete') {
     return (
       <div
@@ -255,6 +256,17 @@ export function ActivePathwayTracker({ pathway, steps, onStepClick }: ActivePath
       {/* Progress bar */}
       <div style={{ padding: '0 24px' }}>
         <ProgressBar pct={pct} />
+        <p
+          style={{
+            fontFamily: 'var(--pw-font-ui)',
+            fontSize: 11,
+            color: '#6B7280',
+            textAlign: 'right',
+            margin: '6px 0 0',
+          }}
+        >
+          <AnimatedNumber value={pct} suffix="%" startInView={false} /> complete
+        </p>
       </div>
 
       {/* Steps */}
@@ -282,6 +294,7 @@ export function ActivePathwayTracker({ pathway, steps, onStepClick }: ActivePath
             return (
               <div
                 key={step.id}
+                className={clickable ? 'pw-focus' : undefined}
                 role={clickable ? 'button' : undefined}
                 tabIndex={clickable ? 0 : undefined}
                 onClick={clickable ? () => onStepClick(step) : undefined}

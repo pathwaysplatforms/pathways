@@ -8,6 +8,8 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { OverviewSection } from '@/components/application/OverviewSection';
 import { StepsSection } from '@/components/application/StepsSection';
 import { StepDrawerTrigger } from '@/components/application/StepDrawerTrigger';
+import { ParticleField } from '@/components/fx/ParticleField';
+import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
 import type { DashboardDocument, ProfileContext } from '@/modules/dashboard/types';
 
 /** Builds initials (up to 2 chars) from a full name. */
@@ -190,6 +192,9 @@ export default async function ApplicationPage() {
   }));
 
   const currentStep = appData.steps.find((s) => s.status === 'current') ?? null;
+  const completedSteps = appData.steps.filter((s) => s.status === 'complete').length;
+  const progressPct =
+    appData.steps.length > 0 ? Math.round((completedSteps / appData.steps.length) * 100) : 0;
 
   return (
     <DashboardShell avatarInitials={avatarInitials} firstName={firstName}>
@@ -200,6 +205,15 @@ export default async function ApplicationPage() {
           padding: 28,
         }}
       >
+        {/* Particle texture pinned to the scroll viewport, behind the content */}
+        <div style={{ position: 'sticky', top: 0, height: 0, zIndex: 0 }} aria-hidden="true">
+          <ParticleField
+            density={0.45}
+            opacity={0.04}
+            parallax={8}
+            style={{ inset: 'auto', top: -28, left: -28, width: 'calc(100% + 56px)', height: 'calc(100vh - 64px)' }}
+          />
+        </div>
         <OverviewSection
           pathwayTitle={appData.pathwayTitle}
           pathwayOfficialName={appData.pathwayOfficialName}
@@ -208,6 +222,24 @@ export default async function ApplicationPage() {
           feesDisplay={appData.feesDisplay}
           totalSteps={appData.totalSteps}
         />
+        {/* Progress strip — hairline rule with animated completion counter */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 12,
+            borderTop: '1px solid var(--pw-rule)',
+            padding: '12px 2px 0',
+            margin: '20px 0 4px',
+          }}
+        >
+          <span className="pw-eyebrow">Progress</span>
+          <span style={{ fontFamily: 'var(--pw-font-ui)', fontSize: 13, color: 'var(--pw-muted)' }}>
+            <AnimatedNumber value={completedSteps} /> of {appData.totalSteps} steps ·{' '}
+            <AnimatedNumber value={progressPct} suffix="%" style={{ color: 'var(--pw-ink)' }} />
+          </span>
+        </div>
         <StepsSection steps={appData.steps} documents={appData.documents} pathwaySlug={appData.pathwaySlug} />
       </div>
       <StepDrawerTrigger

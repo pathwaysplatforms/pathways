@@ -77,6 +77,17 @@
 
   --pw-font-display: 'Instrument Serif', Georgia, serif;
   --pw-font-body:    'DM Sans', system-ui, sans-serif;
+  /* Urbanist for interactive UI elements (nav, buttons, labels, tags, form controls) */
+  --pw-font-ui:      'Urbanist', sans-serif;
+
+  /* Motion */
+  --pw-ease-calm:  cubic-bezier(0.16, 1, 0.3, 1);
+  --pw-dur-press:  100ms;
+  --pw-dur-hover:  150ms;
+  --pw-dur-enter:  320ms;
+
+  /* Canvas particle accent */
+  --pw-particle-accent: #1A56DB;
 }
 
 /* ─── Base Reset ─────────────────────────────────────────────────── */
@@ -364,7 +375,7 @@ html, body {
 
   /* Swiss eyebrow label */
   .pw-eyebrow {
-    font-family: var(--pw-font-body);
+    font-family: var(--pw-font-ui);
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.1em;
@@ -506,7 +517,7 @@ html, body {
   justify-content: center;
   gap: 8px;
   padding: 12px 28px;
-  font-family: var(--pw-font-body);
+  font-family: var(--pw-font-ui);
   font-size: 14px;
   font-weight: 500;
   color: #fff;
@@ -527,7 +538,7 @@ html, body {
   justify-content: center;
   gap: 8px;
   padding: 11px 27px;
-  font-family: var(--pw-font-body);
+  font-family: var(--pw-font-ui);
   font-size: 14px;
   font-weight: 500;
   color: var(--pw-ink);
@@ -545,6 +556,7 @@ html, body {
 /* ─── Nav tab indicator ──────────────────────────────────────────── */
 .pw-nav-tab {
   position: relative;
+  font-family: var(--pw-font-ui);
   transition: color 150ms ease;
 }
 
@@ -585,12 +597,65 @@ html, body {
   color: #0D0D0D;
 }
 
+/* ─── Interactive micro-states (hover hairline, press dip, focus ring) ── */
+.pw-interactive {
+  transition:
+    border-color var(--pw-dur-hover) var(--pw-ease-calm),
+    box-shadow var(--pw-dur-hover) var(--pw-ease-calm),
+    background var(--pw-dur-hover) ease,
+    color var(--pw-dur-hover) ease,
+    opacity var(--pw-dur-press) ease;
+}
+
+.pw-interactive:hover {
+  border-color: var(--pw-accent);
+  box-shadow: 2px 2px 0 0 rgba(26, 86, 219, 0.15);
+}
+
+.pw-interactive:active {
+  opacity: 0.85;
+}
+
+.pw-focus:focus-visible,
+.pw-interactive:focus-visible {
+  outline: 2px solid var(--pw-accent);
+  outline-offset: 2px;
+}
+
+/* ─── Page enter transition (root template) ──────────────────────── */
+@keyframes pw-page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pw-page-enter {
+  animation: pw-page-enter var(--pw-dur-enter) var(--pw-ease-calm) both;
+}
+
+/* ─── Skeleton blocks (hairline border, slow opacity pulse) ──────── */
+@keyframes pw-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.7; }
+}
+
+.pw-skeleton {
+  border: 1px solid var(--pw-rule);
+  background: var(--pw-surface);
+  animation: pw-skeleton-pulse 1.8s var(--pw-ease-calm) infinite;
+}
+
+/* ─── Checkmark draw-in ──────────────────────────────────────────── */
+@keyframes pw-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+
 /* ─── Reduced motion ─────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .pw-entry,
   .pw-entry-right,
   .pw-rule-reveal,
-  .pw-rule-line {
+  .pw-rule-line,
+  .pw-page-enter {
     animation: none !important;
     transition: none !important;
     opacity: 1;
@@ -598,7 +663,13 @@ html, body {
   }
 
   .pw-btn-primary,
-  .pw-btn-secondary {
+  .pw-btn-secondary,
+  .pw-interactive {
     transition: none !important;
+  }
+
+  .pw-skeleton {
+    animation: none !important;
+    opacity: 0.55;
   }
 }

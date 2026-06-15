@@ -6,6 +6,8 @@ import { ExternalLink, FileText, Shield, Clock, X, Copy, Check, Loader2 } from '
 import { updateStepProgress } from '@/app/actions/progress';
 import { getEmailTemplates, resolveTemplate } from '@/lib/email-templates';
 import { documentBelongsToStep } from '@/lib/step-document-map';
+import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
+import { ParticleBurst } from '@/components/fx/ParticleBurst';
 import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, StepResource } from '@/modules/dashboard/types';
 
 const ink = '#0A0A0A';
@@ -322,6 +324,8 @@ export function StepDetailDrawer({
   const [visible, setVisible] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [markedComplete, setMarkedComplete] = useState(step.status === 'complete');
+  const [justCompleted, setJustCompleted] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -331,6 +335,7 @@ export function StepDetailDrawer({
 
   useEffect(() => {
     setMarkedComplete(step.status === 'complete');
+    setJustCompleted(false);
   }, [step.id, step.status]);
 
   const handleClose = () => {
@@ -346,9 +351,16 @@ export function StepDetailDrawer({
 
   const handleMarkComplete = () => {
     if (!pathwaySlug) return;
+    setActionError(null);
     startTransition(async () => {
-      await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
-      setMarkedComplete(true);
+      try {
+        await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
+        setMarkedComplete(true);
+        setJustCompleted(true);
+        closeTimerRef.current = setTimeout(handleClose, 1500);
+      } catch {
+        setActionError('Failed to save. Please try again.');
+      }
     });
   };
 
@@ -425,6 +437,7 @@ export function StepDetailDrawer({
             <button
               onClick={handleClose}
               aria-label="Close drawer"
+              className="pw-interactive"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 28, height: 28, borderRadius: '50%',
@@ -507,28 +520,45 @@ export function StepDetailDrawer({
           flexShrink: 0,
           background: '#FFFFFF',
         }}>
+          {actionError && (
+            <p style={{ fontFamily: font.body, fontSize: 12, color: '#DC2626', marginBottom: 8, textAlign: 'center' }}>
+              {actionError}
+            </p>
+          )}
           {markedComplete ? (
             <div style={{
+              position: 'relative',
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '10px 16px', borderRadius: 9999,
               background: '#F0FDF4', color: '#16A34A',
-              fontFamily: font.body, fontSize: 13, fontWeight: 500,
+              fontFamily: 'var(--pw-font-ui)', fontSize: 13, fontWeight: 500,
             }}>
-              <Check size={14} />
-              Completed ✓
+              <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                {justCompleted ? (
+                  <>
+                    <CheckmarkDraw size={14} color="#0D0D0D" />
+                    <ParticleBurst count={12} size={64} />
+                  </>
+                ) : (
+                  <Check size={14} />
+                )}
+              </span>
+              Completed
             </div>
           ) : (
             <button
               onClick={handleMarkComplete}
               disabled={isPending || !pathwaySlug}
+              className="pw-focus"
               style={{
                 width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 padding: '10px 20px', borderRadius: 9999,
                 background: isPending ? '#E5E7EB' : ink,
                 color: isPending ? muted : '#FFFFFF',
-                fontFamily: font.body, fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--pw-font-ui)', fontSize: 13, fontWeight: 500,
                 border: 'none', cursor: isPending ? 'not-allowed' : 'pointer',
+                transition: 'opacity 100ms ease',
               }}
             >
               {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}

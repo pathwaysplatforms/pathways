@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ActivePathwayTracker } from './ActivePathwayTracker';
 import { StepDetailDrawer } from './StepDetailDrawer';
 import type { EnrichedApplicationStep, DashboardDocument, ProfileContext } from '@/modules/dashboard/types';
@@ -30,6 +31,12 @@ export function PathwayTrackerSection({
   profileContext,
 }: PathwayTrackerSectionProps) {
   const [selectedStep, setSelectedStep] = useState<EnrichedApplicationStep | null>(null);
+  const router = useRouter();
+
+  const handleClose = () => {
+    setSelectedStep(null);
+    router.refresh();
+  };
 
   return (
     <>
@@ -45,7 +52,7 @@ export function PathwayTrackerSection({
           pathwaySlug={pathwaySlug}
           applicationId={applicationId}
           profileContext={profileContext}
-          onClose={() => setSelectedStep(null)}
+          onClose={handleClose}
         />
       )}
     </>

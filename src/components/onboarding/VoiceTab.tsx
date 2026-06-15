@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PathwaysOrb, WaveformBars } from "@/components/voice/PathwaysOrb";
+import { PathwaysOrb } from "@/components/voice/PathwaysOrb";
+import { WaveformCanvas } from "@/components/fx/WaveformCanvas";
 import "@/components/voice/VoiceTab.css";
 import type { OrbState } from "@/components/voice/PathwaysOrb";
 import type { Message, VoiceExtractedProfile } from "@/modules/voice/types";
@@ -55,6 +56,8 @@ export function VoiceTab({
   const [error, setError] = useState<string | null>(null);
   // Overrides STATUS_TEXT during the post-completion transition
   const [statusOverride, setStatusOverride] = useState<string | null>(null);
+  // Live analyser feeding the waveform visualization with real input level
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
 
   const sessionIdRef = useRef<string | null>(null);
   const sessionStartMsRef = useRef<number>(0);
@@ -106,6 +109,7 @@ export function VoiceTab({
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
+    setAnalyser(null);
   }, []);
 
   useEffect(() => {
@@ -265,10 +269,8 @@ export function VoiceTab({
     [playAudio, router, cleanup, onProfileUpdate]
   );
 
-  const startAmplitudeLoop = useCallback((analyser: AnalyserNode) => {
-    const loop = () => { animFrameRef.current = requestAnimationFrame(loop); };
-    animFrameRef.current = requestAnimationFrame(loop);
-    void analyser;
+  const startAmplitudeLoop = useCallback((node: AnalyserNode) => {
+    setAnalyser(node);
   }, []);
 
   const handleGladiaMessage = useCallback(
@@ -488,8 +490,12 @@ export function VoiceTab({
         <PathwaysOrb state={orbState} size={220} />
       </div>
 
-      {/* Waveform bars */}
-      <WaveformBars active={orbState === "listening" || orbState === "speaking"} />
+      {/* Waveform — real input level while listening, calm idle wave otherwise */}
+      <WaveformCanvas
+        analyser={orbState === "listening" ? analyser : null}
+        active={orbState === "listening" || orbState === "speaking"}
+        color="#534AB7"
+      />
 
       {/* State label — remounted on every state change to re-trigger the blur-in animation */}
       <span

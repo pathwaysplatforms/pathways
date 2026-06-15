@@ -1,6 +1,6 @@
 'use client';
 
-/** Loading skeleton matching the new 2-column bento dashboard layout. */
+/** Loading skeleton matching the new 2-column bento dashboard layout — hairline-bordered blocks with a slow opacity pulse. */
 export function DashboardSkeleton() {
   return (
     <div
@@ -11,8 +11,8 @@ export function DashboardSkeleton() {
       <div className="flex flex-col flex-1 min-h-0" style={{ gap: 14 }}>
         {/* Greeting skeleton */}
         <div className="flex flex-col gap-2 flex-shrink-0">
-          <div className="h-2.5 w-24 bg-bg-muted rounded animate-pulse" />
-          <div className="h-6 w-52 bg-bg-muted rounded animate-pulse" />
+          <div className="pw-skeleton h-2.5 w-24 rounded" />
+          <div className="pw-skeleton h-6 w-52 rounded" />
         </div>
 
         {/* Card row skeleton */}
@@ -20,16 +20,16 @@ export function DashboardSkeleton() {
           className="grid grid-cols-2 flex-shrink-0"
           style={{ gap: 14, height: 155 }}
         >
-          <div className="rounded-card bg-bg-muted animate-pulse h-full" />
-          <div className="rounded-card bg-bg-muted animate-pulse h-full" />
+          <div className="pw-skeleton rounded-card h-full" />
+          <div className="pw-skeleton rounded-card h-full" />
         </div>
 
         {/* Map card skeleton */}
-        <div className="rounded-card bg-bg-muted animate-pulse flex-1 min-h-0" />
+        <div className="pw-skeleton rounded-card flex-1 min-h-0" />
       </div>
 
       {/* Right column skeleton */}
-      <div className="flex-shrink-0 rounded-card bg-bg-muted animate-pulse" style={{ width: 220 }} />
+      <div className="pw-skeleton flex-shrink-0 rounded-card" style={{ width: 220 }} />
     </div>
   );
 }

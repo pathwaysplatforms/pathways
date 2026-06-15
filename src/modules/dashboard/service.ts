@@ -363,29 +363,43 @@ export async function getDashboardData(
         resources: StepResource[] | null;
       }[];
 
-      selectedPathwaySteps = rawSteps.map((s, idx): EnrichedApplicationStep => ({
-        id: s.id,
-        stepNumber: s.step_number,
-        label: s.title,
-        description: s.description,
-        estimatedDuration: s.estimated_duration,
-        status: idx === 0 ? 'current' : 'upcoming',
-        resources: Array.isArray(s.resources) ? s.resources : [],
-      }));
-
-      // Fetch step progress for selected pathway
+      // Fetch step progress for selected pathway (step_id needed to map back)
       const { data: progressRows } = await db
         .from('pathway_progress')
-        .select('status')
+        .select('step_id, status')
         .eq('profile_id', profile.id)
         .eq('pathway_slug', rawSlug as string);
 
-      const progressData = (progressRows ?? []) as { status: string }[];
+      const progressData = (progressRows ?? []) as { step_id: string; status: string }[];
+      const progressMap = new Map(progressData.map((r) => [r.step_id, r.status]));
       const completedFromProgress = progressData.filter((r) => r.status === 'complete').length;
-      const totalFromProgress = progressData.length;
 
       completedStepsCount = completedFromProgress;
-      totalStepsCount = totalFromProgress > 0 ? totalFromProgress : selectedPathwaySteps.length;
+      totalStepsCount = rawSteps.length;
+
+      // Apply per-step statuses: completed steps stay complete; the first non-complete
+      // step becomes current; the rest are upcoming.
+      let foundCurrentStep = false;
+      selectedPathwaySteps = rawSteps.map((s): EnrichedApplicationStep => {
+        let status: 'complete' | 'current' | 'upcoming';
+        if (progressMap.get(s.id) === 'complete') {
+          status = 'complete';
+        } else if (!foundCurrentStep) {
+          status = 'current';
+          foundCurrentStep = true;
+        } else {
+          status = 'upcoming';
+        }
+        return {
+          id: s.id,
+          stepNumber: s.step_number,
+          label: s.title,
+          description: s.description,
+          estimatedDuration: s.estimated_duration,
+          status,
+          resources: Array.isArray(s.resources) ? s.resources : [],
+        };
+      });
     }
   }
 
