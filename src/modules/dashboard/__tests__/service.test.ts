@@ -76,6 +76,7 @@ type QueryResult = { data: unknown; error: null | Record<string, unknown> };
 function makeChain(result: QueryResult) {
   const selectFn = vi.fn();
   const eqFn = vi.fn();
+  const inFn = vi.fn();
   const orderFn = vi.fn();
   const limitFn = vi.fn();
   const singleFn = vi.fn().mockResolvedValue(result);
@@ -85,6 +86,7 @@ function makeChain(result: QueryResult) {
   const chain = {
     select: selectFn,
     eq: eqFn,
+    in: inFn,
     order: orderFn,
     limit: limitFn,
     single: singleFn,
@@ -94,6 +96,7 @@ function makeChain(result: QueryResult) {
 
   selectFn.mockReturnValue(chain);
   eqFn.mockReturnValue(chain);
+  inFn.mockReturnValue(chain);
   orderFn.mockReturnValue(chain);
   limitFn.mockReturnValue(chain);
 

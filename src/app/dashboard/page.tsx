@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
 import { getDashboardData } from '@/modules/dashboard/service';
@@ -8,6 +9,7 @@ import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { PathwayTrackerSection } from '@/components/dashboard/PathwayTrackerSection';
 import { DemoStateBar } from '@/components/demo/DemoStateBar';
 import { ParticleField } from '@/components/fx/ParticleField';
+import { DashboardDataProvider } from '@/contexts/DashboardDataContext';
 import { Suspense } from 'react';
 import { resetOnboarding } from '@/app/actions/onboarding';
 
@@ -114,9 +116,11 @@ export default async function DashboardPage() {
               flexShrink: 0,
             }}
           >
-            <Suspense fallback={<DashboardSkeleton />}>
-              <DashboardGrid data={dashboardData} />
-            </Suspense>
+            <DashboardDataProvider data={dashboardData}>
+              <Suspense fallback={<DashboardSkeleton />}>
+                <DashboardGrid data={dashboardData} />
+              </Suspense>
+            </DashboardDataProvider>
           </div>
 
           {/* Pathway tracker — full-width section below the grid */}
@@ -129,6 +133,29 @@ export default async function DashboardPage() {
               applicationId={dashboardData.applicationId}
               profileContext={dashboardData.profileContext}
             />
+          </div>
+
+          {/* Ask Pathways entry point */}
+          <div style={{ padding: '0 28px 12px', flexShrink: 0 }}>
+            <Link
+              href="/dashboard/ask"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                fontFamily: 'var(--pw-font-body)',
+                fontSize: 14,
+                color: 'var(--pw-accent)',
+                textDecoration: 'none',
+                padding: '11px 18px',
+                border: '1px solid rgba(26, 86, 219, 0.18)',
+                borderRadius: 8,
+                background: 'rgba(26, 86, 219, 0.04)',
+              }}
+            >
+              <span>Ask Pathways</span>
+              <span aria-hidden="true" style={{ fontSize: 16 }}>→</span>
+            </Link>
           </div>
 
           <div className="flex justify-center pb-7" style={{ flexShrink: 0 }}>

@@ -1,5 +1,8 @@
 'use client';
 
+import type { DashboardData } from '@/modules/dashboard/types';
+import { useDashboardData } from '@/contexts/DashboardDataContext';
+
 interface GreetingHeaderProps {
   firstName: string;
   isVisible?: boolean;
@@ -20,9 +23,40 @@ function getFormattedDate(): string {
   });
 }
 
-/** Date line + personalised greeting + animated hairline above the card row. */
+/** Derives the dynamic status sub-headline from dashboard state data. */
+function deriveSubtitle(data: DashboardData | null): string {
+  if (!data) return '';
+  const { state, selectedPathwaySteps, applicationSteps } = data;
+
+  if (state === 'onboarding_incomplete' || state === 'pathway_not_selected') {
+    return 'Complete your profile to unlock your pathway.';
+  }
+  if (state === 'application_submitted') {
+    return 'Application submitted — awaiting decision.';
+  }
+
+  const currentStep =
+    selectedPathwaySteps.find((s) => s.status === 'current') ??
+    applicationSteps.find((s) => s.status === 'current');
+
+  if (currentStep) {
+    const dur = currentStep.estimatedDuration ?? null;
+    return `Your next step: ${currentStep.label}${dur ? ` — estimated ${dur}` : ''}.`;
+  }
+
+  if (data.totalStepsCount > 0 && data.completedStepsCount >= data.totalStepsCount) {
+    return 'Application submitted — awaiting decision.';
+  }
+
+  return 'Select a pathway to begin your immigration journey.';
+}
+
+/** Date line + personalised greeting + dynamic status sub-headline. */
 export function GreetingHeader({ firstName, isVisible = false }: GreetingHeaderProps) {
+  const data = useDashboardData();
   const vis = isVisible ? ' is-visible' : '';
+  const subtitle = deriveSubtitle(data);
+
   return (
     <div className="flex-shrink-0">
       <p
@@ -35,10 +69,10 @@ export function GreetingHeader({ firstName, isVisible = false }: GreetingHeaderP
         className={`pw-entry${vis}`}
         style={{
           fontFamily: 'var(--pw-font-display)',
-          fontSize: '34px',
+          fontSize: '40px',
           fontWeight: 400,
           color: 'var(--pw-ink)',
-          lineHeight: 1.15,
+          lineHeight: 1.1,
           marginTop: 4,
           transitionDelay: '60ms',
         }}
@@ -46,9 +80,23 @@ export function GreetingHeader({ firstName, isVisible = false }: GreetingHeaderP
         {getGreeting()},{' '}
         <em style={{ fontStyle: 'italic' }}>{firstName}.</em>
       </h1>
+      {subtitle && (
+        <p
+          className={`pw-entry${vis}`}
+          style={{
+            fontFamily: 'var(--pw-font-body)',
+            fontSize: '15px',
+            color: 'var(--pw-muted)',
+            marginTop: 6,
+            transitionDelay: '90ms',
+          }}
+        >
+          {subtitle}
+        </p>
+      )}
       <hr
         className={`pw-rule-reveal${vis}`}
-        style={{ marginTop: 12, transitionDelay: '120ms' }}
+        style={{ marginTop: 10, transitionDelay: '120ms' }}
       />
     </div>
   );

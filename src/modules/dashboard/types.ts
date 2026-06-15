@@ -73,6 +73,14 @@ export interface Recommendation {
   impactLabel: string;
 }
 
+/** Most recent Express Entry draw record from immigration_draws. */
+export interface LatestDraw {
+  cutoffScore: number;
+  drawDate: string;
+  drawType: string | null;
+  invitationsIssued: number | null;
+}
+
 export interface DashboardData {
   state: DashboardState;
 
@@ -111,9 +119,15 @@ export interface DashboardData {
   selectedPathwaySlug: string | null;
   selectedPathwayTitle: string | null;
   selectedPathwayProcessingTime: string | null;
+  selectedPathwayDescription: string | null;
   selectedPathwaySteps: EnrichedApplicationStep[];
 
   profileContext: ProfileContext;
+
+  /** Nationality extracted from voice session JSON when profiles.nationality is null. */
+  nationalityVoice: string | null;
+  /** Most recent Express Entry draw from immigration_draws table. */
+  latestDraw: LatestDraw | null;
 }
 
 /** Onboarding step definitions derived from known profile sections. */

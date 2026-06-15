@@ -8,6 +8,7 @@ import type {
   DashboardState,
   ApplicationStep,
   EnrichedApplicationStep,
+  LatestDraw,
   StepResource,
   DashboardDocument,
   OnboardingStep,
@@ -20,10 +21,27 @@ import { ONBOARDING_STEPS_META, STEP_FIELDS } from './types';
 /** Pathway fields selected in joined application query. */
 interface PathwaySnapshot {
   id: string;
+  slug: string;
   title: string;
   official_name: string;
   processing_time_min: string;
   processing_time_max: string;
+}
+
+/**
+ * Maps a pathway slug to the immigration_draws.draw_type values that are
+ * meaningful for that stream. Returns an array for use with .in().
+ * "No Program Specified" covers all-pool Express Entry draws.
+ */
+function getDrawTypesForPathway(slug: string | null): string[] {
+  if (!slug) return ['No Program Specified', 'FSW'];
+  const s = slug.toLowerCase();
+  if (s.includes('federal-skilled-worker') || s.includes('fsw')) return ['FSW', 'No Program Specified'];
+  if (s.includes('canadian-experience') || s.includes('cec')) return ['CEC', 'No Program Specified'];
+  if (s.includes('federal-skilled-trades') || s.includes('fst')) return ['FST'];
+  if (s.includes('pnp') || s.includes('provincial')) return ['PNP'];
+  // express-entry (generic slug) covers the FSW pool + all-program draws
+  return ['No Program Specified', 'FSW'];
 }
 
 /** Application row joined with its pathway snapshot. */
@@ -229,6 +247,7 @@ export async function getDashboardData(
       *,
       pathway:pathways (
         id,
+        slug,
         title,
         official_name,
         processing_time_min,
@@ -326,6 +345,7 @@ export async function getDashboardData(
   let selectedPathwaySlug: string | null = null;
   let selectedPathwayTitle: string | null = null;
   let selectedPathwayProcessingTime: string | null = null;
+  let selectedPathwayDescription: string | null = null;
   let selectedPathwaySteps: ApplicationStep[] = [];
 
   const rawSlug = (profile as Record<string, unknown>).selected_pathway_slug;
@@ -334,7 +354,7 @@ export async function getDashboardData(
 
     const { data: slugPathwayData } = await db
       .from('pathways')
-      .select('id, title, processing_time_min, processing_time_max')
+      .select('id, title, description, processing_time_min, processing_time_max')
       .eq('slug', selectedPathwaySlug)
       .maybeSingle();
 
@@ -342,11 +362,13 @@ export async function getDashboardData(
       const sp = slugPathwayData as {
         id: string;
         title: string;
+        description: string | null;
         processing_time_min: string;
         processing_time_max: string;
       };
       selectedPathwayTitle = sp.title;
       selectedPathwayProcessingTime = formatProcessingTime(sp.processing_time_min, sp.processing_time_max);
+      selectedPathwayDescription = sp.description ?? null;
 
       const { data: slugStepsData } = await db
         .from('pathway_steps')
@@ -403,9 +425,51 @@ export async function getDashboardData(
     }
   }
 
+  // Fetch the most recent draw that matches the user's Express Entry stream.
+  // Filter by draw_type so a PNP cutoff (~800+) is never shown next to an FSW CRS score.
+  // FLAG: immigration_draws table may lack FSW/CEC stream data.
+  // Scraper needed: target https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations/rounds-results.html
+  // Use curl_cffi with impersonate='chrome136'. Parse: draw date, CRS cutoff, draw type, invitations issued.
+  // Upsert to immigration_draws with program='express_entry' and draw_type populated ('FSW', 'CEC', 'FST', 'PNP', 'No Program Specified').
+  const effectivePathwaySlug =
+    (appWithPathway?.pathway as PathwaySnapshot | null)?.slug ?? selectedPathwaySlug ?? null;
+  const drawTypes = getDrawTypesForPathway(effectivePathwaySlug);
+
+  const { data: drawData } = await db
+    .from('immigration_draws')
+    .select('cutoff_score, draw_date, draw_type, invitations_issued')
+    .eq('program', 'express_entry')
+    .in('draw_type', drawTypes)
+    .order('draw_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const latestDraw: LatestDraw | null = drawData
+    ? {
+        cutoffScore: (drawData as { cutoff_score: number }).cutoff_score,
+        drawDate: (drawData as { draw_date: string }).draw_date,
+        drawType: (drawData as { draw_type: string | null }).draw_type,
+        invitationsIssued: (drawData as { invitations_issued: number | null }).invitations_issued,
+      }
+    : null;
+
+  // Extract nationality from voice JSON when profile column is unpopulated
+  const pathwayInputPersonal = (pathwayInput as Record<string, unknown> | null)
+    ?.personal as Record<string, unknown> | null ?? null;
+  const nationalityVoice =
+    (pathwayInputPersonal?.nationality as string | null | undefined) ?? null;
+
+  // Resolve the user's name: prefer the dedicated column; fall back to
+  // voice_session_data.full_name for users whose profile predates the column write
+  // or whose voice session completed without extracting a name into profiles.full_name.
+  const voiceSessionData = profile.voice_session_data as Record<string, unknown> | null;
+  const voiceFullName =
+    typeof voiceSessionData?.full_name === 'string' ? voiceSessionData.full_name : null;
+  const resolvedFullName = profile.full_name ?? voiceFullName;
+
   const profileCtx = profile as Record<string, unknown>;
   const profileContext: ProfileContext = {
-    fullName: profile.full_name ?? null,
+    fullName: resolvedFullName,
     occupation: (profileCtx.occupation as string | null | undefined) ?? null,
     degreeLevel: (profileCtx.degree_level as string | null | undefined) ?? null,
     degreeField: (profileCtx.degree_field as string | null | undefined) ?? null,
@@ -414,8 +478,8 @@ export async function getDashboardData(
 
   const data: DashboardData = {
     state,
-    firstName: firstName(profile.full_name),
-    avatarInitials: avatarInitials(profile.full_name),
+    firstName: firstName(resolvedFullName),
+    avatarInitials: avatarInitials(resolvedFullName),
     profileCompleteness: profile.profile_completeness_pct ?? 0,
     onboardingStatus: profile.onboarding_status,
     incompleteFields: profile.incomplete_fields ?? [],
@@ -442,8 +506,11 @@ export async function getDashboardData(
     selectedPathwaySlug,
     selectedPathwayTitle,
     selectedPathwayProcessingTime,
+    selectedPathwayDescription,
     selectedPathwaySteps,
     profileContext,
+    nationalityVoice,
+    latestDraw,
   };
 
   logger.info({
