@@ -38,6 +38,15 @@ export default async function MatchesPage() {
     >
       <div className="w-full max-w-lg">
 
+        {/* Back to marketing site */}
+        <a
+          href={process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001"}
+          className="inline-block mb-8 text-xs text-pw-muted hover:text-pw-ink transition-colors"
+          style={{ textDecoration: "none" }}
+        >
+          ← Back to pathways.app
+        </a>
+
         {/* Wordmark */}
         <div className="mb-12">
           <span
