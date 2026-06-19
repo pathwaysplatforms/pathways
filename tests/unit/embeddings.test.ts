@@ -8,9 +8,9 @@ vi.mock("openai", () => {
     data: [{ embedding: Array.from({ length: 1536 }, (_, i) => i / 1536) }],
   });
   return {
-    default: vi.fn(() => ({
-      embeddings: { create: mockCreate },
-    })),
+    default: vi.fn(function () {
+      return { embeddings: { create: mockCreate } };
+    }),
     __mockCreate: mockCreate,
   };
 });

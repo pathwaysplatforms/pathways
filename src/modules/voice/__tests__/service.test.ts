@@ -5,9 +5,9 @@ const mockAnthropicCreate = vi.hoisted(() => vi.fn());
 const mockFetch = vi.hoisted(() => vi.fn());
 
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: mockAnthropicCreate },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return { messages: { create: mockAnthropicCreate } };
+  }),
 }));
 
 vi.mock("@/lib/supabase/server");

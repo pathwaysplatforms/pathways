@@ -30,7 +30,7 @@ vi.mock("@/lib/embeddings", () => ({
 
 // Shared mockCreate allows per-test overrides via mockResolvedValueOnce
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn(() => ({ messages: { create: mockCreate } })),
+  default: vi.fn(function () { return { messages: { create: mockCreate } }; }),
 }));
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
