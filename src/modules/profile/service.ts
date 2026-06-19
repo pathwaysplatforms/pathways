@@ -95,6 +95,23 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
     hasFamilyInCanada: profile.has_family_in_canada,
     hasProvincialNomination: profile.has_provincial_nomination,
 
+    canadianWorkYears: profile.canadian_work_years,
+    foreignWorkYears: profile.foreign_work_years,
+    canadianWorkRecent: profile.canadian_work_recent,
+    foreignWorkRecent: profile.foreign_work_recent,
+
+    spouseComingToCanada: profile.spouse_coming_to_canada,
+    spouseEducationLevel: profile.spouse_education_level,
+    spouseClbListening: profile.spouse_clb_listening,
+    spouseClbReading: profile.spouse_clb_reading,
+    spouseClbSpeaking: profile.spouse_clb_speaking,
+    spouseClbWriting: profile.spouse_clb_writing,
+    spouseCanadianWorkYears: profile.spouse_canadian_work_years,
+
+    hasCanadianJobOffer: profile.has_canadian_job_offer,
+    hasSiblingInCanada: profile.has_sibling_in_canada,
+
+    pathwayInputJson: (profile.pathway_input_json as Record<string, unknown> | null) ?? null,
     profileCompletenessPct: profile.profile_completeness_pct,
   };
 

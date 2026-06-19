@@ -75,7 +75,8 @@
       "PowerShell(npm run *)",
       "PowerShell(npx vitest run --config vitest.config.ts)",
       "PowerShell(npx vitest run --config vitest.config.ts tests/unit/pathway-matcher.test.ts)",
-      "PowerShell(cd C:\\\\Users\\\\achto\\\\dev\\\\pathways-final; npx tsc --noEmit 2>&1; Write-Host \"Exit: $LASTEXITCODE\")"
+      "PowerShell(cd C:\\\\Users\\\\achto\\\\dev\\\\pathways-final; npx tsc --noEmit 2>&1; Write-Host \"Exit: $LASTEXITCODE\")",
+      "Bash(echo \"=== EXIT: $? ===\")"
     ]
   }
 }

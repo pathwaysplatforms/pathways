@@ -44,6 +44,20 @@ function makeProfile(overrides: Record<string, unknown> = {}) {
     has_family_in_canada: false,
     has_provincial_nomination: false,
     profile_completeness_pct: 80,
+    canadian_work_years: 2,
+    foreign_work_years: 1,
+    canadian_work_recent: true,
+    foreign_work_recent: false,
+    spouse_coming_to_canada: false,
+    spouse_education_level: null,
+    spouse_clb_listening: null,
+    spouse_clb_reading: null,
+    spouse_clb_speaking: null,
+    spouse_clb_writing: null,
+    spouse_canadian_work_years: null,
+    has_canadian_job_offer: false,
+    has_sibling_in_canada: false,
+    pathway_input_json: null,
     ...overrides,
   };
 }
@@ -169,6 +183,76 @@ describe('getProfileTabData', () => {
     );
     const result = await getProfileTabData('user-1', mockLogger as never);
     expect(result.educationLevel).toBeNull();
+  });
+
+  it('maps all new CRS-relevant work/spouse/bonus fields correctly', async () => {
+    const profile = makeProfile({
+      canadian_work_years: 3,
+      foreign_work_years: 2,
+      canadian_work_recent: true,
+      foreign_work_recent: false,
+      spouse_coming_to_canada: true,
+      spouse_education_level: 'masters',
+      spouse_clb_listening: 8,
+      spouse_clb_reading: 8,
+      spouse_clb_speaking: 7,
+      spouse_clb_writing: 7,
+      spouse_canadian_work_years: 1,
+      has_canadian_job_offer: true,
+      has_sibling_in_canada: false,
+    });
+    setupClient({ data: profile, error: null }, { data: null, error: null });
+
+    const result = await getProfileTabData('user-1', mockLogger as never);
+    expect(result.canadianWorkYears).toBe(3);
+    expect(result.foreignWorkYears).toBe(2);
+    expect(result.canadianWorkRecent).toBe(true);
+    expect(result.foreignWorkRecent).toBe(false);
+    expect(result.spouseComingToCanada).toBe(true);
+    expect(result.spouseEducationLevel).toBe('masters');
+    expect(result.spouseClbListening).toBe(8);
+    expect(result.spouseClbSpeaking).toBe(7);
+    expect(result.spouseCanadianWorkYears).toBe(1);
+    expect(result.hasCanadianJobOffer).toBe(true);
+    expect(result.hasSiblingInCanada).toBe(false);
+  });
+
+  it('returns null for all new fields when not set', async () => {
+    const profile = makeProfile({
+      canadian_work_years: null,
+      foreign_work_years: null,
+      canadian_work_recent: null,
+      foreign_work_recent: null,
+      spouse_coming_to_canada: null,
+      spouse_education_level: null,
+      spouse_clb_listening: null,
+      spouse_clb_reading: null,
+      spouse_clb_speaking: null,
+      spouse_clb_writing: null,
+      spouse_canadian_work_years: null,
+      has_canadian_job_offer: null,
+      has_sibling_in_canada: null,
+      pathway_input_json: null,
+    });
+    setupClient({ data: profile, error: null }, { data: null, error: null });
+
+    const result = await getProfileTabData('user-1', mockLogger as never);
+    expect(result.canadianWorkYears).toBeNull();
+    expect(result.foreignWorkYears).toBeNull();
+    expect(result.spouseComingToCanada).toBeNull();
+    expect(result.hasCanadianJobOffer).toBeNull();
+    expect(result.pathwayInputJson).toBeNull();
+  });
+
+  it('includes pathwayInputJson when present', async () => {
+    const json = { crs_estimate: { score: 480, low: 450, high: 510 }, crs_recalculated_at: '2026-06-01T00:00:00Z' };
+    setupClient(
+      { data: makeProfile({ pathway_input_json: json }), error: null },
+      { data: null, error: null }
+    );
+
+    const result = await getProfileTabData('user-1', mockLogger as never);
+    expect(result.pathwayInputJson).toEqual(json);
   });
 
   it('throws NotFoundError when profile does not exist (PGRST116)', async () => {

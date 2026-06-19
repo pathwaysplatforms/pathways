@@ -65,6 +65,5 @@ export async function updateStepProgress(input: {
 
   logger.info({ action: 'updateStepProgress.complete', userId: user.id, stepId: parsed.data.stepId, status: parsed.data.status });
   revalidatePath('/dashboard');
-  revalidatePath('/application');
   revalidatePath('/dashboard/application');
 }

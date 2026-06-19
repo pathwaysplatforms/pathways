@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const EducationLevelEnum = z.enum([
+export const EducationLevelEnum = z.enum([
   "less_than_secondary",
   "secondary",
   "one_year_post_secondary",
@@ -10,6 +10,9 @@ const EducationLevelEnum = z.enum([
   "masters",
   "phd",
 ]);
+
+export const ClbScoreSchema = z.number().int().min(0).max(12);
+export const NocTeerCategorySchema = z.number().int().min(0).max(5);
 
 export const TurnResponseSchema = z.object({
   message: z.string(),

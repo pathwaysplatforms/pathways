@@ -8,13 +8,13 @@ interface CrsChipProps {
   crsValue: string;
 }
 
-/** Clickable CRS score chip that links to /crs with a hover hint. */
+/** Clickable CRS score chip that links to /dashboard/crs with a hover hint. */
 export function CrsChip({ crsValue }: CrsChipProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div style={{ position: 'relative', display: 'inline-block' }}>
-      <Link href="/crs" style={{ display: 'block', textDecoration: 'none' }}>
+      <Link href="/dashboard/crs" style={{ display: 'block', textDecoration: 'none' }}>
         <div
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
