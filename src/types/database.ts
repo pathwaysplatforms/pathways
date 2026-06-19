@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -636,15 +641,33 @@ export type Database = {
           fee_gbp: number
           id: string
           is_active: boolean
+          max_teer_level: number | null
+          min_clb_listening: number | null
+          min_clb_listening_teer23: number | null
+          min_clb_reading: number | null
+          min_clb_reading_teer23: number | null
+          min_clb_speaking: number | null
+          min_clb_speaking_teer23: number | null
+          min_clb_writing: number | null
+          min_clb_writing_teer23: number | null
+          min_fsw_points: number | null
           min_salary_gbp: number
           min_years_experience: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
+          program_type: string | null
+          requires_canadian_experience: boolean | null
           requires_degree: boolean
+          requires_eca: boolean | null
           requires_english_test: boolean
+          requires_proof_of_funds: boolean | null
+          requires_stem_occupation: boolean | null
+          settlement_funds_cad: number | null
           slug: string
           title: string
+          typical_crs_max: number | null
+          typical_crs_min: number | null
           updated_at: string
         }
         Insert: {
@@ -658,15 +681,33 @@ export type Database = {
           fee_gbp: number
           id?: string
           is_active?: boolean
+          max_teer_level?: number | null
+          min_clb_listening?: number | null
+          min_clb_listening_teer23?: number | null
+          min_clb_reading?: number | null
+          min_clb_reading_teer23?: number | null
+          min_clb_speaking?: number | null
+          min_clb_speaking_teer23?: number | null
+          min_clb_writing?: number | null
+          min_clb_writing_teer23?: number | null
+          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
+          program_type?: string | null
+          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
+          requires_eca?: boolean | null
           requires_english_test?: boolean
+          requires_proof_of_funds?: boolean | null
+          requires_stem_occupation?: boolean | null
+          settlement_funds_cad?: number | null
           slug: string
           title: string
+          typical_crs_max?: number | null
+          typical_crs_min?: number | null
           updated_at?: string
         }
         Update: {
@@ -680,15 +721,33 @@ export type Database = {
           fee_gbp?: number
           id?: string
           is_active?: boolean
+          max_teer_level?: number | null
+          min_clb_listening?: number | null
+          min_clb_listening_teer23?: number | null
+          min_clb_reading?: number | null
+          min_clb_reading_teer23?: number | null
+          min_clb_speaking?: number | null
+          min_clb_speaking_teer23?: number | null
+          min_clb_writing?: number | null
+          min_clb_writing_teer23?: number | null
+          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name?: string
           processing_time_max?: string
           processing_time_min?: string
+          program_type?: string | null
+          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
+          requires_eca?: boolean | null
           requires_english_test?: boolean
+          requires_proof_of_funds?: boolean | null
+          requires_stem_occupation?: boolean | null
+          settlement_funds_cad?: number | null
           slug?: string
           title?: string
+          typical_crs_max?: number | null
+          typical_crs_min?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -707,6 +766,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      posts: {
+        Row: {
+          ai_summary: string | null
+          author_id: string | null
+          body: string | null
+          cover_seed: string | null
+          created_at: string | null
+          excerpt: string | null
+          id: string
+          published_at: string | null
+          slug: string
+          source_name: string | null
+          source_url: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          author_id?: string | null
+          body?: string | null
+          cover_seed?: string | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug: string
+          source_name?: string | null
+          source_url?: string | null
+          status?: string
+          tags?: string[] | null
+          title: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          author_id?: string | null
+          body?: string | null
+          cover_seed?: string | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug?: string
+          source_name?: string | null
+          source_url?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
