@@ -39,9 +39,9 @@ function sortByUrgency(docs: DashboardDocument[]): DashboardDocument[] {
 }
 
 function DocumentsSection({ data }: { data: DashboardData }) {
-  const docsHref = data.applicationId
-    ? `/applications/${data.applicationId}/documents`
-    : '/dashboard/application';
+  // Documents are user-scoped (one application per user), so the canonical
+  // /dashboard/documents tab serves them; no applicationId param needed.
+  const docsHref = data.applicationId ? '/dashboard/documents' : '/dashboard/application';
 
   // No documents yet — show data-pending state
   if (data.documents.length === 0) {

@@ -9,10 +9,12 @@ import { ProgressTracker } from './ProgressTracker';
 
 interface Props {
   application: Application;
+  avatarInitials: string;
+  firstName: string;
 }
 
 /** Interactive shell: full-viewport layout with step navigation state. */
-export function ApplicationLayout({ application }: Props) {
+export function ApplicationLayout({ application, avatarInitials, firstName }: Props) {
   const initialIdx = Math.max(
     0,
     application.steps.findIndex((s) => s.status === 'current'),
@@ -34,8 +36,8 @@ export function ApplicationLayout({ application }: Props) {
     // overflow-y-auto on main (not overflow-hidden) so sticky tracker works
     <div className="h-screen flex flex-col bg-bg-base overflow-hidden">
       <TopNav
-        avatarInitials="AC"
-        firstName="Alex"
+        avatarInitials={avatarInitials}
+        firstName={firstName}
         applicationId={application.id}
       />
       <main className="flex-1 overflow-y-auto">
