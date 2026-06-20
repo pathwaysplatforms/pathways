@@ -8,6 +8,8 @@ export interface DocumentRequirement {
   validity_period: string | null;
   accepted_formats: string[];
   max_size_mb: number;
+  /** True when the user has a vault file labeled with this document_type. */
+  satisfied?: boolean;
 }
 
 export interface ApplicationStep {

@@ -12,7 +12,7 @@ interface Props {
 /** Upload CTA for a document_upload step — triggers DocumentUploadModal on click. */
 export function DocumentUploadStep({ document }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [isUploaded, setIsUploaded] = useState(false);
+  const [isUploaded, setIsUploaded] = useState(document.satisfied ?? false);
 
   return (
     <div>

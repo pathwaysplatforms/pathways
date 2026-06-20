@@ -22,7 +22,7 @@ function makeChain(result: QueryResult) {
   const chain: Record<string, unknown> = {
     then: (resolve: (v: QueryResult) => void) => resolve(result),
   };
-  for (const method of ['select', 'eq', 'in', 'order']) {
+  for (const method of ['select', 'eq', 'in', 'not', 'order']) {
     chain[method] = vi.fn(() => chain);
   }
   chain.single = vi.fn().mockResolvedValue(result);
@@ -56,6 +56,7 @@ function setupClient(setup: MockSetup) {
     if (table === 'pathway_steps') return makeChain(stepsResult);
     if (table === 'document_requirements') return makeChain(docsResult);
     if (table === 'pathway_progress') return makeChain(progressResult);
+    if (table === 'user_documents') return makeChain({ data: [], error: null });
     return makeChain({ data: null, error: null });
   });
 
@@ -141,6 +142,7 @@ describe('getApplicationForLayout', () => {
       validity_period: '2 years',
       accepted_formats: ['PDF', 'JPG'],
       max_size_mb: 5,
+      satisfied: false,
     });
   });
 
@@ -180,6 +182,7 @@ describe('getApplicationForLayout', () => {
       validity_period: null,
       accepted_formats: ['PDF'],
       max_size_mb: 10,
+      satisfied: false,
     });
   });
 

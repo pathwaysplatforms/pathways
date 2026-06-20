@@ -263,7 +263,7 @@ function normalizeStepType(raw: string | null): StepType {
 }
 
 /** Maps a document_requirements row to the embedded DocumentRequirement shape. */
-function mapDocumentRequirement(d: LayoutDocRow): DocumentRequirement {
+function mapDocumentRequirement(d: LayoutDocRow, satisfiedTypes: Set<string>): DocumentRequirement {
   const rules = d.validation_rules ?? {};
   const rawFormats = (rules as Record<string, unknown>).accepted_formats;
   const accepted = Array.isArray(rawFormats)
@@ -277,6 +277,7 @@ function mapDocumentRequirement(d: LayoutDocRow): DocumentRequirement {
     validity_period: d.validity_period,
     accepted_formats: accepted.length > 0 ? accepted : ['PDF'],
     max_size_mb: typeof rawMax === 'number' ? rawMax : 10,
+    satisfied: satisfiedTypes.has(d.document_type),
   };
 }
 
@@ -404,6 +405,17 @@ export async function getApplicationForLayout(
     ])
   );
 
+  // Fetch vault satisfaction: which document_type values has the user uploaded?
+  const { data: vaultData } = await db
+    .from('user_documents')
+    .select('document_type')
+    .eq('user_id', profile.id)
+    .not('document_type', 'is', null);
+
+  const satisfiedTypes = new Set<string>(
+    ((vaultData ?? []) as { document_type: string }[]).map((r) => r.document_type)
+  );
+
   // First document requirement linked to a step wins for that step.
   const docByStep = new Map<string, LayoutDocRow>();
   for (const d of rawDocs) {
@@ -436,7 +448,7 @@ export async function getApplicationForLayout(
       estimated_duration: s.estimated_duration,
       is_optional: s.is_optional,
     };
-    if (linkedDoc) step.document = mapDocumentRequirement(linkedDoc);
+    if (linkedDoc) step.document = mapDocumentRequirement(linkedDoc, satisfiedTypes);
     return step;
   });
 

@@ -1,30 +1,50 @@
 import { redirect } from 'next/navigation';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
-import { getDashboardData } from '@/modules/dashboard/service';
+import { listVaultFiles } from '@/modules/vault/service';
+import type { VaultFile } from '@/modules/vault/types';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { DocumentsClient } from './DocumentsClient';
 
-/** Documents tab — document checklist locked until a pathway is selected. */
+/** Derives avatar initials (up to 2 chars) from a full name. */
+function deriveInitials(fullName: string | null): string {
+  if (!fullName) return '?';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return (parts[0]?.[0] ?? '?').toUpperCase();
+  return `${parts[0]?.[0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase();
+}
+
+/** Extracts the first name from a full name string. */
+function deriveFirstName(fullName: string | null): string {
+  if (!fullName) return 'there';
+  return fullName.split(' ')[0] ?? 'there';
+}
+
+/** Documents tab — general-purpose file vault for all authenticated users. */
 export default async function DocumentsPage() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/auth/login');
-  }
+  if (!user) redirect('/auth/login');
 
   const correlationId = `docs-tab-${user.id}-${Date.now()}`;
   const logger = createRequestLogger(correlationId);
   logger.info({ action: 'documentsTab.start', userId: user.id });
 
-  let data;
-  try {
-    data = await getDashboardData(user.id, logger);
-  } catch (err) {
-    logger.error({ action: 'documentsTab.error', userId: user.id, err });
+  const db = supabase as unknown as SupabaseClient;
+
+  // Fetch profile to get display name and profile id
+  const { data: profileData, error: profileError } = await db
+    .from('profiles')
+    .select('id, full_name')
+    .eq('auth_user_id', user.id)
+    .single();
+
+  if (profileError || !profileData) {
+    logger.error({ action: 'documentsTab.profileError', userId: user.id, error: profileError });
     return (
       <DashboardShell avatarInitials="?" firstName="">
         <div className="flex flex-1 items-center justify-center p-7">
@@ -48,14 +68,7 @@ export default async function DocumentsPage() {
             >
               Something went wrong
             </p>
-            <p
-              style={{
-                fontFamily: 'var(--pw-font-body)',
-                fontSize: 14,
-                color: '#6B6B6B',
-                marginBottom: 20,
-              }}
-            >
+            <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 14, color: '#6B6B6B', marginBottom: 20 }}>
               We couldn&apos;t load your documents. Please try again.
             </p>
             <a
@@ -81,18 +94,24 @@ export default async function DocumentsPage() {
     );
   }
 
-  logger.info({ action: 'documentsTab.complete', userId: user.id });
+  const profile = profileData as { id: string; full_name: string | null };
+
+  let initialFiles: VaultFile[];
+  try {
+    initialFiles = await listVaultFiles(profile.id, db, logger);
+  } catch (err) {
+    logger.error({ action: 'documentsTab.vaultError', userId: user.id, err });
+    initialFiles = [];
+  }
+
+  logger.info({ action: 'documentsTab.complete', userId: user.id, fileCount: initialFiles.length });
 
   return (
     <DashboardShell
-      avatarInitials={data.avatarInitials}
-      firstName={data.firstName}
-      applicationId={data.applicationId}
+      avatarInitials={deriveInitials(profile.full_name)}
+      firstName={deriveFirstName(profile.full_name)}
     >
-      <DocumentsClient
-        hasApplication={!!data.applicationId}
-        dbDocuments={data.documents}
-      />
+      <DocumentsClient initialFiles={initialFiles} />
     </DashboardShell>
   );
 }
