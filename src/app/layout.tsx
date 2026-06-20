@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${urbanist.variable} ${instrumentSerif.variable} ${dmSans.variable}`}
     >
-      <body className="font-sans">
+      <body className="font-sans" suppressHydrationWarning>
         {children}
         {/* Grain / film-noise overlay — barely perceptible paper texture */}
         <svg
