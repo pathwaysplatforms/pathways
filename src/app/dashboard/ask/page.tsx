@@ -18,7 +18,7 @@ function deriveAvatarInitials(fullName: string | null): string {
 
 /** Server component: authenticates user and renders the Ask Pathways Q&A page. */
 export default async function AskPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

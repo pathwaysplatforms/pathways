@@ -54,7 +54,7 @@ export type ProfileUpdateFields = z.infer<typeof ProfileUpdateSchema>;
 
 /** Updates mutable profile fields submitted from the Profile tab edit form. */
 export async function updateProfileFields(fields: ProfileUpdateFields): Promise<void> {
-  const supabase = createSupabaseServerClient() as unknown as SupabaseClient;
+  const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -97,7 +97,7 @@ export async function updateProfileFields(fields: ProfileUpdateFields): Promise<
 
 /** Re-computes the CRS estimate from the current profile and persists it into pathway_input_json. */
 export async function recalculateCrsEstimate(): Promise<CrsEstimate | null> {
-  const supabase = createSupabaseServerClient() as unknown as SupabaseClient;
+  const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;
   const {
     data: { user },
   } = await supabase.auth.getUser();

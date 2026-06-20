@@ -202,7 +202,7 @@ export async function getDashboardData(
   // The typed Supabase client (@supabase/ssr) produces `never` for query data fields
   // due to a type incompatibility with the generated Database types in this project.
   // Pattern mirrors auth/service.ts — cast to untyped client, assert result types manually.
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   // Step 1: fetch profile
   const { data: profileData, error: profileError } = await db

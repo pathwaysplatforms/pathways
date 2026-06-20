@@ -370,7 +370,7 @@ function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProf
 export async function createVoiceSession(profileId: string, log: Logger): Promise<string> {
   log.info({ action: "voice.session.start", profileId });
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data, error } = await db
     .from("voice_sessions")
     .insert({
@@ -399,7 +399,7 @@ export async function findExistingSession(
 ): Promise<{ sessionId: string; history: Message[]; partialProfile: PartialExtractedProfile } | null> {
   log.info({ action: "voice.session.resume.check", profileId });
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data } = await db
     .from("voice_sessions")
     .select("id, transcript, extracted_data")
@@ -486,7 +486,7 @@ export async function processConversationTurn(
 ): Promise<TurnResult> {
   log.info({ action: "voice.turn.start", sessionId });
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: session, error: sessionError } = await db
     .from("voice_sessions")
@@ -569,7 +569,7 @@ export async function finalizeVoiceSession(
 
   const status = extractedProfile.requires_review.length > 0 ? "needs_review" : "completed";
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { error: sessionError } = await db
     .from("voice_sessions")
     .update({
@@ -687,7 +687,7 @@ export async function* streamConversationTurn(
     return;
   }
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: session, error: sessionError } = await db
     .from("voice_sessions")

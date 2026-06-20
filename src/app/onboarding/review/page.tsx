@@ -21,7 +21,7 @@ export default async function ReviewPage() {
 
   const extracted = (profile.voice_session_data ?? {}) as Partial<VoiceExtractedProfile>;
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data: session } = await db
     .from("voice_sessions")
     .select("id")

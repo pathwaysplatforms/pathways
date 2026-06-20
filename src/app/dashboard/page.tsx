@@ -15,7 +15,7 @@ import { resetOnboarding } from '@/app/actions/onboarding';
 
 /** Server component: authenticates the user, fetches dashboard data, renders shell. */
 export default async function DashboardPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {

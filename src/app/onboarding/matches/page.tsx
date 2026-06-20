@@ -8,7 +8,7 @@ import { MatchesCTA } from "@/components/onboarding/MatchesCTA";
 
 /** Fetch the first active pathway slug to pre-select when the user clicks the CTA. */
 async function fetchTopPathwaySlug(): Promise<string | null> {
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data } = await db
     .from("pathways")
     .select("slug")

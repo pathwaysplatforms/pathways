@@ -47,7 +47,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   try {
     const user = await requireAuth();
-    const db = createSupabaseServerClient() as unknown as SupabaseClient;
+    const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
     const rawBody = await req.json().catch(() => ({}));
     const parsed = bodySchema.safeParse(rawBody);

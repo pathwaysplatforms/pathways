@@ -24,7 +24,7 @@ export async function updateStepProgress(input: {
     throw new ValidationError('Invalid progress input', { issues: parsed.error.issues });
   }
 
-  const supabase = createSupabaseServerClient() as unknown as SupabaseClient;
+  const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new AuthError('Not authenticated');
 

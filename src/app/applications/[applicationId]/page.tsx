@@ -6,7 +6,7 @@ import { getApplicationForLayout } from '@/modules/application/service';
 import { ApplicationLayout } from '@/components/application/ApplicationLayout';
 
 interface Props {
-  params: { applicationId: string };
+  params: Promise<{ applicationId: string }>;
 }
 
 /** Builds initials (up to 2 chars) from a full name. */
@@ -25,7 +25,8 @@ function deriveFirstName(fullName: string | null): string {
 
 /** Application overview + step tracker for a single application, scoped to the owner. */
 export default async function ApplicationPage({ params }: Props) {
-  const supabase = createSupabaseServerClient();
+  const { applicationId } = await params;
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -36,19 +37,19 @@ export default async function ApplicationPage({ params }: Props) {
 
   const correlationId = `application-${user.id}-${Date.now()}`;
   const logger = createRequestLogger(correlationId);
-  logger.info({ action: 'applicationPage.start', userId: user.id, applicationId: params.applicationId });
+  logger.info({ action: 'applicationPage.start', userId: user.id, applicationId });
 
   const [application, profile] = await Promise.all([
-    getApplicationForLayout(params.applicationId, user.id, logger),
+    getApplicationForLayout(applicationId, user.id, logger),
     getProfile(),
   ]);
 
   if (!application) {
-    logger.info({ action: 'applicationPage.notFound', userId: user.id, applicationId: params.applicationId });
+    logger.info({ action: 'applicationPage.notFound', userId: user.id, applicationId });
     notFound();
   }
 
-  logger.info({ action: 'applicationPage.complete', userId: user.id, applicationId: params.applicationId });
+  logger.info({ action: 'applicationPage.complete', userId: user.id, applicationId });
 
   const fullName = profile?.full_name ?? null;
 

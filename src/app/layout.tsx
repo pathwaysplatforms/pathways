@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Urbanist, Instrument_Serif, DM_Sans } from "next/font/google";
-import dynamic from "next/dynamic";
+import { DevToolbarLoader } from "@/components/dev/DevToolbarLoader";
 import "./globals.css";
-
-const DevToolbar = dynamic(() => import("@/components/dev/DevToolbar"), { ssr: false });
 
 const urbanist = Urbanist({
   subsets: ["latin"],
@@ -62,7 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </filter>
           <rect width="100%" height="100%" filter="url(#pw-grain)" />
         </svg>
-        {process.env.NODE_ENV === "development" && <DevToolbar />}
+        {process.env.NODE_ENV === "development" && <DevToolbarLoader />}
       </body>
     </html>
   );

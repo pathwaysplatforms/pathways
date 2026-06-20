@@ -12,13 +12,13 @@ import type { Session, User, Profile } from "./types";
 
 const emailSchema = z.string().email();
 
-function getOrigin(): string {
-  const h = headers();
+async function getOrigin(): Promise<string> {
+  const h = await headers();
   return h.get("origin") ?? "http://localhost:3000";
 }
 
 export async function getSession(): Promise<Session | null> {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
   // callers only use .user; other Session fields are unavailable from getUser()
@@ -29,7 +29,7 @@ export async function getProfile(): Promise<Profile | null> {
   const session = await getSession();
   if (!session) return null;
 
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   // Database types pending regeneration — cast until `supabase gen types --local` is run
   const db = supabase as unknown as SupabaseClient;
   const { data } = await db
@@ -48,7 +48,7 @@ export async function requireAuth(): Promise<User> {
     const reqLogger = createRequestLogger(crypto.randomUUID());
     let path = "unknown";
     try {
-      path = headers().get("x-pathname") ?? "unknown";
+      path = (await headers()).get("x-pathname") ?? "unknown";
     } catch {
       // headers() unavailable outside request context
     }
@@ -85,8 +85,8 @@ export async function signInWithEmail(email: string): Promise<void> {
     throw new ValidationError("Invalid email address");
   }
 
-  const origin = getOrigin();
-  const supabase = createSupabaseServerClient();
+  const origin = await getOrigin();
+  const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: `${origin}/auth/callback` },
@@ -101,8 +101,8 @@ export async function signInWithEmail(email: string): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<void> {
-  const origin = getOrigin();
-  const supabase = createSupabaseServerClient();
+  const origin = await getOrigin();
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo: `${origin}/auth/callback` },
@@ -124,7 +124,7 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function signOut(): Promise<void> {
   const session = await getSession();
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const reqLogger = createRequestLogger(crypto.randomUUID());
 
   await supabase.auth.signOut();

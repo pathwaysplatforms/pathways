@@ -78,7 +78,7 @@ export async function getApplicationData(
 
   // The typed Supabase client produces `never` for query data — cast to untyped,
   // assert result types manually (mirrors dashboard/service.ts pattern).
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: profileData, error: profileError } = await db
     .from('profiles')
@@ -292,7 +292,7 @@ export async function getApplicationForLayout(
 ): Promise<Application | null> {
   logger.info({ action: 'getApplicationForLayout.start', userId, applicationId });
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: profileData, error: profileError } = await db
     .from('profiles')

@@ -7,7 +7,7 @@ import { DocumentsClient } from './DocumentsClient';
 
 /** Documents tab — document checklist locked until a pathway is selected. */
 export default async function DocumentsPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

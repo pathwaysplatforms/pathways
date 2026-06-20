@@ -26,7 +26,7 @@ export function buildFirstName(fullName: string | null): string {
 export async function getProfileTabData(userId: string, logger: Logger): Promise<ProfileTabData> {
   logger.info({ action: 'getProfileTabData.start', userId });
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: profileData, error: profileError } = await db
     .from('profiles')
