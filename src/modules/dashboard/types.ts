@@ -128,6 +128,8 @@ export interface DashboardData {
   nationalityVoice: string | null;
   /** Most recent Express Entry draw from immigration_draws table. */
   latestDraw: LatestDraw | null;
+  /** Pathway slug from an existing application (null when no application exists yet). */
+  applicationPathwaySlug: string | null;
 }
 
 /** Onboarding step definitions derived from known profile sections. */

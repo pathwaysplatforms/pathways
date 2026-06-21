@@ -77,6 +77,11 @@ export async function updateProfileFields(fields: ProfileUpdateFields): Promise<
     Object.entries(parsed.data).filter(([, v]) => v !== undefined)
   );
 
+  // Nulling the voice override ensures reads consistently prefer the structured field.
+  if ('education_level' in updates) {
+    updates['education_level_voice'] = null;
+  }
+
   if (Object.keys(updates).length === 0) {
     logger.info({ action: 'updateProfileFields.no_changes', userId: user.id });
     return;

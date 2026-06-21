@@ -13,7 +13,7 @@ export function CrsChip({ crsValue }: CrsChipProps) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
+    <div style={{ position: 'relative', display: 'block' }}>
       <Link href="/dashboard/crs" style={{ display: 'block', textDecoration: 'none' }}>
         <div
           onMouseEnter={() => setHovered(true)}
@@ -21,11 +21,12 @@ export function CrsChip({ crsValue }: CrsChipProps) {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            background: hovered ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.04)',
-            borderRadius: 10,
-            padding: '10px 16px',
+            background: hovered ? '#F9FAFB' : '#FFFFFF',
+            borderRadius: 16,
+            padding: '14px 16px',
             cursor: 'pointer',
             transition: 'background 150ms ease',
+            boxShadow: 'var(--shadow-card-md)',
           }}
         >
           <p className="pw-eyebrow" style={{ marginBottom: 2 }}>CRS Score</p>

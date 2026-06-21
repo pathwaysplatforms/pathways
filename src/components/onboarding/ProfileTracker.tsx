@@ -29,8 +29,6 @@ const FIELDS: FieldDef[] = [
   { key: "language_proficiency_self", label: "Language proficiency" },
   { key: "has_family_in_canada", label: "Family in Canada" },
   { key: "intended_province", label: "Preferred province" },
-  { key: "annual_income", label: "Annual income" },
-  { key: "income_currency", label: "Income currency" },
 ];
 
 function formatValue(value: unknown): string {

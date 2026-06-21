@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Route, Files, User, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Route, Files, User, Settings, type LucideIcon } from 'lucide-react';
 
 interface TopNavProps {
   avatarInitials: string;
@@ -33,6 +33,7 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
     { label: 'Application', icon: Route,            href: '/dashboard/application',   disabled: false },
     { label: 'Documents',   icon: Files,            href: '/dashboard/documents',     disabled: false },
     { label: 'Profile',     icon: User,             href: '/dashboard/profile',       disabled: false },
+    { label: 'Account',     icon: Settings,         href: '/dashboard/account',       disabled: false },
   ];
 
   return (
@@ -44,7 +45,7 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
       <div className="flex items-center gap-2 flex-shrink-0">
         <span
           className="text-pw-ink"
-          style={{ fontFamily: 'var(--pw-font-display)', fontSize: 20 }}
+          style={{ fontFamily: 'var(--pw-font-display)', fontSize: 20, fontWeight: 600 }}
         >
           Pathways
         </span>
@@ -54,7 +55,12 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
       {/* Nav links */}
       <div className="flex items-center h-full">
         {navItems.map(({ label, icon: Icon, href, disabled }) => {
-          const isActive = !disabled && (pathname === href || (href !== '#' && pathname.startsWith(href)));
+          const isActive =
+            !disabled &&
+            (pathname === href ||
+              (href !== '#' &&
+                href !== '/dashboard' &&
+                pathname.startsWith(href)));
 
           if (disabled) {
             return (

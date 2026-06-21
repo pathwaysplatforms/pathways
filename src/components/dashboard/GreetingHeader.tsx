@@ -78,7 +78,7 @@ export function GreetingHeader({ firstName, isVisible = false }: GreetingHeaderP
         }}
       >
         {getGreeting()},{' '}
-        <em style={{ fontStyle: 'italic' }}>{firstName}.</em>
+        {firstName}.
       </h1>
       {subtitle && (
         <p

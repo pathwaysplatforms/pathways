@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { getT } from "@/lib/i18n";
 import { setLocale } from "@/app/actions/locale";
-import { ShieldCheck, RefreshCw, BookOpen, MapPin, Users, Award } from "lucide-react";
+import { ShieldCheck, RefreshCw, BookOpen, MapPin, Users, Award, Zap, Landmark, Heart } from "lucide-react";
 import { GlobeCanvas } from "@/components/GlobeCanvas";
 import { CircleGuide } from "@/components/CircleGuide";
-import { ParticleField } from "@/components/fx/ParticleField";
+import { GradientBackground } from "@/components/ui/paper-design-shader-background";
 import { Reveal } from "@/components/fx/Reveal";
 import { AnimatedNumber } from "@/components/fx/AnimatedNumber";
 
@@ -20,7 +20,7 @@ export default async function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-14">
           <span
             className="text-pw-ink text-xl"
-            style={{ fontFamily: "var(--pw-font-display)" }}
+            style={{ fontFamily: "var(--pw-font-display)", fontWeight: 600 }}
           >
             Pathways
           </span>
@@ -61,8 +61,8 @@ export default async function LandingPage() {
       </header>
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <section className="relative min-h-[calc(100vh-3.5rem)] flex items-center overflow-hidden bg-pw-bg">
-        <ParticleField density={0.7} opacity={0.05} parallax={10} />
+      <section className="relative min-h-[calc(100vh-3.5rem)] flex items-center overflow-hidden bg-pw-surface">
+        <GradientBackground />
 
         <div className="relative z-10 max-w-6xl mx-auto px-6 w-full py-20 md:py-0">
           <div className="grid md:grid-cols-2 gap-12 md:gap-20 items-center">
@@ -71,8 +71,8 @@ export default async function LandingPage() {
             <div>
               <p className="pw-eyebrow mb-6">Immigration guidance</p>
               <h1
-                className="text-4xl md:text-6xl leading-tight text-pw-ink mb-6"
-                style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+                className="text-4xl md:text-5xl leading-tight text-pw-ink mb-6"
+                style={{ fontFamily: "var(--pw-font-display)", fontWeight: 800 }}
               >
                 Navigate your path forward.
               </h1>
@@ -141,7 +141,7 @@ export default async function LandingPage() {
             <p className="pw-eyebrow text-center mb-3">How it works</p>
             <h2
               className="text-3xl md:text-4xl text-pw-ink text-center mb-16 leading-tight"
-              style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+              style={{ fontFamily: "var(--pw-font-display)", fontWeight: 700 }}
             >
               Three steps to your immigration roadmap
             </h2>
@@ -198,7 +198,7 @@ export default async function LandingPage() {
             <p className="pw-eyebrow text-center mb-3">Pathways we cover</p>
             <h2
               className="text-3xl md:text-4xl text-pw-ink text-center mb-16 leading-tight"
-              style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+              style={{ fontFamily: "var(--pw-font-display)", fontWeight: 700 }}
             >
               The main routes to Canadian permanent residence
             </h2>
@@ -206,30 +206,32 @@ export default async function LandingPage() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                emoji: "🍁",
+                icon: Zap,
                 name: "Express Entry",
                 desc: "Points-based federal system for skilled workers. Includes Federal Skilled Worker, Canadian Experience Class, and Federal Skilled Trades.",
               },
               {
-                emoji: "🗺️",
+                icon: Landmark,
                 name: "Provincial Nominee Program",
                 desc: "Each province nominates candidates who meet specific local labour market needs. Over 80 streams available across Canada.",
               },
               {
-                emoji: "👨‍👩‍👧",
+                icon: Heart,
                 name: "Family Sponsorship",
                 desc: "Canadian citizens and permanent residents can sponsor eligible family members including spouses, children, and parents.",
               },
-            ].map(({ emoji, name, desc }, i) => (
+            ].map(({ icon: Icon, name, desc }, i) => (
               <Reveal key={name} delayMs={i * 70}>
               <div
                 className="pw-card pw-interactive p-6 flex flex-col gap-4 cursor-default h-full"
               >
-                <span className="text-3xl" role="img">{emoji}</span>
+                <div className="w-9 h-9 rounded-full border border-black/[0.08] flex items-center justify-center shrink-0">
+                  <Icon size={16} className="text-pw-accent" />
+                </div>
                 <div>
                   <h3
                     className="text-lg text-pw-ink mb-2 leading-snug"
-                    style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+                    style={{ fontFamily: "var(--pw-font-display)", fontWeight: 500 }}
                   >
                     {name}
                   </h3>
@@ -262,7 +264,7 @@ export default async function LandingPage() {
               <Reveal key={label} delayMs={i * 70} className="text-center">
                 <p
                   className="text-4xl md:text-5xl text-pw-ink mb-1"
-                  style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+                  style={{ fontFamily: "var(--pw-font-display)", fontWeight: 700 }}
                 >
                   <AnimatedNumber value={value} suffix={suffix} />
                 </p>
@@ -282,7 +284,7 @@ export default async function LandingPage() {
           <Award size={32} className="text-pw-muted mx-auto mb-6" />
           <h2
             className="text-3xl md:text-4xl text-pw-ink mb-4 leading-tight"
-            style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
+            style={{ fontFamily: "var(--pw-font-display)", fontWeight: 700 }}
           >
             Ready to find your pathway?
           </h2>

@@ -51,6 +51,7 @@ export interface ProfileTabData {
   hasCanadianJobOffer: boolean | null;
   hasSiblingInCanada: boolean | null;
 
+  pathwayName: string | null;
   pathwayInputJson: Record<string, unknown> | null;
   profileCompletenessPct: number | null;
 }

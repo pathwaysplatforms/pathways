@@ -224,21 +224,41 @@ export async function getDashboardData(
 
   const profile = profileData as Tables<'profiles'>;
 
-  // Extract CRS estimate from pathway_input_json
+  // Extract CRS from pathway_input_json — two write-path shapes exist:
+  // Shape A (PathwayInput/confirm route): crs_estimate is an object { range_low, range_high, confidence, ... }
+  // Shape B (legacy triggerPathwayRecognition): crs_estimate is a scalar number; range in crs_estimate_low/high
   const pathwayInput = profile.pathway_input_json as Record<string, unknown> | null;
-  const crsEstimate = pathwayInput?.crs_estimate as {
-    range_low: number;
-    range_high: number;
-    confidence: string;
-    based_on: string[];
-  } | null ?? null;
+  const rawCrs = pathwayInput?.crs_estimate;
 
-  const crsScore = crsEstimate
-    ? Math.round((crsEstimate.range_low + crsEstimate.range_high) / 2)
-    : null;
-  const crsRangeLow = crsEstimate?.range_low ?? null;
-  const crsRangeHigh = crsEstimate?.range_high ?? null;
-  const crsConfidence = crsEstimate?.confidence ?? null;
+  let crsScore: number | null = null;
+  let crsRangeLow: number | null = null;
+  let crsRangeHigh: number | null = null;
+  let crsConfidence: string | null = null;
+
+  if (rawCrs !== null && rawCrs !== undefined) {
+    if (typeof rawCrs === 'object') {
+      const crsObj = rawCrs as Record<string, unknown>;
+      // Shape C (recalculateCrsEstimate / CrsEstimate object): { score, low, high, margin, ... }
+      if (typeof crsObj.score === 'number' && Number.isFinite(crsObj.score)) {
+        crsScore = crsObj.score;
+        crsRangeLow = typeof crsObj.low === 'number' ? crsObj.low : null;
+        crsRangeHigh = typeof crsObj.high === 'number' ? crsObj.high : null;
+      // Shape A (buildPathwayInput / confirm route): { range_low, range_high, confidence }
+      } else if (typeof crsObj.range_low === 'number' && typeof crsObj.range_high === 'number') {
+        crsRangeLow = crsObj.range_low;
+        crsRangeHigh = crsObj.range_high;
+        crsScore = Math.round((crsRangeLow + crsRangeHigh) / 2);
+        crsConfidence = typeof crsObj.confidence === 'string' ? crsObj.confidence : null;
+      }
+    } else if (typeof rawCrs === 'number' && Number.isFinite(rawCrs)) {
+      // Shape B (legacy triggerPathwayRecognition, now removed): scalar midpoint
+      crsScore = rawCrs;
+      const rawLow = pathwayInput?.crs_estimate_low;
+      const rawHigh = pathwayInput?.crs_estimate_high;
+      crsRangeLow = typeof rawLow === 'number' ? rawLow : null;
+      crsRangeHigh = typeof rawHigh === 'number' ? rawHigh : null;
+    }
+  }
 
   // Step 2: fetch application joined with pathway
   const { data: applicationData, error: applicationError } = await db
@@ -511,6 +531,7 @@ export async function getDashboardData(
     profileContext,
     nationalityVoice,
     latestDraw,
+    applicationPathwaySlug: appWithPathway?.pathway?.slug ?? null,
   };
 
   logger.info({

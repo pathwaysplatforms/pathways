@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
+    "@paper-design/shaders-react": "^0.0.76",
     "@sentry/nextjs": "^10.59.0",
     "@supabase/ssr": "^0.5",
     "@supabase/supabase-js": "^2",

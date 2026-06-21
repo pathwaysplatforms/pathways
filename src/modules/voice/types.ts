@@ -32,8 +32,6 @@ export const TurnResponseSchema = z.object({
       .optional(),
     has_family_in_canada: z.boolean().nullable().optional(),
     intended_province: z.string().nullable().optional(),
-    annual_income: z.number().nullable().optional(),
-    income_currency: z.string().nullable().optional(),
     // Language CLB scores
     clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
     clb_listening: z.number().int().min(0).max(12).nullable().optional(),
@@ -50,18 +48,11 @@ export const TurnResponseSchema = z.object({
     // Education structured
     education_level: EducationLevelEnum.nullable().optional(),
     eca_obtained: z.boolean().nullable().optional(),
-    // Spouse
+    // Spouse (only the coming flag — sub-fields deferred to profile page)
     spouse_coming_to_canada: z.boolean().nullable().optional(),
-    spouse_education_level: EducationLevelEnum.nullable().optional(),
-    spouse_clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
-    spouse_clb_listening: z.number().int().min(0).max(12).nullable().optional(),
-    spouse_clb_reading: z.number().int().min(0).max(12).nullable().optional(),
-    spouse_clb_writing: z.number().int().min(0).max(12).nullable().optional(),
-    spouse_canadian_work_years: z.number().int().min(0).nullable().optional(),
     // CRS bonus factors
     has_provincial_nomination: z.boolean().nullable().optional(),
     has_canadian_job_offer: z.boolean().nullable().optional(),
-    has_sibling_in_canada: z.boolean().nullable().optional(),
     // Additional pathway fields
     destination_country: z.string().nullable().optional(),
     purpose: z.string().nullable().optional(),
@@ -86,8 +77,6 @@ export const VoiceExtractedProfileSchema = z.object({
     .nullable(),
   has_family_in_canada: z.boolean().nullable(),
   intended_province: z.string().nullable(),
-  annual_income: z.number().nullable(),
-  income_currency: z.string().nullable(),
   // Language CLB scores
   clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
   clb_listening: z.number().int().min(0).max(12).nullable().optional(),
@@ -104,7 +93,7 @@ export const VoiceExtractedProfileSchema = z.object({
   // Education structured
   education_level: EducationLevelEnum.nullable().optional(),
   eca_obtained: z.boolean().nullable().optional(),
-  // Spouse
+  // Spouse — voice collects the flag only; sub-fields are DB-only (set via profile page)
   spouse_coming_to_canada: z.boolean().nullable().optional(),
   spouse_education_level: EducationLevelEnum.nullable().optional(),
   spouse_clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
@@ -112,10 +101,13 @@ export const VoiceExtractedProfileSchema = z.object({
   spouse_clb_reading: z.number().int().min(0).max(12).nullable().optional(),
   spouse_clb_writing: z.number().int().min(0).max(12).nullable().optional(),
   spouse_canadian_work_years: z.number().int().min(0).nullable().optional(),
-  // CRS bonus factors
+  // CRS bonus factors — voice collects has_provincial_nomination and has_canadian_job_offer only
   has_provincial_nomination: z.boolean().nullable().optional(),
   has_canadian_job_offer: z.boolean().nullable().optional(),
+  // DB-only fields — not collected by voice, carried here for CRS/embeddings/matching compatibility
   has_sibling_in_canada: z.boolean().nullable().optional(),
+  annual_income: z.number().nullable().optional(),
+  income_currency: z.string().nullable().optional(),
   // Additional pathway fields
   destination_country: z.string().nullable().optional(),
   purpose: z.string().nullable().optional(),
@@ -139,6 +131,34 @@ export const SessionRequestSchema = z.object({});
 export const ConfirmRequestSchema = z.object({
   updates: VoiceExtractedProfileSchema.omit({ requires_review: true }).partial(),
 });
+
+export const EDUCATION_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  { value: 'less_than_secondary', label: 'Less than secondary' },
+  { value: 'secondary', label: 'Secondary (high school)' },
+  { value: 'one_year_post_secondary', label: '1-year post-secondary' },
+  { value: 'two_year_post_secondary', label: '2-year post-secondary' },
+  { value: 'bachelors', label: "Bachelor's degree" },
+  { value: 'two_or_more_credentials', label: 'Two or more credentials' },
+  { value: 'masters', label: "Master's degree" },
+  { value: 'phd', label: 'Doctorate (PhD)' },
+] as const;
+
+export const NOC_TEER_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  { value: '0', label: 'TEER 0 — Management' },
+  { value: '1', label: 'TEER 1 — University degree' },
+  { value: '2', label: 'TEER 2 — College / 2+ yr apprenticeship' },
+  { value: '3', label: 'TEER 3 — College / under-2-yr apprenticeship' },
+  { value: '4', label: 'TEER 4 — High school diploma' },
+  { value: '5', label: 'TEER 5 — Short-term training' },
+] as const;
+
+export const BOOLEAN_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
+] as const;
 
 export type ConfirmRequest = z.infer<typeof ConfirmRequestSchema>;
 export type TurnResponse = z.infer<typeof TurnResponseSchema>;

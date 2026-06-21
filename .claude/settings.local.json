@@ -115,7 +115,22 @@
       "PowerShell(npx supabase db query --linked \"SELECT p.id, p.slug, p.title, c.iso_code, c.name as country_name FROM public.pathways p JOIN public.countries c ON p.country_id = c.id ORDER BY c.iso_code, p.title;\" 2>&1)",
       "PowerShell(npx supabase db query --linked \"SELECT ps.id, ps.pathway_id, ps.step_number, ps.title, ps.description, ps.type, ps.is_optional, ps.estimated_duration FROM public.pathway_steps ps JOIN public.pathways p ON ps.pathway_id = p.id JOIN public.countries c ON p.country_id = c.id WHERE c.iso_code = 'CA' ORDER BY p.title, ps.step_number;\" 2>&1)",
       "PowerShell(npx supabase status --linked 2>&1)",
-      "PowerShell(npx supabase db query --linked \"SELECT ps.id, ps.pathway_id, ps.step_number, ps.title, ps.description, ps.type, ps.is_optional FROM public.pathway_steps ps JOIN public.pathways p ON ps.pathway_id = p.id JOIN public.countries c ON p.country_id = c.id WHERE c.iso_code = 'CA' ORDER BY p.title, ps.step_number;\" 2>&1)"
+      "PowerShell(npx supabase db query --linked \"SELECT ps.id, ps.pathway_id, ps.step_number, ps.title, ps.description, ps.type, ps.is_optional FROM public.pathway_steps ps JOIN public.pathways p ON ps.pathway_id = p.id JOIN public.countries c ON p.country_id = c.id WHERE c.iso_code = 'CA' ORDER BY p.title, ps.step_number;\" 2>&1)",
+      "PowerShell(npm install *)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -Last 10)",
+      "PowerShell(npx tsc --noEmit 2>&1)",
+      "PowerShell(npx vitest run 2>&1 | Select-Object -Last 8)",
+      "Bash(xargs grep -l \"italic\")",
+      "Bash(grep -rE \"fontSize.*:.*['\\\\\"]?[0-9]{2,3}\\(px|rem\\)\" \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\src\\\\app\" --include=\"*.tsx\" --include=\"*.ts\")",
+      "Skill(run)",
+      "Bash(chromium-cli *)",
+      "Bash(npx playwright *)",
+      "PowerShell(Move-Item *)",
+      "PowerShell(cd \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"error\" } | Select-String -NotMatch \"display-preview\" | Select-Object -First 30)",
+      "PowerShell(cd \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\"; $output = npx tsc --noEmit 2>&1; $errors = $output | Where-Object { $_ -match \"error TS\" }; \"Total errors: $\\($errors.Count\\)\"; $errors | Where-Object { $_ -notmatch \"display-preview\" })",
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")"
     ]
   }
 }

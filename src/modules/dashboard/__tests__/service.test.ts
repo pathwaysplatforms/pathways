@@ -47,6 +47,7 @@ function makeApplication(overrides: Record<string, unknown> = {}) {
     notes: null,
     pathway: {
       id: 'pathway-1',
+      slug: 'skilled-worker',
       title: 'Skilled Worker',
       official_name: 'Federal Skilled Worker Program',
       processing_time_min: '6 months',
@@ -194,6 +195,7 @@ describe('getDashboardData', () => {
     expect(result.totalStepsCount).toBe(2);
     expect(result.applicationSteps[0].status).toBe('current');
     expect(result.applicationSteps[1].status).toBe('upcoming');
+    expect(result.applicationPathwaySlug).toBe('skilled-worker');
   });
 
   it('returns application_submitted when submitted_at is set', async () => {
@@ -337,5 +339,81 @@ describe('getDashboardData', () => {
 
     const result = await getDashboardData('user-1', mockLogger as never);
     expect(result.avatarInitials).toBe('C');
+  });
+
+  it('extracts crsScore from nested PathwayInput shape (object with range_low/range_high)', async () => {
+    setupClient({
+      profileResult: {
+        data: makeProfile({
+          pathway_input_json: {
+            crs_estimate: { range_low: 440, range_high: 480, confidence: 'low', based_on: [] },
+          },
+        }),
+        error: null,
+      },
+      applicationResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.crsScore).toBe(460);
+    expect(result.crsRangeLow).toBe(440);
+    expect(result.crsRangeHigh).toBe(480);
+    expect(result.crsConfidence).toBe('low');
+  });
+
+  it('extracts crsScore from CrsEstimate shape (score/low/high — written by recalculateCrsEstimate)', async () => {
+    setupClient({
+      profileResult: {
+        data: makeProfile({
+          pathway_input_json: {
+            crs_estimate: { score: 432, low: 412, high: 452, margin: 20, breakdown: {} },
+            crs_recalculated_at: '2026-06-21T16:52:04.295Z',
+          },
+        }),
+        error: null,
+      },
+      applicationResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.crsScore).toBe(432);
+    expect(result.crsRangeLow).toBe(412);
+    expect(result.crsRangeHigh).toBe(452);
+  });
+
+  it('extracts crsScore from flat shape (scalar number + crs_estimate_low/high)', async () => {
+    setupClient({
+      profileResult: {
+        data: makeProfile({
+          pathway_input_json: {
+            crs_estimate: 460,
+            crs_estimate_low: 440,
+            crs_estimate_high: 480,
+          },
+        }),
+        error: null,
+      },
+      applicationResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.crsScore).toBe(460);
+    expect(result.crsRangeLow).toBe(440);
+    expect(result.crsRangeHigh).toBe(480);
+  });
+
+  it('returns null crsScore when pathway_input_json is null', async () => {
+    setupClient({
+      profileResult: {
+        data: makeProfile({ pathway_input_json: null }),
+        error: null,
+      },
+      applicationResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.crsScore).toBeNull();
+    expect(result.crsRangeLow).toBeNull();
+    expect(result.crsRangeHigh).toBeNull();
   });
 });

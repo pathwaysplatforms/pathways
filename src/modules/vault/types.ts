@@ -73,3 +73,11 @@ export const DOCUMENT_TYPE_OPTIONS: readonly { value: string; label: string }[] 
 export const DOCUMENT_TYPE_LABEL: Readonly<Record<string, string>> = Object.fromEntries(
   DOCUMENT_TYPE_OPTIONS.map(({ value, label }) => [value, label])
 );
+
+/** A document requirement for a pathway, used in the vault checklist panel. */
+export interface DocumentRequirement {
+  id: string;
+  name: string;
+  documentType: string;
+  isMandatory: boolean;
+}

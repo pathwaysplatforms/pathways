@@ -8,10 +8,6 @@ interface FormTabProps {
   onProfileUpdate: (delta: Partial<VoiceExtractedProfile>) => void;
 }
 
-const COMMON_CURRENCIES = [
-  "CAD", "USD", "GBP", "EUR", "INR", "AUD", "PHP", "NGN", "PKR",
-] as const;
-
 type FormValues = {
   full_name: string;
   date_of_birth: string;
@@ -26,9 +22,6 @@ type FormValues = {
   language_proficiency_self: string;
   has_family_in_canada: string;
   intended_province: string;
-  annual_income: string;
-  income_currency: string;
-  income_currency_other: string;
 };
 
 /** Form tab — structured form for all 15 pathway-determining fields. */
@@ -48,9 +41,6 @@ export function FormTab({ onProfileUpdate }: FormTabProps) {
     language_proficiency_self: "",
     has_family_in_canada: "",
     intended_province: "",
-    annual_income: "",
-    income_currency: "CAD",
-    income_currency_other: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,9 +76,6 @@ export function FormTab({ onProfileUpdate }: FormTabProps) {
     if (vals.language_proficiency_self) d.language_proficiency_self = vals.language_proficiency_self as VoiceExtractedProfile["language_proficiency_self"];
     if (vals.has_family_in_canada) d.has_family_in_canada = vals.has_family_in_canada === "yes";
     if (vals.intended_province) d.intended_province = vals.intended_province === "no_preference" ? null : vals.intended_province;
-    if (vals.annual_income) { const n = parseInt(vals.annual_income, 10); if (!isNaN(n)) d.annual_income = n; }
-    const currency = vals.income_currency === "Other" ? vals.income_currency_other : vals.income_currency;
-    if (currency) d.income_currency = currency;
     return d;
   }
 
@@ -238,31 +225,6 @@ export function FormTab({ onProfileUpdate }: FormTabProps) {
             <option value="Quebec">Quebec</option>
             <option value="Saskatchewan">Saskatchewan</option>
           </select>
-        </div>
-
-        {/* Annual income */}
-        <div>
-          <label className={labelClass}>Approximate annual income</label>
-          <div className="flex gap-2">
-            <input type="number" min={0} className={`${inputClass} flex-1`} placeholder="e.g. 60000" value={values.annual_income} onChange={(e) => handleChange("annual_income", e.target.value)} />
-            <select
-              className="h-10 border border-border rounded-input px-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-accent-500 bg-bg-surface transition-colors"
-              value={values.income_currency}
-              onChange={(e) => handleChange("income_currency", e.target.value)}
-            >
-              {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          {values.income_currency === "Other" && (
-            <input
-              type="text"
-              className={`${inputClass} mt-2`}
-              placeholder="Currency code (e.g. MXN)"
-              value={values.income_currency_other}
-              onChange={(e) => handleChange("income_currency_other", e.target.value)}
-            />
-          )}
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

@@ -49,7 +49,7 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
 
   const { data: appData, error: appError } = await db
     .from('applications')
-    .select('id')
+    .select('id, pathways(title)')
     .eq('profile_id', profile.id)
     .maybeSingle();
 
@@ -57,13 +57,14 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
     throw new DatabaseError('Failed to fetch application', { userId, profileId: profile.id }, appError);
   }
 
-  const application = appData as { id: string } | null;
+  const application = appData as { id: string; pathways: { title: string } | null } | null;
 
   const result: ProfileTabData = {
     id: profile.id,
     avatarInitials: buildAvatarInitials(profile.full_name),
     firstName: buildFirstName(profile.full_name),
     applicationId: application?.id ?? null,
+    pathwayName: application?.pathways?.title ?? null,
 
     fullName: profile.full_name,
     nationality: profile.nationality,
@@ -77,7 +78,7 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
     yearsExperience: profile.years_experience,
     hasCanadianExperience: profile.has_canadian_experience,
 
-    educationLevel: profile.education_level_voice ?? profile.education_level,
+    educationLevel: profile.education_level ?? profile.education_level_voice,
     degreeLevel: profile.degree_level,
     degreeField: profile.degree_field,
     ecaObtained: profile.eca_obtained,

@@ -4,13 +4,9 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
 import { getDashboardData } from '@/modules/dashboard/service';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
-import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
-import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { PathwayTrackerSection } from '@/components/dashboard/PathwayTrackerSection';
+import { DashboardHomeLayout } from '@/components/dashboard/DashboardHomeLayout';
 import { DemoStateBar } from '@/components/demo/DemoStateBar';
-import { ParticleField } from '@/components/fx/ParticleField';
-import { DashboardDataProvider } from '@/contexts/DashboardDataContext';
-import { Suspense } from 'react';
+import { GradientBackground } from '@/components/ui/paper-design-shader-background';
 import { resetOnboarding } from '@/app/actions/onboarding';
 
 /** Server component: authenticates the user, fetches dashboard data, renders shell. */
@@ -66,16 +62,6 @@ export default async function DashboardPage() {
 
   logger.info({ action: 'dashboard.complete', userId: user.id, state: dashboardData.state });
 
-  // Derive selected pathway for the tracker (null when an application already exists)
-  const selectedPathway =
-    dashboardData.selectedPathwaySlug && dashboardData.selectedPathwayTitle
-      ? {
-          slug: dashboardData.selectedPathwaySlug,
-          title: dashboardData.selectedPathwayTitle,
-          processingTime: dashboardData.selectedPathwayProcessingTime,
-        }
-      : null;
-
   return (
     <>
       <DashboardShell
@@ -83,11 +69,6 @@ export default async function DashboardPage() {
         firstName={dashboardData.firstName}
         applicationId={dashboardData.applicationId}
       >
-        {/*
-         * Scroll wrapper: DashboardGrid is fixed at viewport height so the existing
-         * layout is unchanged. ActivePathwayTracker appears below and is accessible
-         * by scrolling. TopNav is h-16 (64px).
-         */}
         <div
           style={{
             flex: 1,
@@ -97,46 +78,20 @@ export default async function DashboardPage() {
             flexDirection: 'column',
           }}
         >
-          {/* Particle texture pinned to the scroll viewport, behind the cards */}
+          {/* Ambient gradient: pinned behind content via sticky+height:0 trick */}
           <div style={{ position: 'sticky', top: 0, height: 0, zIndex: 0, flexShrink: 0 }} aria-hidden="true">
-            <ParticleField
-              density={0.45}
-              opacity={0.04}
-              parallax={8}
-              style={{ inset: 'auto', top: 0, left: 0, width: '100%', height: 'calc(100vh - 64px)' }}
-            />
+            <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+              <GradientBackground />
+            </div>
           </div>
 
-          {/* Grid occupies exactly the available viewport height */}
-          <div
-            style={{
-              height: 'calc(100vh - 64px)',
-              display: 'flex',
-              flexDirection: 'column',
-              flexShrink: 0,
-            }}
-          >
-            <DashboardDataProvider data={dashboardData}>
-              <Suspense fallback={<DashboardSkeleton />}>
-                <DashboardGrid data={dashboardData} />
-              </Suspense>
-            </DashboardDataProvider>
+          {/* Stepper-anchored 3-column layout — flex-fill so it claims viewport height */}
+          <div className="flex-1 min-h-0 flex flex-col relative z-[1]" style={{ padding: '28px 28px 20px' }}>
+            <DashboardHomeLayout data={dashboardData} />
           </div>
 
-          {/* Pathway tracker — full-width section below the grid */}
-          <div style={{ padding: '0 28px 28px', flexShrink: 0 }}>
-            <PathwayTrackerSection
-              pathway={selectedPathway}
-              steps={dashboardData.selectedPathwaySteps}
-              documents={dashboardData.documents}
-              pathwaySlug={dashboardData.selectedPathwaySlug}
-              applicationId={dashboardData.applicationId}
-              profileContext={dashboardData.profileContext}
-            />
-          </div>
-
-          {/* Ask Pathways entry point */}
-          <div style={{ padding: '0 28px 12px', flexShrink: 0 }}>
+          {/* Ask Pathways entry point — position:relative + z-index:1 keeps it above the sticky gradient (z:0) */}
+          <div style={{ padding: '0 28px 12px', flexShrink: 0, position: 'relative', zIndex: 1 }}>
             <Link
               href="/dashboard/ask"
               style={{
@@ -158,7 +113,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
 
-          <div className="flex justify-center pb-7" style={{ flexShrink: 0 }}>
+          <div className="flex justify-center pb-7" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
             <form action={resetOnboarding}>
               <button
                 type="submit"

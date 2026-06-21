@@ -44,7 +44,7 @@ export function PathwaysOrb({ state, size = 220 }: PathwaysOrbProps) {
         width: size,
         height: size,
         flexShrink: 0,
-        transition: "transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        transition: "transform 600ms cubic-bezier(0.16, 1, 0.3, 1)",
         transform: `scale(${SCALE[state]})`,
         willChange: "transform",
       }}
@@ -83,7 +83,7 @@ export function WaveformBars({ active }: WaveformBarsProps) {
           style={{
             width: 3,
             borderRadius: 2,
-            background: "var(--voice-violet, #534AB7)",
+            background: "var(--pw-accent)",
             opacity: active ? 0.7 : 0.2,
             height: active ? undefined : 4,
             animation: active

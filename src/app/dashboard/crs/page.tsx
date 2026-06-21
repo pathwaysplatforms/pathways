@@ -144,7 +144,7 @@ export default async function CrsPage() {
             className="pw-entry pw-entry-delay-2"
             style={{
               fontFamily: 'var(--pw-font-display)',
-              fontWeight: 400,
+              fontWeight: 700,
               fontSize: 'clamp(2.5rem, 6vw, 5rem)',
               color: 'var(--pw-ink)',
               lineHeight: 1.05,
@@ -186,8 +186,8 @@ export default async function CrsPage() {
           <p
             style={{
               fontFamily: 'var(--pw-font-display)',
-              fontSize: 'clamp(5rem, 12vw, 8rem)',
-              fontWeight: 400,
+              fontSize: 'clamp(4.25rem, 10vw, 6.75rem)',
+              fontWeight: 700,
               color: 'var(--pw-ink)',
               lineHeight: 1,
               marginBottom: '6px',
@@ -469,7 +469,7 @@ export default async function CrsPage() {
                     style={{
                       fontFamily: 'var(--pw-font-display)',
                       fontSize: '32px',
-                      fontWeight: 400,
+                      fontWeight: 700,
                       color: '#1A56DB',
                       lineHeight: 1,
                     }}

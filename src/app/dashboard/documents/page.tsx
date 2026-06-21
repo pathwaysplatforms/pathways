@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
 import { listVaultFiles } from '@/modules/vault/service';
-import type { VaultFile } from '@/modules/vault/types';
+import type { VaultFile, DocumentRequirement } from '@/modules/vault/types';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { DocumentsClient } from './DocumentsClient';
 
@@ -36,10 +36,9 @@ export default async function DocumentsPage() {
 
   const db = supabase as unknown as SupabaseClient;
 
-  // Fetch profile to get display name and profile id
   const { data: profileData, error: profileError } = await db
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, selected_pathway_slug')
     .eq('auth_user_id', user.id)
     .single();
 
@@ -94,24 +93,79 @@ export default async function DocumentsPage() {
     );
   }
 
-  const profile = profileData as { id: string; full_name: string | null };
+  const profile = profileData as { id: string; full_name: string | null; selected_pathway_slug: string | null };
 
+  // Fetch vault files and the active application's pathway_id in parallel.
   let initialFiles: VaultFile[];
+  let pathwayId: string | null = null;
+
   try {
-    initialFiles = await listVaultFiles(profile.id, db, logger);
+    const [filesResult, appResult] = await Promise.all([
+      listVaultFiles(profile.id, db, logger),
+      db
+        .from('applications')
+        .select('pathway_id')
+        .eq('profile_id', profile.id)
+        .maybeSingle(),
+    ]);
+
+    initialFiles = filesResult;
+    pathwayId = (appResult.data as { pathway_id: string } | null)?.pathway_id ?? null;
   } catch (err) {
     logger.error({ action: 'documentsTab.vaultError', userId: user.id, err });
     initialFiles = [];
   }
 
-  logger.info({ action: 'documentsTab.complete', userId: user.id, fileCount: initialFiles.length });
+  // Fall back to selected_pathway_slug when there is no application yet.
+  if (!pathwayId && profile.selected_pathway_slug) {
+    const { data: pw } = await db
+      .from('pathways')
+      .select('id')
+      .eq('slug', profile.selected_pathway_slug)
+      .maybeSingle();
+    pathwayId = (pw as { id: string } | null)?.id ?? null;
+  }
+
+  let initialRequirements: DocumentRequirement[] = [];
+  if (pathwayId) {
+    try {
+      const { data: reqData } = await db
+        .from('document_requirements')
+        .select('id, name, document_type, is_mandatory')
+        .eq('pathway_id', pathwayId)
+        .order('sort_order', { ascending: true });
+
+      initialRequirements = (
+        (reqData ?? []) as {
+          id: string;
+          name: string;
+          document_type: string;
+          is_mandatory: boolean;
+        }[]
+      ).map((r) => ({
+        id: r.id,
+        name: r.name,
+        documentType: r.document_type,
+        isMandatory: r.is_mandatory,
+      }));
+    } catch (err) {
+      logger.error({ action: 'documentsTab.requirementsError', userId: user.id, err });
+    }
+  }
+
+  logger.info({
+    action: 'documentsTab.complete',
+    userId: user.id,
+    fileCount: initialFiles.length,
+    requirementsCount: initialRequirements.length,
+  });
 
   return (
     <DashboardShell
       avatarInitials={deriveInitials(profile.full_name)}
       firstName={deriveFirstName(profile.full_name)}
     >
-      <DocumentsClient initialFiles={initialFiles} />
+      <DocumentsClient initialFiles={initialFiles} requirements={initialRequirements} />
     </DashboardShell>
   );
 }

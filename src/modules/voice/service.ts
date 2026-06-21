@@ -6,7 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ValidationError, DatabaseError } from "@/lib/errors";
 import { TurnResponseSchema, VoiceExtractedProfileSchema, ConfirmRequestSchema } from "./types";
 import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile, ConfirmRequest } from "./types";
-import { triggerPathwayRecognition } from "@/lib/pathway-recognition";
+import { computeProfileCompletenessPct } from "@/lib/completeness";
 
 const OPENING_GREETING =
   "Hi! I'm your Pathways assistant. I'll ask you a few questions to find the best Canadian immigration pathway for your situation — it takes about 3 minutes. To get started, could you tell me your full name?";
@@ -34,14 +34,12 @@ FIELDS TO COLLECT (suggested order, adapt naturally):
 12. CLB scores — ask if they've taken IELTS, CELPIP, TEF, or TCF. If yes, get their scores and convert to CLB (see CLB CONVERSION below). If no, map from language_proficiency_self.
 13. has_family_in_canada — any family members in Canada?
 14. intended_province — province preference or no preference
-15. annual_income + income_currency — approximate salary and its currency
-16. Spouse section (only if marital_status is married or common-law):
+15. Spouse section (only if marital_status is married or common-law):
     - spouse_coming_to_canada — will their partner also move to Canada?
-    - If yes: spouse_education_level, then ask if partner has taken a language test → spouse_clb_*, then spouse_canadian_work_years
-    - Keep this to 2–3 questions grouped naturally
-17. Bonus factors (ask as one grouped question near the end):
-    "A few last questions that could significantly boost your immigration score — do you have a job offer from a Canadian employer, a provincial nomination, or a sibling who is a Canadian citizen or permanent resident?"
-    Extract: has_canadian_job_offer, has_provincial_nomination, has_sibling_in_canada. All default false.
+    - One question only: "Will your partner be immigrating with you?" That's all voice needs.
+16. Bonus factors (ask as one grouped question near the end):
+    "A couple of final questions — do you have a job offer from a Canadian employer, or a provincial nomination?"
+    Extract: has_canadian_job_offer, has_provincial_nomination. All default false.
 
 TEER INFERENCE (infer silently from occupation — never ask for a NOC number):
 - TEER 0: Senior managers, executives, directors, C-suite
@@ -90,8 +88,8 @@ DATA EXTRACTION RULES:
 - foreign_work_recent: true if foreign experience within last 10 years.
 - noc_teer_category: infer silently. Add to requires_review if still unclear after one follow-up.
 - education_level: map silently. Only ask if degree_level is null or "other".
-- has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada: all default false. Set true only if explicitly mentioned.
-- spouse_* fields: only collect if marital_status is married or common-law AND spouse_coming_to_canada is true.
+- has_provincial_nomination, has_canadian_job_offer: both default false. Set true only if explicitly mentioned.
+- spouse_coming_to_canada: only collect if marital_status is married or common-law.
 
 PROFILE_DELTA EXTRACTION:
 After EVERY turn where the user provides any information, you MUST append a structured block at the very end of your response (after your conversational text) in this exact format:
@@ -204,7 +202,6 @@ function parseProfileDeltaResponse(fullText: string): {
 
   const integerFields = [
     "years_experience",
-    "annual_income",
     "clb_speaking",
     "clb_listening",
     "clb_reading",
@@ -212,11 +209,6 @@ function parseProfileDeltaResponse(fullText: string): {
     "canadian_work_years",
     "foreign_work_years",
     "noc_teer_category",
-    "spouse_clb_speaking",
-    "spouse_clb_listening",
-    "spouse_clb_reading",
-    "spouse_clb_writing",
-    "spouse_canadian_work_years",
   ] as const;
   for (const field of integerFields) {
     if (typed[field] !== undefined && typed[field] !== null) {
@@ -335,8 +327,6 @@ function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProf
     language_proficiency_self: partial.language_proficiency_self ?? null,
     has_family_in_canada: partial.has_family_in_canada ?? null,
     intended_province: partial.intended_province ?? null,
-    annual_income: partial.annual_income ?? null,
-    income_currency: partial.income_currency ?? null,
     clb_speaking: partial.clb_speaking ?? null,
     clb_listening: partial.clb_listening ?? null,
     clb_reading: partial.clb_reading ?? null,
@@ -350,15 +340,8 @@ function buildFinalProfile(partial: PartialExtractedProfile): VoiceExtractedProf
     education_level: partial.education_level ?? null,
     eca_obtained: partial.eca_obtained ?? null,
     spouse_coming_to_canada: partial.spouse_coming_to_canada ?? null,
-    spouse_education_level: partial.spouse_education_level ?? null,
-    spouse_clb_speaking: partial.spouse_clb_speaking ?? null,
-    spouse_clb_listening: partial.spouse_clb_listening ?? null,
-    spouse_clb_reading: partial.spouse_clb_reading ?? null,
-    spouse_clb_writing: partial.spouse_clb_writing ?? null,
-    spouse_canadian_work_years: partial.spouse_canadian_work_years ?? null,
     has_provincial_nomination: partial.has_provincial_nomination ?? false,
     has_canadian_job_offer: partial.has_canadian_job_offer ?? false,
-    has_sibling_in_canada: partial.has_sibling_in_canada ?? false,
     destination_country: partial.destination_country ?? null,
     purpose: partial.purpose ?? null,
     dependents: partial.dependents ?? null,
@@ -584,6 +567,8 @@ export async function finalizeVoiceSession(
     throw new DatabaseError("Failed to finalize voice session", { sessionId }, sessionError);
   }
 
+  const profileCompletenessPct = computeProfileCompletenessPct(extractedProfile);
+
   const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
   const { error: profileError } = await adminDb
     .from("profiles")
@@ -592,6 +577,7 @@ export async function finalizeVoiceSession(
       onboarding_status: "voice_complete",
       onboarding_step: "voice_complete",
       onboarding_method: "voice",
+      profile_completeness_pct: profileCompletenessPct,
       full_name: extractedProfile.full_name,
       nationality: extractedProfile.nationality,
       current_country: extractedProfile.current_country,
@@ -599,13 +585,11 @@ export async function finalizeVoiceSession(
       years_experience: extractedProfile.years_experience,
       marital_status: extractedProfile.marital_status,
       date_of_birth: extractedProfile.date_of_birth,
-      income_currency: extractedProfile.income_currency,
       intended_province: extractedProfile.intended_province,
       has_canadian_experience: extractedProfile.has_canadian_experience,
       language_proficiency_self: extractedProfile.language_proficiency_self,
       has_family_in_canada: extractedProfile.has_family_in_canada,
       education_level_voice: extractedProfile.education_level_voice,
-      annual_income: extractedProfile.annual_income,
       clb_speaking: extractedProfile.clb_speaking,
       clb_listening: extractedProfile.clb_listening,
       clb_reading: extractedProfile.clb_reading,
@@ -619,15 +603,8 @@ export async function finalizeVoiceSession(
       education_level: extractedProfile.education_level,
       eca_obtained: extractedProfile.eca_obtained,
       spouse_coming_to_canada: extractedProfile.spouse_coming_to_canada,
-      spouse_education_level: extractedProfile.spouse_education_level,
-      spouse_clb_speaking: extractedProfile.spouse_clb_speaking,
-      spouse_clb_listening: extractedProfile.spouse_clb_listening,
-      spouse_clb_reading: extractedProfile.spouse_clb_reading,
-      spouse_clb_writing: extractedProfile.spouse_clb_writing,
-      spouse_canadian_work_years: extractedProfile.spouse_canadian_work_years,
       has_provincial_nomination: extractedProfile.has_provincial_nomination,
       has_canadian_job_offer: extractedProfile.has_canadian_job_offer,
-      has_sibling_in_canada: extractedProfile.has_sibling_in_canada,
     })
     .eq("id", profileId);
 
@@ -835,8 +812,6 @@ export async function* streamConversationTurn(
       durationSeconds,
       log
     );
-    // Fire-and-forget: write pathway_input_json for the async matching engine
-    void triggerPathwayRecognition(profileId, finalProfile, log);
   }
 
   yield {
@@ -875,9 +850,29 @@ export async function confirmVoiceProfile(
   log.info({ action: "voice.confirm.start", profileId });
 
   const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
+
+  const { data: currentProfile, error: fetchError } = await adminDb
+    .from("profiles")
+    .select(
+      "full_name,date_of_birth,nationality,current_country,marital_status," +
+      "occupation,noc_teer_category,years_experience,canadian_work_years,foreign_work_years," +
+      "education_level,eca_obtained,clb_speaking,clb_listening,clb_reading,clb_writing," +
+      "intended_province,has_provincial_nomination,has_canadian_job_offer"
+    )
+    .eq("id", profileId)
+    .single();
+
+  if (fetchError || !currentProfile) {
+    throw new DatabaseError("Failed to fetch profile for completeness calculation", { profileId }, fetchError ?? undefined);
+  }
+
+  const current = currentProfile as Parameters<typeof computeProfileCompletenessPct>[0];
+  const mergedForCompleteness = { ...current, ...updates };
+  const profileCompletenessPct = computeProfileCompletenessPct(mergedForCompleteness);
+
   const { error } = await adminDb
     .from("profiles")
-    .update({ ...updates, onboarding_status: "complete" })
+    .update({ ...updates, onboarding_status: "complete", profile_completeness_pct: profileCompletenessPct })
     .eq("id", profileId);
 
   if (error) {

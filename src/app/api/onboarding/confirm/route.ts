@@ -5,6 +5,7 @@ import { createRequestLogger } from "@/lib/logger";
 import { requireAuth, getProfile } from "@/modules/auth/service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildPathwayInput } from "@/lib/pathway-input";
+import { computeProfileCompletenessPct } from "@/lib/completeness";
 import { PathwaysError, AuthError, ValidationError } from "@/lib/errors";
 import type { Logger } from "pino";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
     const extracted = (profile.voice_session_data ?? {}) as Partial<VoiceExtractedProfile>;
     const pathwayInput = buildPathwayInput(profile.id, extracted, voiceSessionId, method);
+    const profileCompletenessPct = computeProfileCompletenessPct(extracted);
 
     const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
     const { error } = await adminDb
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         pathway_input_json: pathwayInput as unknown as Record<string, unknown>,
         onboarding_status: "complete",
         onboarding_step: "complete",
+        profile_completeness_pct: profileCompletenessPct,
       })
       .eq("id", profile.id);
 

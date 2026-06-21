@@ -88,6 +88,10 @@ function setupClient(profileResult: QueryResult, appResult: QueryResult) {
   );
 }
 
+function makeApp(overrides: Record<string, unknown> = {}) {
+  return { id: 'app-1', pathways: { title: 'Express Entry' }, ...overrides };
+}
+
 // ─── Unit helpers ─────────────────────────────────────────────────────────────
 
 describe('buildAvatarInitials', () => {
@@ -130,7 +134,7 @@ describe('getProfileTabData', () => {
   it('returns full profile data for a complete profile with application', async () => {
     setupClient(
       { data: makeProfile(), error: null },
-      { data: { id: 'app-1' }, error: null }
+      { data: makeApp(), error: null }
     );
     const result = await getProfileTabData('user-1', mockLogger as never);
 
@@ -139,9 +143,30 @@ describe('getProfileTabData', () => {
     expect(result.avatarInitials).toBe('JS');
     expect(result.firstName).toBe('Jane');
     expect(result.applicationId).toBe('app-1');
+    expect(result.pathwayName).toBe('Express Entry');
     expect(result.clbListening).toBe(9);
     expect(result.clbWriting).toBe(8);
     expect(result.profileCompletenessPct).toBe(80);
+  });
+
+  it('returns null pathwayName when no application exists', async () => {
+    setupClient(
+      { data: makeProfile(), error: null },
+      { data: null, error: null }
+    );
+    const result = await getProfileTabData('user-1', mockLogger as never);
+    expect(result.pathwayName).toBeNull();
+    expect(result.applicationId).toBeNull();
+  });
+
+  it('returns null pathwayName when application has no pathway join', async () => {
+    setupClient(
+      { data: makeProfile(), error: null },
+      { data: makeApp({ pathways: null }), error: null }
+    );
+    const result = await getProfileTabData('user-1', mockLogger as never);
+    expect(result.pathwayName).toBeNull();
+    expect(result.applicationId).toBe('app-1');
   });
 
   it('returns null for optional fields that are missing', async () => {
@@ -158,22 +183,22 @@ describe('getProfileTabData', () => {
     expect(result.applicationId).toBeNull();
   });
 
-  it('prefers education_level_voice over education_level', async () => {
+  it('prefers education_level over education_level_voice', async () => {
     setupClient(
       { data: makeProfile({ education_level: 'bachelors', education_level_voice: "bachelor's degree" }), error: null },
       { data: null, error: null }
     );
     const result = await getProfileTabData('user-1', mockLogger as never);
-    expect(result.educationLevel).toBe("bachelor's degree");
+    expect(result.educationLevel).toBe('bachelors');
   });
 
-  it('falls back to education_level when voice field is null', async () => {
+  it('falls back to education_level_voice when education_level is null', async () => {
     setupClient(
-      { data: makeProfile({ education_level: 'bachelors', education_level_voice: null }), error: null },
+      { data: makeProfile({ education_level: null, education_level_voice: "bachelor's degree" }), error: null },
       { data: null, error: null }
     );
     const result = await getProfileTabData('user-1', mockLogger as never);
-    expect(result.educationLevel).toBe('bachelors');
+    expect(result.educationLevel).toBe("bachelor's degree");
   });
 
   it('returns null educationLevel when both fields are null', async () => {
@@ -215,6 +240,7 @@ describe('getProfileTabData', () => {
     expect(result.spouseCanadianWorkYears).toBe(1);
     expect(result.hasCanadianJobOffer).toBe(true);
     expect(result.hasSiblingInCanada).toBe(false);
+    expect(result.pathwayName).toBeNull();
   });
 
   it('returns null for all new fields when not set', async () => {

@@ -132,14 +132,20 @@ export function VoiceTab({
           resolve();
         };
         audio.onended = done;
-        audio.onerror = done;
+        audio.onerror = () => {
+          setError("Audio could not play. Please check your speakers and try again.");
+          done();
+        };
         if (signal) {
           signal.addEventListener("abort", () => { audio.pause(); done(); }, { once: true });
         }
-        audio.play().catch(done);
+        audio.play().catch(() => {
+          setError("Audio could not play. Please check your speakers and try again.");
+          done();
+        });
       });
     },
-    []
+    [setError]
   );
 
   const sendTurn = useCallback(
@@ -355,9 +361,18 @@ export function VoiceTab({
           reject(new Error("Gladia WebSocket error"));
         };
         ws.onclose = (e: CloseEvent) => {
-          if (!e.wasClean && !isProcessingTurnRef.current) {
+          if (!e.wasClean) {
             setError("Transcription connection dropped. Please try again.");
             setOrbState("idle");
+          } else if (isProcessingTurnRef.current) {
+            // Server closed the connection cleanly while we were mid-turn
+            setError("Connection closed unexpectedly. Please try again.");
+            setOrbState("idle");
+            isProcessingTurnRef.current = false;
+            if (turnAbortRef.current) {
+              turnAbortRef.current.abort();
+              turnAbortRef.current = null;
+            }
           }
         };
       });
@@ -433,6 +448,9 @@ export function VoiceTab({
         if (greetAudio) await playAudio(greetAudio);
       }
 
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new DOMException("Microphone access is not supported in this browser.", "NotSupportedError");
+      }
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       mediaStreamRef.current = stream;
       audioContextRef.current = new AudioContext({ sampleRate: 16000 });
@@ -443,6 +461,8 @@ export function VoiceTab({
       setOrbState("idle");
       if (err instanceof DOMException && err.name === "NotAllowedError") {
         setError("Microphone access is required. Please allow it and try again.");
+      } else if (err instanceof DOMException && err.name === "NotSupportedError") {
+        setError("Your browser doesn't support microphone access. Please try Chrome or Firefox.");
       } else {
         setError("Could not start the voice session. Please try again.");
       }
@@ -477,7 +497,7 @@ export function VoiceTab({
   );
 
   return (
-    <div className="flex flex-col items-center" style={{ gap: 24 }}>
+    <div className="flex flex-col items-center gap-6">
       {/* Orb — tappable to start */}
       <div
         role="button"
@@ -494,7 +514,7 @@ export function VoiceTab({
       <WaveformCanvas
         analyser={orbState === "listening" ? analyser : null}
         active={orbState === "listening" || orbState === "speaking"}
-        color="#534AB7"
+        color="#1A56DB"
       />
 
       {/* State label — remounted on every state change to re-trigger the blur-in animation */}
@@ -514,12 +534,12 @@ export function VoiceTab({
 
       {/* Mini progress indicator (visible once session has started) */}
       {started && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="flex items-center gap-2">
           <div
             style={{
               width: 80,
               height: 3,
-              background: "rgba(83,74,183,0.15)",
+              background: "rgba(26,86,219,0.15)",
               borderRadius: 2,
             }}
           >
@@ -527,7 +547,7 @@ export function VoiceTab({
               style={{
                 height: "100%",
                 width: `${totalRequired > 0 ? Math.round((requiredCollected / totalRequired) * 100) : 0}%`,
-                background: "var(--voice-violet, #534AB7)",
+                background: "var(--pw-accent)",
                 borderRadius: 2,
                 transition: "width 500ms ease-out",
               }}
@@ -547,7 +567,7 @@ export function VoiceTab({
 
       {/* Begin prompt — shown before the session starts */}
       {!started && (
-        <div className="flex flex-col items-center" style={{ gap: 12, maxWidth: 260 }}>
+        <div className="flex flex-col items-center gap-3" style={{ maxWidth: 260 }}>
           <p
             className="text-center"
             style={{
@@ -561,8 +581,7 @@ export function VoiceTab({
           </p>
           <button
             onClick={() => void begin()}
-            className="btn-primary"
-            style={{ padding: "10px 32px" }}
+            className="btn-primary py-2.5 px-8"
           >
             Begin
           </button>

@@ -1,5 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -75,9 +74,8 @@
   --pw-particle: #1A1A1A;
   --pw-surface:  #F7F7F5;
 
-  --pw-font-display: 'Instrument Serif', Georgia, serif;
-  --pw-font-body:    'DM Sans', system-ui, sans-serif;
-  /* Urbanist for interactive UI elements (nav, buttons, labels, tags, form controls) */
+  --pw-font-display: 'Urbanist', sans-serif;
+  --pw-font-body:    'Urbanist', sans-serif;
   --pw-font-ui:      'Urbanist', sans-serif;
 
   /* Motion */
@@ -335,6 +333,84 @@ html, body {
   .col-span-3 { grid-column: span 3; }
   .row-span-2 { grid-row: span 2; }
 
+  /* Document vault — individual file card */
+  .doc-card {
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    border: 1.5px solid var(--color-border-light);
+    padding: 20px;
+    transform: rotate(-1deg);
+    transition:
+      transform 400ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 300ms ease,
+      border-color 200ms ease;
+  }
+
+  .doc-card:hover {
+    transform: rotate(0deg) translateY(-5px);
+    box-shadow: var(--shadow-card-lg);
+    border-color: var(--color-accent-200);
+  }
+
+  /* Upload zone */
+  .doc-upload-zone {
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    border: 2px dashed var(--color-border);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  }
+
+  .doc-upload-zone:hover {
+    border-color: var(--color-accent-300);
+    background: var(--color-accent-50);
+    box-shadow: var(--shadow-card-md);
+  }
+
+  .doc-upload-zone.dragging {
+    border-color: var(--color-accent-500);
+    background: var(--color-accent-50);
+    box-shadow: var(--shadow-accent);
+  }
+
+  /* DisplayCards stacked layout */
+  .dc-grid {
+    display: grid;
+    grid-template-areas: 'stack';
+    place-items: center;
+  }
+
+  .dc-stack {
+    grid-area: stack;
+  }
+
+  /* Vault card stack — positional classes that bake translate + skew into one transform
+     so the skew is never overridden by Tailwind's translate utilities.
+     Y stagger: 32px per step (middle ground between flat-current and exaggerated-reference).
+     Hover: all cards lift 40px from their baseline for a consistent, satisfying forward motion. */
+  .dc-vault-back  { transform: translateX(0)     translateY(0)    skewY(-8deg); }
+  .dc-vault-back:hover  { transform: translateX(0)     translateY(-40px) skewY(-8deg); }
+  .dc-vault-mid   { transform: translateX(64px)  translateY(32px) skewY(-8deg); }
+  .dc-vault-mid:hover   { transform: translateX(64px)  translateY(-8px)  skewY(-8deg); }
+  .dc-vault-front { transform: translateX(128px) translateY(64px) skewY(-8deg); }
+  .dc-vault-front:hover { transform: translateX(128px) translateY(24px)  skewY(-8deg); }
+
+  /* Vault document card — transition for hover effects (used by VaultCard in DocumentsClient) */
+  .dc-display-card {
+    transition:
+      border-color 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow   700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform    700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dc-display-card:hover {
+    border-color: var(--color-border);
+  }
+
 }
 
 /* ─── Utilities ──────────────────────────────────────────────────── */
@@ -409,6 +485,23 @@ html, body {
   0%   { background-position: -200% center; }
   100% { background-position: 200% center; }
 }
+
+/* ─── Document vault — expanded card overlay ────────────────────── */
+@keyframes vault-card-in {
+  from { opacity: 0; transform: scale(0.86) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes vault-card-out {
+  from { opacity: 1; transform: scale(1)    translateY(0); }
+  to   { opacity: 0; transform: scale(0.92) translateY(10px); }
+}
+@keyframes vault-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vault-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+
+.vault-card-in      { animation: vault-card-in      0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.vault-card-out     { animation: vault-card-out     0.22s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.vault-backdrop-in  { animation: vault-backdrop-in  0.20s ease both; }
+.vault-backdrop-out { animation: vault-backdrop-out 0.18s ease both; }
 
 /* ─── Card expand transition (future use) ────────────────────────── */
 .card-expanding {
@@ -647,6 +740,52 @@ html, body {
 /* ─── Checkmark draw-in ──────────────────────────────────────────── */
 @keyframes pw-check-draw {
   to { stroke-dashoffset: 0; }
+}
+
+/* ─── Semantic state tokens ─────────────────────────────────────── */
+:root {
+  --pw-success: #15803d;   /* green-700 — success indicators only */
+  --pw-error:   #b91c1c;   /* red-700   — error indicators only   */
+}
+
+/* ─── Profile section expand/collapse ───────────────────────────── */
+.pw-section-actions {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-height 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity    150ms ease;
+}
+
+.pw-section-actions.is-open {
+  max-height: 120px;
+  opacity: 1;
+}
+
+/* ─── Custom scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 /* ─── Reduced motion ─────────────────────────────────────────────── */

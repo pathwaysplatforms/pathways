@@ -20,7 +20,7 @@ const font = { body: 'var(--pw-font-body)' as const };
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: ReactNode }) {
+export function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <p style={{
       fontFamily: font.body,
@@ -36,7 +36,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-function SectionDivider() {
+export function SectionDivider() {
   return <hr style={{ border: 'none', borderTop: `1px solid ${border}`, margin: '16px 0 0' }} />;
 }
 
@@ -83,7 +83,7 @@ function HighlightedText({ text }: { text: string }) {
 
 // ── Section A — Documents ─────────────────────────────────────────────────────
 
-function DocumentsSection({ stepDocs }: { stepDocs: DashboardDocument[] }) {
+export function DocumentsSection({ stepDocs }: { stepDocs: DashboardDocument[] }) {
   return (
     <div>
       {stepDocs.map((doc) => (
@@ -112,7 +112,7 @@ function DocumentsSection({ stepDocs }: { stepDocs: DashboardDocument[] }) {
 
 // ── Section B — Resources ─────────────────────────────────────────────────────
 
-function ResourcesSection({ resources }: { resources: StepResource[] }) {
+export function ResourcesSection({ resources }: { resources: StepResource[] }) {
   return (
     <div>
       {resources.map((r, i) => (
@@ -155,7 +155,7 @@ function ResourcesSection({ resources }: { resources: StepResource[] }) {
 
 // ── Section C — Email Templates ───────────────────────────────────────────────
 
-function EmailTemplatesSection({
+export function EmailTemplatesSection({
   pathwaySlug,
   stepNumber,
   profileContext,
@@ -201,7 +201,7 @@ function EmailTemplatesSection({
 
 // ── Section D — Cover Letter ──────────────────────────────────────────────────
 
-function CoverLetterSection({ step, pathwaySlug }: {
+export function CoverLetterSection({ step, pathwaySlug }: {
   step: EnrichedApplicationStep;
   pathwaySlug: string | null;
 }) {
@@ -349,6 +349,14 @@ export function StepDetailDrawer({
     };
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  // Re-registers when visible changes so handleClose captures the current timer ref
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   const handleMarkComplete = () => {
     if (!pathwaySlug) return;
     setActionError(null);
@@ -381,33 +389,45 @@ export function StepDetailDrawer({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — dims + blurs everything behind the modal */}
       <div
         onClick={handleClose}
         style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.20)', zIndex: 39,
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.40)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          zIndex: 39,
           opacity: visible ? 1 : 0,
           transition: 'opacity 300ms cubic-bezier(0.16,1,0.3,1)',
         }}
         aria-hidden="true"
       />
 
-      {/* Drawer panel */}
+      {/* Centered modal panel */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Step details: ${step.label}`}
         style={{
-          position: 'fixed', top: 0, right: 0, bottom: 0,
-          width: 'min(480px, 100vw)',
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          width: 'min(560px, calc(100vw - 32px))',
+          maxHeight: 'min(720px, calc(100vh - 64px))',
           background: '#FFFFFF',
-          borderLeft: `1px solid ${border}`,
+          border: `1px solid ${border}`,
+          borderRadius: 20,
+          boxShadow: 'var(--shadow-card-lg)',
           zIndex: 40,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          transform: visible ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 300ms cubic-bezier(0.16,1,0.3,1)',
+          transform: visible
+            ? 'translate(-50%, -50%) scale(1)'
+            : 'translate(-50%, -50%) scale(0.96)',
+          opacity: visible ? 1 : 0,
+          transition: 'transform 300ms cubic-bezier(0.16,1,0.3,1), opacity 300ms cubic-bezier(0.16,1,0.3,1)',
         }}
       >
         {/* Header — sticky */}
@@ -436,7 +456,7 @@ export function StepDetailDrawer({
             </div>
             <button
               onClick={handleClose}
-              aria-label="Close drawer"
+              aria-label="Close"
               className="pw-interactive"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
