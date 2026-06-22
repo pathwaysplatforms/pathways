@@ -585,12 +585,53 @@ html, body {
   color: #0D0D0D;
 }
 
+/* ─── Shimmer skeleton loading ───────────────────────────────────── */
+@keyframes pw-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.pw-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 800px 100%;
+  animation: pw-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── Pathway card reveal ────────────────────────────────────────── */
+@keyframes pw-card-reveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pw-card-reveal {
+  animation: pw-card-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Form step slide animations ────────────────────────────────── */
+@keyframes step-slide-from-right {
+  from { opacity: 0; transform: translateX(52px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes step-slide-from-left {
+  from { opacity: 0; transform: translateX(-52px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.step-slide-forward {
+  animation: step-slide-from-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.step-slide-backward {
+  animation: step-slide-from-left 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* ─── Reduced motion ─────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .pw-entry,
   .pw-entry-right,
   .pw-rule-reveal,
-  .pw-rule-line {
+  .pw-rule-line,
+  .step-slide-forward,
+  .step-slide-backward,
+  .pw-shimmer,
+  .pw-card-reveal {
     animation: none !important;
     transition: none !important;
     opacity: 1;

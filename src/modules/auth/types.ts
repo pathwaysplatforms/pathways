@@ -33,4 +33,11 @@ export type Profile = {
   onboarding_step: "not_started" | "voice_in_progress" | "voice_complete" | "review" | "complete" | null;
   onboarding_method: "voice" | "chat" | "form" | null;
   selected_pathway_slug: string | null;
+
+  // Added by 20260617000001_subscription_and_account migration
+  avatar_url: string | null;
+  preferred_language: string;
+  phone: string | null;
+  country_of_residence: string | null;
+  subscription_status: "guest" | "free" | "paid";
 };

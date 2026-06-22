@@ -866,6 +866,124 @@ export function validateExtractedProfile(data: unknown): VoiceExtractedProfile {
   return result.data;
 }
 
+/**
+ * Streaming voice turn for guests — same Claude+TTS pipeline as streamConversationTurn
+ * but reads profile state from the request body instead of the database, and does not
+ * write to voice_sessions or profiles.  Returns updatedPartial in the meta event so
+ * the caller can persist it to guest_sessions.
+ */
+export async function* streamConversationTurnGuest(
+  currentPartial: PartialExtractedProfile,
+  transcript: string,
+  history: Message[],
+  log: Logger
+): AsyncGenerator<TurnStreamEvent & { updatedPartial?: PartialExtractedProfile }> {
+  const sessionId = "guest";
+  log.info({ action: "voice.turn.guest.start" });
+
+  if (!transcript.trim() && history.length > 0) {
+    log.warn({ action: "voice.turn.guest.empty.transcript" });
+    yield { type: "error" as const, message: "Transcript is required" };
+    return;
+  }
+
+  if (!transcript.trim() && history.length === 0) {
+    log.info({ action: "voice.turn.guest.greeting" });
+    try {
+      const audioBase64 = await textToSpeech(OPENING_GREETING);
+      yield { type: "audio" as const, index: 0, audioBase64, sentence: OPENING_GREETING };
+    } catch (err) {
+      log.warn({ action: "voice.turn.guest.tts.skipped", error: String(err) });
+    }
+    yield { type: "meta" as const, message: OPENING_GREETING, complete: false, delta: {}, requires_review: [] };
+    return;
+  }
+
+  const truncatedHistory = history.slice(-20);
+  const userTurn: Anthropic.MessageParam[] = transcript.trim()
+    ? [{ role: "user", content: transcript }]
+    : [];
+
+  const messages: Anthropic.MessageParam[] = [
+    ...truncatedHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ...userTurn,
+  ];
+  if (messages.length === 0) messages.push({ role: "user", content: "Hello" });
+
+  const collectedFields = Object.entries(currentPartial as Record<string, unknown>)
+    .filter(([k, v]) => v !== null && v !== undefined && k !== "requires_review")
+    .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`)
+    .join("\n");
+
+  const systemWithContext = collectedFields
+    ? `${VOICE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
+    : VOICE_SYSTEM_PROMPT;
+
+  let fullText = "";
+  const stream = anthropic.messages.stream({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
+    temperature: 0,
+    system: systemWithContext,
+    messages,
+  });
+
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      fullText += event.delta.text;
+    }
+  }
+
+  if (!fullText.trim()) {
+    yield { type: "error" as const, message: "Empty response from AI" };
+    return;
+  }
+
+  const { message, delta, complete, requires_review } = parseProfileDeltaResponse(fullText);
+  if (!message) {
+    yield { type: "error" as const, message: "Empty message from AI" };
+    return;
+  }
+
+  const sentences = splitIntoSentences(message);
+  if (sentences.length === 0) {
+    yield { type: "error" as const, message: "No speakable sentences" };
+    return;
+  }
+
+  const ttsResults = await Promise.all(
+    sentences.map(async (sentence, index) => {
+      try {
+        const audioBase64 = await textToSpeech(sentence);
+        return { index, audioBase64, sentence, error: null };
+      } catch (err) {
+        return { index, audioBase64: null, sentence, error: String(err) };
+      }
+    })
+  );
+
+  for (const result of ttsResults) {
+    if (result.error !== null) {
+      log.warn({ action: "voice.turn.guest.tts.skipped", index: result.index, error: result.error });
+      continue;
+    }
+    yield { type: "audio" as const, index: result.index, audioBase64: result.audioBase64!, sentence: result.sentence };
+  }
+
+  const updatedPartial = mergeDelta(currentPartial, delta, requires_review);
+
+  yield {
+    type: "meta" as const,
+    message,
+    complete,
+    delta,
+    requires_review,
+    updatedPartial,
+  };
+
+  log.info({ action: "voice.turn.guest.done", complete, sentences: sentences.length, sessionId });
+}
+
 /** Apply user-edited review corrections, then set onboarding_status = 'complete'. */
 export async function confirmVoiceProfile(
   profileId: string,

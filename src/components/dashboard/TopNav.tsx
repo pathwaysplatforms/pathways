@@ -1,14 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Route, Files, User, type LucideIcon } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, Route, Files, User, ChevronDown, Settings, LogOut, type LucideIcon } from 'lucide-react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import type { SubscriptionStatus } from '@/modules/account/types';
 
 interface TopNavProps {
   avatarInitials: string;
   firstName: string;
   applicationId?: string | null;
+  subscriptionStatus?: SubscriptionStatus;
 }
 
 interface NavItemDef {
@@ -18,15 +21,55 @@ interface NavItemDef {
   disabled: boolean;
 }
 
+const TIER_LABELS: Record<SubscriptionStatus, string> = {
+  guest: 'Guest',
+  free: 'Free',
+  paid: 'Pro',
+};
+
 /** Horizontal top navigation bar — white, hairline border, Swiss typography. */
-export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps) {
+export function TopNav({ avatarInitials, firstName, applicationId, subscriptionStatus = 'free' }: TopNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [tabsReady, setTabsReady] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setTabsReady(true), 50);
     return () => clearTimeout(t);
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [dropdownOpen]);
+
+  // Close dropdown on Escape
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setDropdownOpen(false);
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [dropdownOpen]);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    setDropdownOpen(false);
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
+    router.push('/auth/login');
+  }
 
   const navItems: NavItemDef[] = [
     { label: 'Dashboard',   icon: LayoutDashboard, href: '/dashboard',               disabled: false },
@@ -34,6 +77,8 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
     { label: 'Documents',   icon: Files,            href: '/dashboard/documents',     disabled: false },
     { label: 'Profile',     icon: User,             href: '/dashboard/profile',       disabled: false },
   ];
+
+  const isPaid = subscriptionStatus === 'paid';
 
   return (
     <nav
@@ -100,25 +145,141 @@ export function TopNav({ avatarInitials, firstName, applicationId }: TopNavProps
         })}
       </div>
 
-      {/* User avatar */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      {/* Account area */}
+      <div ref={dropdownRef} className="flex items-center gap-3 flex-shrink-0" style={{ position: 'relative' }}>
+        {/* Subscription badge */}
         <span
           style={{
-            fontSize: 14,
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '2px 8px',
+            borderRadius: 999,
+            fontSize: 11,
             fontWeight: 500,
             fontFamily: 'var(--pw-font-body)',
-            color: 'var(--pw-muted)',
+            backgroundColor: isPaid ? 'var(--pw-accent)' : 'rgba(0,0,0,0.06)',
+            color: isPaid ? '#fff' : 'var(--pw-muted)',
           }}
         >
-          {firstName}
+          {TIER_LABELS[subscriptionStatus]}
         </span>
-        <div
-          className="flex items-center justify-center rounded-full bg-pw-ink text-white select-none flex-shrink-0"
-          style={{ width: 34, height: 34, fontSize: 12, fontFamily: 'var(--pw-font-body)' }}
-          aria-label="User avatar"
+
+        {/* Avatar button */}
+        <button
+          type="button"
+          onClick={() => setDropdownOpen((v) => !v)}
+          aria-label="Account menu"
+          aria-expanded={dropdownOpen}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '2px 4px',
+            borderRadius: 9999,
+          }}
         >
-          {avatarInitials}
-        </div>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              fontFamily: 'var(--pw-font-body)',
+              color: 'var(--pw-muted)',
+            }}
+          >
+            {firstName}
+          </span>
+          <div
+            className="flex items-center justify-center rounded-full bg-pw-ink text-white select-none flex-shrink-0"
+            style={{ width: 34, height: 34, fontSize: 12, fontFamily: 'var(--pw-font-body)' }}
+            aria-hidden="true"
+          >
+            {avatarInitials}
+          </div>
+          <ChevronDown
+            size={13}
+            color="var(--pw-muted)"
+            style={{ transition: 'transform 0.15s', transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </button>
+
+        {/* Dropdown */}
+        {dropdownOpen && (
+          <div
+            role="menu"
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              right: 0,
+              minWidth: 180,
+              backgroundColor: '#fff',
+              border: '1px solid var(--pw-border)',
+              borderRadius: 12,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+              overflow: 'hidden',
+              zIndex: 100,
+            }}
+          >
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--pw-border)' }}>
+              <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--pw-ink)', fontFamily: 'var(--pw-font-body)' }}>
+                {firstName}
+              </p>
+              <p style={{ fontSize: 11, color: 'var(--pw-muted)', fontFamily: 'var(--pw-font-body)' }}>
+                {TIER_LABELS[subscriptionStatus]} plan
+              </p>
+            </div>
+
+            <Link
+              href="/account"
+              role="menuitem"
+              onClick={() => setDropdownOpen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 14px',
+                fontSize: 14,
+                fontFamily: 'var(--pw-font-body)',
+                color: 'var(--pw-ink)',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+            >
+              <Settings size={14} color="var(--pw-muted)" />
+              Account settings
+            </Link>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+                padding: '10px 14px',
+                fontSize: 14,
+                fontFamily: 'var(--pw-font-body)',
+                color: signingOut ? 'var(--pw-muted)' : 'var(--pw-ink)',
+                background: 'none',
+                border: 'none',
+                cursor: signingOut ? 'not-allowed' : 'pointer',
+                textAlign: 'left',
+                borderTop: '1px solid var(--pw-border)',
+              }}
+              onMouseEnter={(e) => { if (!signingOut) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+            >
+              <LogOut size={14} color="var(--pw-muted)" />
+              {signingOut ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createRequestLogger } from "@/lib/logger";
+import { migrateGuestSession } from "@/modules/guest/service";
 import type { Profile } from "@/modules/auth/types";
 
 /** Map a Supabase Auth error to a query param for the login page. */
@@ -15,6 +16,7 @@ function mapAuthError(msg: string): string {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const guestToken = requestUrl.searchParams.get("guest_token");
   const reqLogger = createRequestLogger(crypto.randomUUID());
 
   if (!code) {
@@ -41,6 +43,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/auth/login?error=generic", request.url));
     }
 
+    // Migrate guest session data into the new profile if a token was passed
+    if (guestToken) {
+      try {
+        await migrateGuestSession(guestToken, user.id, reqLogger);
+        reqLogger.info({ action: "auth.callback_guest_migrated", userId: user.id });
+      } catch (migrationErr) {
+        reqLogger.warn({ action: "auth.callback_guest_migration_skipped", error: String(migrationErr) });
+      }
+    }
+
     const db = supabase as unknown as SupabaseClient;
     const { data } = await db
       .from("profiles")
@@ -51,8 +63,9 @@ export async function GET(request: NextRequest) {
     const profile = data as Pick<Profile, "onboarding_step"> | null;
     const step = profile?.onboarding_step ?? null;
 
-    const redirectPath =
-      step === "complete"
+    const redirectPath = guestToken
+      ? "/dashboard?welcome=1"
+      : step === "complete"
         ? "/dashboard"
         : step === "voice_complete"
           ? "/onboarding/review"

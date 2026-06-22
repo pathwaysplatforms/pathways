@@ -74,9 +74,14 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
+  // Public routes accessible without authentication
+  const isPublicPath =
+    pathname === "/" ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/results");
+
   if (!session) {
-    // Allow the public landing page through without authentication
-    if (pathname === "/") return response;
+    if (isPublicPath) return response;
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
@@ -104,6 +109,11 @@ export async function middleware(request: NextRequest) {
   const isAdminPath = pathname.startsWith("/admin");
 
   if (!isApiPath && (isOnboardingPath || isDashboardPath)) {
+    // Authenticated users with complete onboarding visiting /onboarding/* go to dashboard
+    if (isOnboardingPath && !isOnboardingMatchesPath && onboardingStep === "complete") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
     // /onboarding/matches is only accessible when onboarding is complete
     if (isOnboardingMatchesPath && onboardingStep !== "complete") {
       const fallback = requiredRouteForStep(onboardingStep) ?? "/onboarding/voice";
@@ -112,8 +122,12 @@ export async function middleware(request: NextRequest) {
 
     const target = requiredRouteForStep(onboardingStep);
 
+    // /onboarding (root only) is always reachable — the page handles its own routing
+    // so that the public CTA lands on the choice screen regardless of auth state.
+    const isOnboardingRoot = pathname === "/onboarding";
+
     // If the user's step requires a specific route and they are not on it, redirect
-    if (target !== null && !pathname.startsWith(target)) {
+    if (target !== null && !pathname.startsWith(target) && !isOnboardingRoot) {
       return NextResponse.redirect(new URL(target, request.url));
     }
   }

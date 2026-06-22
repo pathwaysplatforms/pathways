@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <g fill="none" stroke="white" stroke-width="0.8" opacity="1">
+    <!-- Cluster A: upper-left -->
+    <ellipse cx="120" cy="140" rx="28" ry="18"/>
+    <ellipse cx="120" cy="140" rx="58" ry="38"/>
+    <ellipse cx="120" cy="140" rx="90" ry="58"/>
+    <ellipse cx="120" cy="140" rx="128" ry="82"/>
+    <ellipse cx="120" cy="140" rx="168" ry="108"/>
+    <!-- Cluster B: lower-right -->
+    <ellipse cx="460" cy="420" rx="24" ry="16"/>
+    <ellipse cx="460" cy="420" rx="52" ry="34"/>
+    <ellipse cx="460" cy="420" rx="84" ry="54"/>
+    <ellipse cx="460" cy="420" rx="120" ry="78"/>
+    <ellipse cx="460" cy="420" rx="160" ry="104"/>
+    <ellipse cx="460" cy="420" rx="200" ry="130"/>
+    <!-- Cluster C: upper-right -->
+    <ellipse cx="520" cy="100" rx="20" ry="14"/>
+    <ellipse cx="520" cy="100" rx="45" ry="30"/>
+    <ellipse cx="520" cy="100" rx="75" ry="50"/>
+    <ellipse cx="520" cy="100" rx="110" ry="72"/>
+    <!-- Cluster D: lower-left -->
+    <ellipse cx="80" cy="480" rx="22" ry="15"/>
+    <ellipse cx="80" cy="480" rx="50" ry="33"/>
+    <ellipse cx="80" cy="480" rx="82" ry="54"/>
+    <ellipse cx="80" cy="480" rx="116" ry="76"/>
+    <!-- Cluster E: center -->
+    <ellipse cx="300" cy="300" rx="18" ry="12"/>
+    <ellipse cx="300" cy="300" rx="42" ry="28"/>
+    <ellipse cx="300" cy="300" rx="70" ry="46"/>
+    <ellipse cx="300" cy="300" rx="102" ry="67"/>
+    <ellipse cx="300" cy="300" rx="138" ry="90"/>
+    <ellipse cx="300" cy="300" rx="180" ry="118"/>
+  </g>
+</svg>

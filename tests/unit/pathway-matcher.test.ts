@@ -136,18 +136,75 @@ const sampleChunk = {
   similarity: 0.92,
 };
 
+const SAMPLE_PATHWAY_ROWS = [
+  {
+    id: "pw-1", country_id: "ctry-ca", category_id: "cat-1", slug: "canada-express-entry-fsw",
+    title: "Express Entry – Federal Skilled Worker", official_name: "Federal Skilled Worker Program",
+    description: "Points-based permanent residency stream.", requires_degree: true,
+    min_years_experience: 1, english_min_score: null, requires_english_test: true,
+    additional_rules: null, is_active: true, processing_time_min: "6 months",
+    processing_time_max: "12 months", program_type: "permanent_residency",
+    min_clb_speaking: 7, min_clb_listening: 7, min_clb_reading: 7, min_clb_writing: 7,
+    requires_eca: false, typical_crs_min: null, typical_crs_max: null,
+    requires_canadian_experience: false, requires_proof_of_funds: true,
+    pathway_categories: { name: "Skilled Worker", slug: "skilled-worker" },
+  },
+  {
+    id: "pw-2", country_id: "ctry-ca", category_id: "cat-1", slug: "canada-pnp-ontario-oinp",
+    title: "Ontario Immigrant Nominee Program (OINP)", official_name: "OINP",
+    description: "Provincial nomination for Ontario.", requires_degree: false,
+    min_years_experience: 0, english_min_score: null, requires_english_test: true,
+    additional_rules: null, is_active: true, processing_time_min: "12 months",
+    processing_time_max: "18 months", program_type: "permanent_residency",
+    min_clb_speaking: null, min_clb_listening: null, min_clb_reading: null, min_clb_writing: null,
+    requires_eca: false, typical_crs_min: null, typical_crs_max: null,
+    requires_canadian_experience: false, requires_proof_of_funds: false,
+    pathway_categories: { name: "Provincial", slug: "provincial" },
+  },
+  {
+    id: "pw-3", country_id: "ctry-ca", category_id: "cat-2", slug: "germany-eu-blue-card",
+    title: "Germany EU Blue Card", official_name: "EU Blue Card Germany",
+    description: "Skilled worker visa for Germany.", requires_degree: true,
+    min_years_experience: 0, english_min_score: null, requires_english_test: false,
+    additional_rules: null, is_active: true, processing_time_min: "3 months",
+    processing_time_max: "6 months", program_type: "work_permit",
+    min_clb_speaking: null, min_clb_listening: null, min_clb_reading: null, min_clb_writing: null,
+    requires_eca: false, typical_crs_min: null, typical_crs_max: null,
+    requires_canadian_experience: false, requires_proof_of_funds: false,
+    pathway_categories: { name: "Work Permit", slug: "work-permit" },
+  },
+];
+
+const COUNTRY_ROW = { id: "ctry-ca", name: "Canada", iso_code: "CA" };
+
 function setupSuccessfulDbMocks() {
+  // Shared single: used for profiles + countries queries so per-test overrides work
   mockSingle.mockResolvedValue({ data: completeProfile, error: null });
-  mockEq.mockReturnValue({ single: mockSingle });
-  mockSelect.mockReturnValue({ eq: mockEq });
 
+  // countries single returns country row unless overridden per-test
+  const countriesSingle = vi.fn().mockResolvedValue({ data: COUNTRY_ROW, error: null });
+
+  // pathways: select().eq("country_id").eq("is_active") — double-chained, no .single()
+  const pathwaysPromise = Promise.resolve({ data: SAMPLE_PATHWAY_ROWS, error: null });
+  const pathwaysEq2 = vi.fn().mockReturnValue(pathwaysPromise);
+  const pathwaysEq1 = vi.fn().mockReturnValue({ eq: pathwaysEq2 });
+  const pathwaysSelect = vi.fn().mockReturnValue({ eq: pathwaysEq1 });
+
+  // pathway_matches: insert + select().eq().order().limit().single()
   mockOrder.mockReturnValue({ limit: mockLimit });
-  mockLimit.mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: null }) });
-
+  mockLimit.mockReturnValue({ single: mockSingle });
   mockInsert.mockResolvedValue({ error: null });
+
+  mockEq.mockReturnValue({ single: mockSingle, eq: mockEq });
+  mockSelect.mockReturnValue({ eq: mockEq });
 
   mockFrom.mockImplementation((table: string) => {
     if (table === "profiles") return { select: mockSelect };
+    if (table === "countries") {
+      const eq = vi.fn().mockReturnValue({ single: countriesSingle });
+      return { select: vi.fn().mockReturnValue({ eq }) };
+    }
+    if (table === "pathways") return { select: pathwaysSelect };
     if (table === "pathway_matches") {
       return {
         select: vi.fn().mockReturnValue({
@@ -210,10 +267,25 @@ describe("matchPathways", () => {
     await expect(matchPathways(USER_ID)).rejects.toThrow(DatabaseError);
   });
 
-  it("throws InternalError when pathway_documents table is empty", async () => {
-    mockRpc.mockResolvedValueOnce({ data: [], error: null });
+  it("throws ValidationError when no active pathways exist for the country", async () => {
+    // Mock pathways query to return an empty list → no candidates → ValidationError
+    const pathwaysPromise = Promise.resolve({ data: [], error: null });
+    const pathwaysEq2 = vi.fn().mockReturnValue(pathwaysPromise);
+    const pathwaysEq1 = vi.fn().mockReturnValue({ eq: pathwaysEq2 });
+    const pathwaysSelect = vi.fn().mockReturnValue({ eq: pathwaysEq1 });
 
-    await expect(matchPathways(USER_ID)).rejects.toThrow(InternalError);
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "profiles") return { select: mockSelect };
+      if (table === "countries") {
+        const eq = vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: COUNTRY_ROW, error: null }) });
+        return { select: vi.fn().mockReturnValue({ eq }) };
+      }
+      if (table === "pathways") return { select: pathwaysSelect };
+      if (table === "pathway_matches") return { select: vi.fn(), insert: mockInsert };
+      return { select: mockSelect, insert: mockInsert };
+    });
+
+    await expect(matchPathways(USER_ID)).rejects.toThrow(ValidationError);
   });
 
   it("throws InternalError when Claude returns invalid JSON", async () => {

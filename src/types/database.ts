@@ -290,6 +290,33 @@ export type Database = {
           },
         ]
       }
+      guest_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          onboarding_data: Json
+          pathway_results: Json | null
+          session_token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          onboarding_data?: Json
+          pathway_results?: Json | null
+          session_token?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          onboarding_data?: Json
+          pathway_results?: Json | null
+          session_token?: string
+        }
+        Relationships: []
+      }
       immigration_chunks: {
         Row: {
           chunk_index: number
@@ -811,6 +838,7 @@ export type Database = {
         Row: {
           annual_income: number | null
           auth_user_id: string
+          avatar_url: string | null
           canadian_education_years: number | null
           canadian_work_recent: boolean | null
           canadian_work_years: number | null
@@ -818,6 +846,7 @@ export type Database = {
           clb_reading: number | null
           clb_speaking: number | null
           clb_writing: number | null
+          country_of_residence: string | null
           created_at: string
           current_country: string | null
           date_of_birth: string | null
@@ -859,6 +888,8 @@ export type Database = {
           onboarding_status: string
           onboarding_step: string | null
           pathway_input_json: Json | null
+          phone: string | null
+          preferred_language: string
           profile_completeness_pct: number | null
           second_lang_listening: number | null
           second_lang_reading: number | null
@@ -872,6 +903,7 @@ export type Database = {
           spouse_clb_writing: number | null
           spouse_coming_to_canada: boolean | null
           spouse_education_level: string | null
+          subscription_status: string
           updated_at: string
           voice_profile_version: number | null
           voice_session_data: Json | null
@@ -880,6 +912,7 @@ export type Database = {
         Insert: {
           annual_income?: number | null
           auth_user_id: string
+          avatar_url?: string | null
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
           canadian_work_years?: number | null
@@ -887,6 +920,7 @@ export type Database = {
           clb_reading?: number | null
           clb_speaking?: number | null
           clb_writing?: number | null
+          country_of_residence?: string | null
           created_at?: string
           current_country?: string | null
           date_of_birth?: string | null
@@ -928,6 +962,8 @@ export type Database = {
           onboarding_status?: string
           onboarding_step?: string | null
           pathway_input_json?: Json | null
+          phone?: string | null
+          preferred_language?: string
           profile_completeness_pct?: number | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
@@ -941,6 +977,7 @@ export type Database = {
           spouse_clb_writing?: number | null
           spouse_coming_to_canada?: boolean | null
           spouse_education_level?: string | null
+          subscription_status?: string
           updated_at?: string
           voice_profile_version?: number | null
           voice_session_data?: Json | null
@@ -949,6 +986,7 @@ export type Database = {
         Update: {
           annual_income?: number | null
           auth_user_id?: string
+          avatar_url?: string | null
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
           canadian_work_years?: number | null
@@ -956,6 +994,7 @@ export type Database = {
           clb_reading?: number | null
           clb_speaking?: number | null
           clb_writing?: number | null
+          country_of_residence?: string | null
           created_at?: string
           current_country?: string | null
           date_of_birth?: string | null
@@ -997,6 +1036,8 @@ export type Database = {
           onboarding_status?: string
           onboarding_step?: string | null
           pathway_input_json?: Json | null
+          phone?: string | null
+          preferred_language?: string
           profile_completeness_pct?: number | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
@@ -1010,6 +1051,7 @@ export type Database = {
           spouse_clb_writing?: number | null
           spouse_coming_to_canada?: boolean | null
           spouse_education_level?: string | null
+          subscription_status?: string
           updated_at?: string
           voice_profile_version?: number | null
           voice_session_data?: Json | null

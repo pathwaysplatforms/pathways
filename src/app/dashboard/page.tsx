@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
 import { getDashboardData } from '@/modules/dashboard/service';
 import { DashboardShell } from '@/components/dashboard/DashboardShell';
+import type { SubscriptionStatus } from '@/modules/account/types';
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { PathwayTrackerSection } from '@/components/dashboard/PathwayTrackerSection';
@@ -19,6 +20,12 @@ export default async function DashboardPage() {
     redirect('/auth/login');
   }
 
+  // Read subscription_status from JWT app_metadata (synced by DB trigger).
+  const validStatuses: SubscriptionStatus[] = ['guest', 'free', 'paid'];
+  const rawStatus = user.app_metadata?.subscription_status as string | undefined;
+  const subscriptionStatus: SubscriptionStatus =
+    validStatuses.includes(rawStatus as SubscriptionStatus) ? (rawStatus as SubscriptionStatus) : 'free';
+
   const correlationId = `dashboard-${user.id}-${Date.now()}`;
   const logger = createRequestLogger(correlationId);
 
@@ -30,7 +37,7 @@ export default async function DashboardPage() {
   } catch (err) {
     logger.error({ action: 'dashboard.error', userId: user.id, err });
     return (
-      <DashboardShell avatarInitials="?" firstName="">
+      <DashboardShell avatarInitials="?" firstName="" subscriptionStatus={subscriptionStatus}>
         <div className="flex flex-1 items-center justify-center p-7">
           <div className="card max-w-md w-full text-center">
             <h2 className="card-title mb-2">Something went wrong</h2>
@@ -79,6 +86,7 @@ export default async function DashboardPage() {
         avatarInitials={dashboardData.avatarInitials}
         firstName={dashboardData.firstName}
         applicationId={dashboardData.applicationId}
+        subscriptionStatus={subscriptionStatus}
       >
         {/*
          * Scroll wrapper: DashboardGrid is fixed at viewport height so the existing

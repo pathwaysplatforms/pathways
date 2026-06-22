@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Mic, FileText } from "lucide-react";
+import { Mic, FileText, ArrowLeft } from "lucide-react";
 
 /** Welcome screen shown to unauthenticated (and not-started) visitors at /onboarding. */
 export function GuestOnboardingIntro() {
@@ -26,9 +26,26 @@ export function GuestOnboardingIntro() {
       <div className="pw-grain" aria-hidden="true" />
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-8 py-6">
+      <header className="relative z-10 flex items-center px-8 py-6" style={{ gap: 0 }}>
+        {/* Back to marketing website */}
+        <a
+          href={process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001"}
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            color: "rgba(255,255,255,0.45)", fontSize: 14, textDecoration: "none",
+            transition: "color 0.15s ease",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)"; }}
+        >
+          <ArrowLeft size={15} />
+          Back
+        </a>
+
+        {/* Wordmark — centered */}
         <span
           style={{
+            position: "absolute", left: "50%", transform: "translateX(-50%)",
             fontFamily: "var(--pw-font-body)",
             fontWeight: 600,
             fontSize: 17,
@@ -38,11 +55,13 @@ export function GuestOnboardingIntro() {
         >
           Pathways
         </span>
+
+        {/* Sign in — pushed to right */}
         <Link
           href="/auth/login"
-          style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, textDecoration: "none" }}
+          style={{ marginLeft: "auto", color: "rgba(255,255,255,0.45)", fontSize: 14, textDecoration: "none" }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)"; }}
         >
           Sign in →
         </Link>
