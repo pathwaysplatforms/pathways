@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormState, useFormStatus } from "react-dom";
 import { updateProfileAction } from "@/app/account/actions";
 import type { AccountProfile } from "@/modules/account/types";
 
@@ -21,7 +21,7 @@ interface Props {
 
 /** Section A: editable display name, language, phone, and country. */
 export function AccountProfileSection({ profile }: Props) {
-  const [state, action, pending] = useActionState(updateProfileAction, {});
+  const [state, action] = useFormState(updateProfileAction, {});
 
   return (
     <section className="card" style={{ padding: 24 }}>
@@ -96,17 +96,24 @@ export function AccountProfileSection({ profile }: Props) {
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button
-            type="submit"
-            disabled={pending}
-            className="btn-primary"
-            style={{ opacity: pending ? 0.6 : 1, cursor: pending ? "not-allowed" : "pointer" }}
-          >
-            {pending ? "Saving…" : "Save changes"}
-          </button>
+          <SubmitButton />
         </div>
       </form>
     </section>
+  );
+}
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="btn-primary"
+      style={{ opacity: pending ? 0.6 : 1, cursor: pending ? "not-allowed" : "pointer" }}
+    >
+      {pending ? "Saving…" : "Save changes"}
+    </button>
   );
 }
 

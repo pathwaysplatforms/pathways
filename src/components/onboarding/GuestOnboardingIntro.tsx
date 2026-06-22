@@ -104,7 +104,7 @@ export function GuestOnboardingIntro() {
             maxWidth: "38ch",
           }}
         >
-          Answer a few questions about your situation. We'll identify which programs
+          Answer a few questions about your situation. We&apos;ll identify which programs
           you qualify for — no account needed.
         </p>
 

@@ -398,7 +398,7 @@ export function GuestVoiceTab({ guestToken, onProfileUpdate, profile }: GuestVoi
       {!started && (
         <div className="flex flex-col items-center" style={{ gap: 12, maxWidth: 260 }}>
           <p className="text-center" style={{ fontSize: 14, color: "var(--voice-text-muted)", fontFamily: "Urbanist, sans-serif", lineHeight: 1.5 }}>
-            We'll ask a few questions about your situation. Usually 3 minutes.
+            We&apos;ll ask a few questions about your situation. Usually 3 minutes.
           </p>
           <button onClick={() => void begin()} className="btn-primary" style={{ padding: "10px 32px" }}>
             Begin

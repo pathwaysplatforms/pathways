@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { Logger } from "pino";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DatabaseError, NotFoundError, ValidationError } from "@/lib/errors";
-import type { AccountProfile, UpdateProfileInput } from "./types";
+import type { AccountProfile, UpdateProfileInput, AccountData, UserExportData } from "./types";
 
 const PROFILE_SELECT =
   "id, auth_user_id, full_name, email, avatar_url, preferred_language, phone, nationality, country_of_residence, subscription_status, is_admin, created_at, updated_at";

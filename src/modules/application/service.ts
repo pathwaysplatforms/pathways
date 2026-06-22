@@ -447,6 +447,7 @@ export async function getApplicationForLayout(
       status,
       estimated_duration: s.estimated_duration,
       is_optional: s.is_optional,
+      document_requirement_id: linkedDoc?.id ?? null,
     };
     if (linkedDoc) step.document = mapDocumentRequirement(linkedDoc, satisfiedTypes);
     return step;

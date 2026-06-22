@@ -185,7 +185,7 @@ function setupSuccessfulDbMocks() {
   const countriesSingle = vi.fn().mockResolvedValue({ data: COUNTRY_ROW, error: null });
 
   // pathways: select().eq("country_id").eq("is_active") — double-chained, no .single()
-  const pathwaysPromise = Promise.resolve({ data: SAMPLE_PATHWAY_ROWS, error: null });
+  const pathwaysPromise = Promise.resolve({ data: PATHWAY_ROWS, error: null });
   const pathwaysEq2 = vi.fn().mockReturnValue(pathwaysPromise);
   const pathwaysEq1 = vi.fn().mockReturnValue({ eq: pathwaysEq2 });
   const pathwaysSelect = vi.fn().mockReturnValue({ eq: pathwaysEq1 });
