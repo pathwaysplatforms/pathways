@@ -24,7 +24,7 @@ function deriveFirstName(fullName: string | null): string {
 
 /** Server component: fetches application data and renders the owned application page. */
 export default async function DashboardApplicationPage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {

@@ -26,7 +26,7 @@ export function buildFirstName(fullName: string | null): string {
 export async function getProfileTabData(userId: string, logger: Logger): Promise<ProfileTabData> {
   logger.info({ action: 'getProfileTabData.start', userId });
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: profileData, error: profileError } = await db
     .from('profiles')
@@ -49,7 +49,7 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
 
   const { data: appData, error: appError } = await db
     .from('applications')
-    .select('id')
+    .select('id, pathways(title)')
     .eq('profile_id', profile.id)
     .maybeSingle();
 
@@ -57,13 +57,14 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
     throw new DatabaseError('Failed to fetch application', { userId, profileId: profile.id }, appError);
   }
 
-  const application = appData as { id: string } | null;
+  const application = appData as { id: string; pathways: { title: string } | null } | null;
 
   const result: ProfileTabData = {
     id: profile.id,
     avatarInitials: buildAvatarInitials(profile.full_name),
     firstName: buildFirstName(profile.full_name),
     applicationId: application?.id ?? null,
+    pathwayName: application?.pathways?.title ?? null,
 
     fullName: profile.full_name,
     nationality: profile.nationality,
@@ -77,7 +78,7 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
     yearsExperience: profile.years_experience,
     hasCanadianExperience: profile.has_canadian_experience,
 
-    educationLevel: profile.education_level_voice ?? profile.education_level,
+    educationLevel: profile.education_level ?? profile.education_level_voice,
     degreeLevel: profile.degree_level,
     degreeField: profile.degree_field,
     ecaObtained: profile.eca_obtained,
@@ -95,6 +96,23 @@ export async function getProfileTabData(userId: string, logger: Logger): Promise
     hasFamilyInCanada: profile.has_family_in_canada,
     hasProvincialNomination: profile.has_provincial_nomination,
 
+    canadianWorkYears: profile.canadian_work_years,
+    foreignWorkYears: profile.foreign_work_years,
+    canadianWorkRecent: profile.canadian_work_recent,
+    foreignWorkRecent: profile.foreign_work_recent,
+
+    spouseComingToCanada: profile.spouse_coming_to_canada,
+    spouseEducationLevel: profile.spouse_education_level,
+    spouseClbListening: profile.spouse_clb_listening,
+    spouseClbReading: profile.spouse_clb_reading,
+    spouseClbSpeaking: profile.spouse_clb_speaking,
+    spouseClbWriting: profile.spouse_clb_writing,
+    spouseCanadianWorkYears: profile.spouse_canadian_work_years,
+
+    hasCanadianJobOffer: profile.has_canadian_job_offer,
+    hasSiblingInCanada: profile.has_sibling_in_canada,
+
+    pathwayInputJson: (profile.pathway_input_json as Record<string, unknown> | null) ?? null,
     profileCompletenessPct: profile.profile_completeness_pct,
   };
 

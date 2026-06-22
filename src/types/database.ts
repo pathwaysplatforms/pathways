@@ -255,6 +255,7 @@ export type Database = {
           name: string
           pathway_id: string
           sort_order: number
+          step_id: string | null
           validation_rules: Json | null
           validity_period: string | null
         }
@@ -266,6 +267,7 @@ export type Database = {
           name: string
           pathway_id: string
           sort_order?: number
+          step_id?: string | null
           validation_rules?: Json | null
           validity_period?: string | null
         }
@@ -277,6 +279,7 @@ export type Database = {
           name?: string
           pathway_id?: string
           sort_order?: number
+          step_id?: string | null
           validation_rules?: Json | null
           validity_period?: string | null
         }
@@ -286,6 +289,13 @@ export type Database = {
             columns: ["pathway_id"]
             isOneToOne: false
             referencedRelation: "pathways"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_requirements_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "pathway_steps"
             referencedColumns: ["id"]
           },
         ]
@@ -1271,3 +1281,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

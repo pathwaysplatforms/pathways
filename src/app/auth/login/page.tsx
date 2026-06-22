@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ShieldCheck, BookOpen, RefreshCw } from "lucide-react";
 import { LoginForm } from "./login-form";
 import { getT } from "@/lib/i18n";
+import { ParticleField } from "@/components/fx/ParticleField";
 
 interface LoginPageProps {
   searchParams: Promise<{ error?: string }>;
@@ -23,10 +24,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main
-      className="min-h-screen flex flex-col items-center justify-center px-4"
+      className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden"
       style={{ background: "var(--pw-bg)", fontFamily: "var(--pw-font-body)" }}
     >
-      <div className="w-full max-w-sm space-y-10">
+      <ParticleField density={0.4} opacity={0.04} parallax={8} />
+      <div className="relative w-full max-w-sm space-y-10">
 
         {/* Wordmark */}
         <div className="text-center">

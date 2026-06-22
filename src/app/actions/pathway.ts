@@ -17,7 +17,7 @@ export async function selectPathway(slug: string): Promise<void> {
     throw new ValidationError('Invalid pathway slug');
   }
 
-  const supabase = createSupabaseServerClient() as unknown as SupabaseClient;
+  const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {

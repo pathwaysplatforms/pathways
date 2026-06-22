@@ -35,6 +35,24 @@ export interface ProfileTabData {
   hasFamilyInCanada: boolean | null;
   hasProvincialNomination: boolean | null;
 
+  canadianWorkYears: number | null;
+  foreignWorkYears: number | null;
+  canadianWorkRecent: boolean | null;
+  foreignWorkRecent: boolean | null;
+
+  spouseComingToCanada: boolean | null;
+  spouseEducationLevel: string | null;
+  spouseClbListening: number | null;
+  spouseClbReading: number | null;
+  spouseClbSpeaking: number | null;
+  spouseClbWriting: number | null;
+  spouseCanadianWorkYears: number | null;
+
+  hasCanadianJobOffer: boolean | null;
+  hasSiblingInCanada: boolean | null;
+
+  pathwayName: string | null;
+  pathwayInputJson: Record<string, unknown> | null;
   profileCompletenessPct: number | null;
 }
 
@@ -48,4 +66,32 @@ export interface ProfileDraft {
   educationLevel: string | null;
   degreeField: string | null;
   intendedProvince: string | null;
+
+  clbListening: number | null;
+  clbReading: number | null;
+  clbSpeaking: number | null;
+  clbWriting: number | null;
+
+  nocTeerCategory: number | null;
+  nocCode: string | null;
+
+  canadianWorkYears: number | null;
+  foreignWorkYears: number | null;
+  canadianWorkRecent: boolean | null;
+  foreignWorkRecent: boolean | null;
+
+  spouseComingToCanada: boolean | null;
+  spouseEducationLevel: string | null;
+  spouseClbListening: number | null;
+  spouseClbReading: number | null;
+  spouseClbSpeaking: number | null;
+  spouseClbWriting: number | null;
+  spouseCanadianWorkYears: number | null;
+
+  hasCanadianJobOffer: boolean | null;
+  hasSiblingInCanada: boolean | null;
+  hasCanadianExperience: boolean | null;
+  ecaObtained: boolean | null;
+  hasProvincialNomination: boolean | null;
+  hasFamilyInCanada: boolean | null;
 }

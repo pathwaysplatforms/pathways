@@ -7,7 +7,7 @@ import { ProfileClient } from './ProfileClient';
 
 /** Profile tab — displays and allows editing of the user's immigration profile. */
 export default async function ProfilePage() {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

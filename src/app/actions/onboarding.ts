@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 /** Reset the current user's onboarding step to 'not_started' and redirect to voice onboarding. */
 export async function resetOnboarding(): Promise<never> {
-  const supabase = createSupabaseServerClient() as unknown as SupabaseClient;
+  const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;
   const {
     data: { user },
   } = await supabase.auth.getUser();

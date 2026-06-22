@@ -95,7 +95,7 @@ export function DrawParticleCanvas({ draws, userScore }: DrawParticleCanvasProps
       ctx.clearRect(0, 0, W, H);
 
       // Axis labels
-      ctx.font = '10px "DM Sans", system-ui, sans-serif';
+      ctx.font = '10px "Urbanist", sans-serif';
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.textAlign = 'right';
       [350, 400, 450, 500, 550].forEach((score) => {
@@ -114,7 +114,7 @@ export function DrawParticleCanvas({ draws, userScore }: DrawParticleCanvasProps
         ctx.setLineDash([]);
         ctx.stroke();
 
-        ctx.font = '11px "DM Sans", system-ui, sans-serif';
+        ctx.font = '11px "Urbanist", sans-serif';
         ctx.fillStyle = '#1A56DB';
         ctx.textAlign = 'left';
         ctx.fillText(`Your score ~${userScore}`, 44, lineY - 4);
@@ -142,7 +142,7 @@ export function DrawParticleCanvas({ draws, userScore }: DrawParticleCanvasProps
 
       // Draw date labels below each cloud
       const slotW = W / (draws.length + 1);
-      ctx.font = '10px "DM Sans", system-ui, sans-serif';
+      ctx.font = '10px "Urbanist", sans-serif';
       ctx.textAlign = 'center';
       draws.forEach((draw, di) => {
         const cloudX = slotW * (di + 1);

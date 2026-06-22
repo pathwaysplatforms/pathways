@@ -8,6 +8,7 @@ import type {
   DashboardState,
   ApplicationStep,
   EnrichedApplicationStep,
+  LatestDraw,
   StepResource,
   DashboardDocument,
   OnboardingStep,
@@ -20,10 +21,27 @@ import { ONBOARDING_STEPS_META, STEP_FIELDS } from './types';
 /** Pathway fields selected in joined application query. */
 interface PathwaySnapshot {
   id: string;
+  slug: string;
   title: string;
   official_name: string;
   processing_time_min: string;
   processing_time_max: string;
+}
+
+/**
+ * Maps a pathway slug to the immigration_draws.draw_type values that are
+ * meaningful for that stream. Returns an array for use with .in().
+ * "No Program Specified" covers all-pool Express Entry draws.
+ */
+function getDrawTypesForPathway(slug: string | null): string[] {
+  if (!slug) return ['No Program Specified', 'FSW'];
+  const s = slug.toLowerCase();
+  if (s.includes('federal-skilled-worker') || s.includes('fsw')) return ['FSW', 'No Program Specified'];
+  if (s.includes('canadian-experience') || s.includes('cec')) return ['CEC', 'No Program Specified'];
+  if (s.includes('federal-skilled-trades') || s.includes('fst')) return ['FST'];
+  if (s.includes('pnp') || s.includes('provincial')) return ['PNP'];
+  // express-entry (generic slug) covers the FSW pool + all-program draws
+  return ['No Program Specified', 'FSW'];
 }
 
 /** Application row joined with its pathway snapshot. */
@@ -184,7 +202,7 @@ export async function getDashboardData(
   // The typed Supabase client (@supabase/ssr) produces `never` for query data fields
   // due to a type incompatibility with the generated Database types in this project.
   // Pattern mirrors auth/service.ts — cast to untyped client, assert result types manually.
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   // Step 1: fetch profile
   const { data: profileData, error: profileError } = await db
@@ -206,21 +224,41 @@ export async function getDashboardData(
 
   const profile = profileData as Tables<'profiles'>;
 
-  // Extract CRS estimate from pathway_input_json
+  // Extract CRS from pathway_input_json — two write-path shapes exist:
+  // Shape A (PathwayInput/confirm route): crs_estimate is an object { range_low, range_high, confidence, ... }
+  // Shape B (legacy triggerPathwayRecognition): crs_estimate is a scalar number; range in crs_estimate_low/high
   const pathwayInput = profile.pathway_input_json as Record<string, unknown> | null;
-  const crsEstimate = pathwayInput?.crs_estimate as {
-    range_low: number;
-    range_high: number;
-    confidence: string;
-    based_on: string[];
-  } | null ?? null;
+  const rawCrs = pathwayInput?.crs_estimate;
 
-  const crsScore = crsEstimate
-    ? Math.round((crsEstimate.range_low + crsEstimate.range_high) / 2)
-    : null;
-  const crsRangeLow = crsEstimate?.range_low ?? null;
-  const crsRangeHigh = crsEstimate?.range_high ?? null;
-  const crsConfidence = crsEstimate?.confidence ?? null;
+  let crsScore: number | null = null;
+  let crsRangeLow: number | null = null;
+  let crsRangeHigh: number | null = null;
+  let crsConfidence: string | null = null;
+
+  if (rawCrs !== null && rawCrs !== undefined) {
+    if (typeof rawCrs === 'object') {
+      const crsObj = rawCrs as Record<string, unknown>;
+      // Shape C (recalculateCrsEstimate / CrsEstimate object): { score, low, high, margin, ... }
+      if (typeof crsObj.score === 'number' && Number.isFinite(crsObj.score)) {
+        crsScore = crsObj.score;
+        crsRangeLow = typeof crsObj.low === 'number' ? crsObj.low : null;
+        crsRangeHigh = typeof crsObj.high === 'number' ? crsObj.high : null;
+      // Shape A (buildPathwayInput / confirm route): { range_low, range_high, confidence }
+      } else if (typeof crsObj.range_low === 'number' && typeof crsObj.range_high === 'number') {
+        crsRangeLow = crsObj.range_low;
+        crsRangeHigh = crsObj.range_high;
+        crsScore = Math.round((crsRangeLow + crsRangeHigh) / 2);
+        crsConfidence = typeof crsObj.confidence === 'string' ? crsObj.confidence : null;
+      }
+    } else if (typeof rawCrs === 'number' && Number.isFinite(rawCrs)) {
+      // Shape B (legacy triggerPathwayRecognition, now removed): scalar midpoint
+      crsScore = rawCrs;
+      const rawLow = pathwayInput?.crs_estimate_low;
+      const rawHigh = pathwayInput?.crs_estimate_high;
+      crsRangeLow = typeof rawLow === 'number' ? rawLow : null;
+      crsRangeHigh = typeof rawHigh === 'number' ? rawHigh : null;
+    }
+  }
 
   // Step 2: fetch application joined with pathway
   const { data: applicationData, error: applicationError } = await db
@@ -229,6 +267,7 @@ export async function getDashboardData(
       *,
       pathway:pathways (
         id,
+        slug,
         title,
         official_name,
         processing_time_min,
@@ -326,6 +365,7 @@ export async function getDashboardData(
   let selectedPathwaySlug: string | null = null;
   let selectedPathwayTitle: string | null = null;
   let selectedPathwayProcessingTime: string | null = null;
+  let selectedPathwayDescription: string | null = null;
   let selectedPathwaySteps: ApplicationStep[] = [];
 
   const rawSlug = (profile as Record<string, unknown>).selected_pathway_slug;
@@ -334,7 +374,7 @@ export async function getDashboardData(
 
     const { data: slugPathwayData } = await db
       .from('pathways')
-      .select('id, title, processing_time_min, processing_time_max')
+      .select('id, title, description, processing_time_min, processing_time_max')
       .eq('slug', selectedPathwaySlug)
       .maybeSingle();
 
@@ -342,11 +382,13 @@ export async function getDashboardData(
       const sp = slugPathwayData as {
         id: string;
         title: string;
+        description: string | null;
         processing_time_min: string;
         processing_time_max: string;
       };
       selectedPathwayTitle = sp.title;
       selectedPathwayProcessingTime = formatProcessingTime(sp.processing_time_min, sp.processing_time_max);
+      selectedPathwayDescription = sp.description ?? null;
 
       const { data: slugStepsData } = await db
         .from('pathway_steps')
@@ -363,35 +405,91 @@ export async function getDashboardData(
         resources: StepResource[] | null;
       }[];
 
-      selectedPathwaySteps = rawSteps.map((s, idx): EnrichedApplicationStep => ({
-        id: s.id,
-        stepNumber: s.step_number,
-        label: s.title,
-        description: s.description,
-        estimatedDuration: s.estimated_duration,
-        status: idx === 0 ? 'current' : 'upcoming',
-        resources: Array.isArray(s.resources) ? s.resources : [],
-      }));
-
-      // Fetch step progress for selected pathway
+      // Fetch step progress for selected pathway (step_id needed to map back)
       const { data: progressRows } = await db
         .from('pathway_progress')
-        .select('status')
+        .select('step_id, status')
         .eq('profile_id', profile.id)
         .eq('pathway_slug', rawSlug as string);
 
-      const progressData = (progressRows ?? []) as { status: string }[];
+      const progressData = (progressRows ?? []) as { step_id: string; status: string }[];
+      const progressMap = new Map(progressData.map((r) => [r.step_id, r.status]));
       const completedFromProgress = progressData.filter((r) => r.status === 'complete').length;
-      const totalFromProgress = progressData.length;
 
       completedStepsCount = completedFromProgress;
-      totalStepsCount = totalFromProgress > 0 ? totalFromProgress : selectedPathwaySteps.length;
+      totalStepsCount = rawSteps.length;
+
+      // Apply per-step statuses: completed steps stay complete; the first non-complete
+      // step becomes current; the rest are upcoming.
+      let foundCurrentStep = false;
+      selectedPathwaySteps = rawSteps.map((s): EnrichedApplicationStep => {
+        let status: 'complete' | 'current' | 'upcoming';
+        if (progressMap.get(s.id) === 'complete') {
+          status = 'complete';
+        } else if (!foundCurrentStep) {
+          status = 'current';
+          foundCurrentStep = true;
+        } else {
+          status = 'upcoming';
+        }
+        return {
+          id: s.id,
+          stepNumber: s.step_number,
+          label: s.title,
+          description: s.description,
+          estimatedDuration: s.estimated_duration,
+          status,
+          resources: Array.isArray(s.resources) ? s.resources : [],
+        };
+      });
     }
   }
 
+  // Fetch the most recent draw that matches the user's Express Entry stream.
+  // Filter by draw_type so a PNP cutoff (~800+) is never shown next to an FSW CRS score.
+  // FLAG: immigration_draws table may lack FSW/CEC stream data.
+  // Scraper needed: target https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations/rounds-results.html
+  // Use curl_cffi with impersonate='chrome136'. Parse: draw date, CRS cutoff, draw type, invitations issued.
+  // Upsert to immigration_draws with program='express_entry' and draw_type populated ('FSW', 'CEC', 'FST', 'PNP', 'No Program Specified').
+  const effectivePathwaySlug =
+    (appWithPathway?.pathway as PathwaySnapshot | null)?.slug ?? selectedPathwaySlug ?? null;
+  const drawTypes = getDrawTypesForPathway(effectivePathwaySlug);
+
+  const { data: drawData } = await db
+    .from('immigration_draws')
+    .select('cutoff_score, draw_date, draw_type, invitations_issued')
+    .eq('program', 'express_entry')
+    .in('draw_type', drawTypes)
+    .order('draw_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const latestDraw: LatestDraw | null = drawData
+    ? {
+        cutoffScore: (drawData as { cutoff_score: number }).cutoff_score,
+        drawDate: (drawData as { draw_date: string }).draw_date,
+        drawType: (drawData as { draw_type: string | null }).draw_type,
+        invitationsIssued: (drawData as { invitations_issued: number | null }).invitations_issued,
+      }
+    : null;
+
+  // Extract nationality from voice JSON when profile column is unpopulated
+  const pathwayInputPersonal = (pathwayInput as Record<string, unknown> | null)
+    ?.personal as Record<string, unknown> | null ?? null;
+  const nationalityVoice =
+    (pathwayInputPersonal?.nationality as string | null | undefined) ?? null;
+
+  // Resolve the user's name: prefer the dedicated column; fall back to
+  // voice_session_data.full_name for users whose profile predates the column write
+  // or whose voice session completed without extracting a name into profiles.full_name.
+  const voiceSessionData = profile.voice_session_data as Record<string, unknown> | null;
+  const voiceFullName =
+    typeof voiceSessionData?.full_name === 'string' ? voiceSessionData.full_name : null;
+  const resolvedFullName = profile.full_name ?? voiceFullName;
+
   const profileCtx = profile as Record<string, unknown>;
   const profileContext: ProfileContext = {
-    fullName: profile.full_name ?? null,
+    fullName: resolvedFullName,
     occupation: (profileCtx.occupation as string | null | undefined) ?? null,
     degreeLevel: (profileCtx.degree_level as string | null | undefined) ?? null,
     degreeField: (profileCtx.degree_field as string | null | undefined) ?? null,
@@ -400,8 +498,8 @@ export async function getDashboardData(
 
   const data: DashboardData = {
     state,
-    firstName: firstName(profile.full_name),
-    avatarInitials: avatarInitials(profile.full_name),
+    firstName: firstName(resolvedFullName),
+    avatarInitials: avatarInitials(resolvedFullName),
     profileCompleteness: profile.profile_completeness_pct ?? 0,
     onboardingStatus: profile.onboarding_status,
     incompleteFields: profile.incomplete_fields ?? [],
@@ -428,8 +526,12 @@ export async function getDashboardData(
     selectedPathwaySlug,
     selectedPathwayTitle,
     selectedPathwayProcessingTime,
+    selectedPathwayDescription,
     selectedPathwaySteps,
     profileContext,
+    nationalityVoice,
+    latestDraw,
+    applicationPathwaySlug: appWithPathway?.pathway?.slug ?? null,
   };
 
   logger.info({

@@ -77,8 +77,6 @@ const FIELDS: FieldConfig[] = [
     ],
   },
   { key: "intended_province", label: "Preferred province", type: "text" },
-  { key: "annual_income", label: "Annual income", type: "number" },
-  { key: "income_currency", label: "Income currency", type: "text" },
 ];
 
 // Recent Express Entry draw cutoffs (illustrative — update from IRCC data)

@@ -1,40 +1,63 @@
 import { notFound, redirect } from 'next/navigation';
-import { getProfile } from '@/modules/auth/service';
-import { getApplicationData } from '@/modules/pathways/service';
-import { mockApplication } from '@/modules/pathways/mock-application';
-import { ApplicationLayout } from '@/components/application/ApplicationLayout';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
-import { NotFoundError } from '@/lib/errors';
+import { getProfile } from '@/modules/auth/service';
+import { getApplicationForLayout } from '@/modules/application/service';
+import { ApplicationLayout } from '@/components/application/ApplicationLayout';
 
 interface Props {
   params: Promise<{ applicationId: string }>;
-  searchParams: Promise<{ mock?: string }>;
 }
 
-/** Serves real application data from the DB, or mock data when ?mock=true. */
-export default async function ApplicationPage({ params, searchParams }: Props) {
+/** Builds initials (up to 2 chars) from a full name. */
+function deriveInitials(fullName: string | null): string {
+  if (!fullName) return '?';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return (parts[0]?.[0] ?? '?').toUpperCase();
+  return `${parts[0]?.[0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase();
+}
+
+/** Extracts the first name from a full name string. */
+function deriveFirstName(fullName: string | null): string {
+  if (!fullName) return 'there';
+  return fullName.split(' ')[0] ?? 'there';
+}
+
+/** Application overview + step tracker for a single application, scoped to the owner. */
+export default async function ApplicationPage({ params }: Props) {
   const { applicationId } = await params;
-  const { mock } = await searchParams;
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (mock === 'true') {
-    return <ApplicationLayout application={mockApplication} />;
-  }
-
-  const profile = await getProfile();
-  if (!profile) {
+  if (!user) {
     redirect('/auth/login');
   }
 
-  const correlationId = `app-${applicationId}-${Date.now()}`;
+  const correlationId = `application-${user.id}-${Date.now()}`;
   const logger = createRequestLogger(correlationId);
+  logger.info({ action: 'applicationPage.start', userId: user.id, applicationId });
 
-  try {
-    const application = await getApplicationData(applicationId, logger);
-    return <ApplicationLayout application={application} />;
-  } catch (err) {
-    if (err instanceof NotFoundError) {
-      notFound();
-    }
-    throw err;
+  const [application, profile] = await Promise.all([
+    getApplicationForLayout(applicationId, user.id, logger),
+    getProfile(),
+  ]);
+
+  if (!application) {
+    logger.info({ action: 'applicationPage.notFound', userId: user.id, applicationId });
+    notFound();
   }
+
+  logger.info({ action: 'applicationPage.complete', userId: user.id, applicationId });
+
+  const fullName = profile?.full_name ?? null;
+
+  return (
+    <ApplicationLayout
+      application={application}
+      avatarInitials={deriveInitials(fullName)}
+      firstName={deriveFirstName(fullName)}
+    />
+  );
 }

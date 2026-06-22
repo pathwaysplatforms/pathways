@@ -5,9 +5,9 @@ const mockAnthropicCreate = vi.hoisted(() => vi.fn());
 const mockFetch = vi.hoisted(() => vi.fn());
 
 vi.mock("@anthropic-ai/sdk", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: mockAnthropicCreate },
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return { messages: { create: mockAnthropicCreate } };
+  }),
 }));
 
 vi.mock("@/lib/supabase/server");
@@ -103,8 +103,6 @@ const validExtracted: VoiceExtractedProfile = {
   language_proficiency_self: "fluent",
   has_family_in_canada: false,
   intended_province: "Ontario",
-  annual_income: 85000,
-  income_currency: "GBP",
   requires_review: [],
 };
 
@@ -359,20 +357,48 @@ describe("validateExtractedProfile", () => {
   });
 });
 
+/** Minimal profile data needed for completeness calculation in confirmVoiceProfile. */
+const mockConfirmProfile = {
+  full_name: "Priya Sharma",
+  date_of_birth: "1990-05-15",
+  nationality: "Indian",
+  current_country: "United Kingdom",
+  marital_status: "single",
+  occupation: "Software Engineer",
+  noc_teer_category: 1,
+  years_experience: 7,
+  canadian_work_years: 0,
+  foreign_work_years: 7,
+  education_level: "masters",
+  eca_obtained: false,
+  clb_speaking: 9,
+  clb_listening: 9,
+  clb_reading: 9,
+  clb_writing: 9,
+  intended_province: "Ontario",
+  has_provincial_nomination: false,
+  has_canadian_job_offer: false,
+};
+
 describe("confirmVoiceProfile", () => {
-  it("updates onboarding_status to complete", async () => {
+  it("updates onboarding_status to complete and writes profile_completeness_pct", async () => {
     const adminChain = makeQueryChain({ error: null });
+    adminChain.single.mockResolvedValue({ data: mockConfirmProfile, error: null });
     mockAdmin(makeClient(adminChain));
 
     await confirmVoiceProfile(profileId, {}, mockLog());
 
     expect(adminChain.update).toHaveBeenCalledWith(
-      expect.objectContaining({ onboarding_status: "complete" })
+      expect.objectContaining({
+        onboarding_status: "complete",
+        profile_completeness_pct: expect.any(Number),
+      })
     );
   });
 
-  it("throws DatabaseError when the update fails", async () => {
-    const adminChain = makeQueryChain({ error: { message: "db error" } });
+  it("throws DatabaseError when the profile fetch fails", async () => {
+    const adminChain = makeQueryChain({ error: null });
+    adminChain.single.mockResolvedValue({ data: null, error: { message: "fetch error" } });
     mockAdmin(makeClient(adminChain));
 
     await expect(confirmVoiceProfile(profileId, {}, mockLog())).rejects.toThrow(DatabaseError);
@@ -380,6 +406,7 @@ describe("confirmVoiceProfile", () => {
 
   it("uses the admin client to bypass RLS", async () => {
     const adminChain = makeQueryChain({ error: null });
+    adminChain.single.mockResolvedValue({ data: mockConfirmProfile, error: null });
     mockAdmin(makeClient(adminChain));
 
     await confirmVoiceProfile(profileId, {}, mockLog());

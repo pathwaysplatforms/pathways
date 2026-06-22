@@ -151,7 +151,7 @@ describe("upgradeSubscription", () => {
 // ─── deleteAccount ────────────────────────────────────────────────────────────
 describe("deleteAccount", () => {
   it("deletes profile and auth user on success", async () => {
-    eqMock.mockResolvedValueOnce({ error: null }); // profile delete
+    eqMock.mockResolvedValueOnce({ error: null });
     mockDeleteUser.mockResolvedValueOnce({ error: null });
     await expect(deleteAccount("user-1", mockLog as never)).resolves.toBeUndefined();
     expect(mockDeleteUser).toHaveBeenCalledWith("user-1");

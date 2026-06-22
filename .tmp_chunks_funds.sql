@@ -1,0 +1,1 @@
+SELECT id, source_url, title, LEFT(content, 300) as content_preview FROM immigration_chunks WHERE content ILIKE '%proof of funds%' AND (content ILIKE '%federal skilled worker%' OR content ILIKE '%FSW%' OR content ILIKE '%express entry%') ORDER BY id LIMIT 10;

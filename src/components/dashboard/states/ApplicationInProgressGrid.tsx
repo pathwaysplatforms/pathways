@@ -1,93 +1,215 @@
 import Link from 'next/link';
-import type { DashboardData } from '@/modules/dashboard/types';
+import { Clock } from 'lucide-react';
+import type { DashboardData, DashboardDocument } from '@/modules/dashboard/types';
 
 interface Props {
   data: DashboardData;
 }
 
-interface WalletCardDef {
-  gradient: string;
-  label: string;
-  badge: string | null;
-  rotate: number;
+/** Priority order for document urgency sort. Lower number = shown first. */
+function urgencyRank(status: string): number {
+  const s = status.toLowerCase();
+  if (s === 'rejected' || s === 'expired') return 0;
+  if (s === 'expiring') return 1;
+  if (s === 'pending' || s === 'missing') return 2;
+  if (s === 'uploaded') return 3;
+  if (s === 'verified') return 4;
+  return 3;
 }
 
-const WALLET_FALLBACK: WalletCardDef[] = [
-  {
-    gradient: 'linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%)',
-    label: '',
-    badge: null,
-    rotate: -5,
-  },
-  {
-    gradient: 'linear-gradient(135deg, #D4A017 0%, #B8860B 100%)',
-    label: 'ECA ASSESSMENT',
-    badge: null,
-    rotate: -3.5,
-  },
-  {
-    gradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-    label: 'POLICE CERTIFICATE',
-    badge: 'Pending',
-    rotate: -2.5,
-  },
-  {
-    gradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-    label: 'LANGUAGE SCORES',
-    badge: 'Expiring',
-    rotate: -1.5,
-  },
-  {
-    gradient: 'linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)',
-    label: 'PASSPORT',
-    badge: 'Valid',
-    rotate: 0,
-  },
-];
+function urgencyDotColor(status: string): string {
+  const s = status.toLowerCase();
+  if (s === 'rejected' || s === 'expired') return '#DC2626';
+  if (s === 'expiring') return '#D97706';
+  if (s === 'pending' || s === 'missing') return '#D97706';
+  if (s === 'verified') return '#16A34A';
+  return '#16A34A';
+}
 
-function buildWalletCards(documents: DashboardData['documents']): WalletCardDef[] {
-  if (!documents.length) return WALLET_FALLBACK;
+function urgencyLabel(status: string): string | null {
+  const s = status.toLowerCase();
+  if (s === 'rejected' || s === 'expired') return 'Expired';
+  if (s === 'expiring') return 'Expiring soon';
+  if (s === 'pending' || s === 'missing') return 'Required for next step';
+  return null;
+}
 
-  const STATUS_COLORS: Record<string, string> = {
-    verified: 'linear-gradient(135deg, #2D2D2D 0%, #0D0D0D 100%)',
-    uploaded: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-    pending:  'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-    expiring: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
-  };
+function sortByUrgency(docs: DashboardDocument[]): DashboardDocument[] {
+  return [...docs].sort((a, b) => urgencyRank(a.status) - urgencyRank(b.status));
+}
 
-  const cards = documents.slice(0, 5).map((doc, i): WalletCardDef => ({
-    gradient: STATUS_COLORS[doc.status.toLowerCase()] ?? 'linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%)',
-    label: doc.name.toUpperCase(),
-    badge: doc.status.charAt(0).toUpperCase() + doc.status.slice(1),
-    rotate: [-5, -3.5, -2.5, -1.5, 0][i] ?? 0,
-  }));
+function DocumentsSection({ data }: { data: DashboardData }) {
+  // Documents are user-scoped (one application per user), so the canonical
+  // /dashboard/documents tab serves them; no applicationId param needed.
+  const docsHref = data.applicationId ? '/dashboard/documents' : '/dashboard/application';
 
-  while (cards.length < 5) {
-    cards.unshift({ ...WALLET_FALLBACK[0], rotate: -5 });
+  // No documents yet — show data-pending state
+  if (data.documents.length === 0) {
+    return (
+      <div
+        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
+        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
+      >
+        <p
+          style={{
+            fontFamily: 'var(--pw-font-display)',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: 'var(--pw-ink)',
+            flexShrink: 0,
+            marginBottom: 10,
+          }}
+        >
+          Documents
+        </p>
+        <div
+          className="flex flex-col flex-1 items-center justify-center gap-2"
+          style={{
+            border: '1px solid rgba(0,0,0,0.08)',
+            borderRadius: 10,
+            background: '#FAFAFA',
+            padding: '12px 10px',
+          }}
+        >
+          <Clock size={18} style={{ color: 'var(--pw-muted)' }} aria-hidden="true" />
+          <p
+            style={{
+              fontFamily: 'var(--pw-font-body)',
+              fontSize: '11px',
+              color: 'var(--pw-muted)',
+              textAlign: 'center',
+            }}
+          >
+            Documents unlock when your application starts
+          </p>
+        </div>
+        <Link
+          href={docsHref}
+          style={{
+            fontFamily: 'var(--pw-font-body)',
+            fontSize: '12px',
+            fontWeight: 500,
+            color: 'var(--pw-accent)',
+            textDecoration: 'none',
+            flexShrink: 0,
+            marginTop: 12,
+          }}
+          aria-label="Start application to unlock documents"
+        >
+          Start application →
+        </Link>
+      </div>
+    );
   }
-  return cards;
+
+  const sorted = sortByUrgency(data.documents).slice(0, 5);
+
+  return (
+    <div
+      className="h-full flex flex-col overflow-hidden rounded-card bg-white"
+      style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
+    >
+      <div className="flex items-center justify-between flex-shrink-0" style={{ marginBottom: 12 }}>
+        <p
+          style={{
+            fontFamily: 'var(--pw-font-display)',
+            fontSize: '16px',
+            fontWeight: 400,
+            color: 'var(--pw-ink)',
+          }}
+        >
+          Documents
+        </p>
+        <Link
+          href={docsHref}
+          style={{
+            fontFamily: 'var(--pw-font-body)',
+            fontSize: '12px',
+            fontWeight: 500,
+            color: 'var(--pw-accent)',
+            textDecoration: 'none',
+          }}
+          aria-label="View all documents"
+        >
+          See all
+        </Link>
+      </div>
+
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-2">
+        {sorted.map((doc) => {
+          const dot = urgencyDotColor(doc.status);
+          const tag = urgencyLabel(doc.status);
+          return (
+            <div
+              key={doc.id}
+              className="flex items-start gap-2 flex-shrink-0"
+              style={{
+                paddingBottom: 6,
+                borderBottom: '0.5px solid rgba(0,0,0,0.06)',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: dot,
+                  flexShrink: 0,
+                  marginTop: 4,
+                }}
+              />
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <p
+                  style={{
+                    fontFamily: 'var(--pw-font-body)',
+                    fontSize: '11px',
+                    color: 'var(--pw-ink)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {doc.name}
+                </p>
+                {tag && (
+                  <p
+                    style={{
+                      fontFamily: 'var(--pw-font-body)',
+                      fontSize: '9px',
+                      color: dot,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {tag}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-/** Card A (ink progress card) + Card B (document wallet) for the application_in_progress state. */
+/** Card A (compact progress + dominant CTA) + Card B (urgency-sorted documents) for in-progress states. */
 export function ApplicationInProgressGrid({ data }: Props) {
-  const pct =
-    data.totalStepsCount > 0
-      ? Math.round((data.completedStepsCount / data.totalStepsCount) * 100)
-      : 0;
+  const completed = data.completedStepsCount;
+  const total = data.totalStepsCount;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  const currentStep = data.applicationSteps.find((s) => s.status === 'current');
-  const stepLabel = currentStep
-    ? `Step ${currentStep.stepNumber} of ${data.totalStepsCount} · ${currentStep.label}`
-    : `${data.completedStepsCount} of ${data.totalStepsCount} steps complete`;
+  // Resolve current step from either step list (selectedPathwaySteps is populated for pathway_selected)
+  const currentStep =
+    data.selectedPathwaySteps.find((s) => s.status === 'current') ??
+    data.applicationSteps.find((s) => s.status === 'current');
 
+  const ctaLabel = currentStep ? currentStep.label : 'Continue application';
   const appHref = '/dashboard/application';
-  const docsHref = data.applicationId ? `/applications/${data.applicationId}/documents` : '#';
-
-  const walletCards = buildWalletCards(data.documents);
 
   return (
     <>
-      {/* Card A — Application Progress (ink dark) */}
+      {/* Card A — compact progress + dominant CTA */}
       <div
         className="h-full flex flex-col overflow-hidden rounded-card"
         style={{ background: 'var(--pw-ink)', padding: '28px' }}
@@ -105,21 +227,40 @@ export function ApplicationInProgressGrid({ data }: Props) {
         >
           Application Progress
         </p>
+
+        {/* Compact step count */}
         <p
           style={{
             fontFamily: 'var(--pw-font-display)',
-            fontSize: '48px',
+            fontSize: '28px',
             fontWeight: 400,
             color: '#fff',
             lineHeight: 1,
-            marginTop: 6,
+            marginTop: 8,
             flexShrink: 0,
           }}
         >
-          {pct}%
+          {completed}
+          <span
+            style={{
+              fontFamily: 'var(--pw-font-body)',
+              fontSize: '14px',
+              fontWeight: 400,
+              color: 'rgba(255,255,255,0.55)',
+              marginLeft: 4,
+            }}
+          >
+            of {total} steps
+          </span>
         </p>
-        {/* Progress bar */}
+
+        {/* Hairline progress track */}
         <div
+          aria-label={`${pct}% complete`}
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
           style={{
             height: '2px',
             background: 'rgba(255,255,255,0.15)',
@@ -132,131 +273,59 @@ export function ApplicationInProgressGrid({ data }: Props) {
             style={{
               height: '100%',
               width: `${pct}%`,
-              background: '#fff',
+              background: '#1A56DB',
               borderRadius: 9999,
+              transition: 'width 600ms cubic-bezier(0.16,1,0.3,1)',
             }}
           />
         </div>
-        <p
-          style={{
-            fontFamily: 'var(--pw-font-body)',
-            fontSize: '11px',
-            color: 'rgba(255,255,255,0.55)',
-            marginTop: 8,
-            flex: 1,
-            overflow: 'hidden',
-          }}
-        >
-          {stepLabel}
-        </p>
+
+        {/* Current step name */}
+        {currentStep && (
+          <p
+            style={{
+              fontFamily: 'var(--pw-font-body)',
+              fontSize: '11px',
+              color: 'rgba(255,255,255,0.55)',
+              marginTop: 8,
+              flex: 1,
+              overflow: 'hidden',
+            }}
+          >
+            Next: {currentStep.label}
+          </p>
+        )}
+        {!currentStep && <div style={{ flex: 1 }} />}
+
+        {/* Single dominant CTA in #1A56DB */}
         <Link
           href={appHref}
+          aria-label={ctaLabel}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '8px 16px',
+            padding: '9px 16px',
             fontFamily: 'var(--pw-font-body)',
-            fontSize: '13px',
+            fontSize: '12px',
             fontWeight: 500,
-            color: 'var(--pw-ink)',
-            background: '#fff',
+            color: '#fff',
+            background: '#1A56DB',
             borderRadius: '9999px',
             textDecoration: 'none',
             flexShrink: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
             transition: 'opacity 150ms',
           }}
         >
-          Open application →
+          {ctaLabel.length > 34 ? ctaLabel.slice(0, 31) + '…' : ctaLabel}
         </Link>
       </div>
 
-      {/* Card B — Documents Wallet */}
-      <div
-        className="h-full flex flex-col overflow-hidden rounded-card bg-white"
-        style={{ border: '1px solid rgba(0,0,0,0.08)', padding: '28px' }}
-      >
-        <div className="flex items-center justify-between flex-shrink-0" style={{ marginBottom: 12 }}>
-          <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '16px', fontWeight: 400, color: 'var(--pw-ink)' }}>
-            Documents
-          </p>
-          <Link
-            href={docsHref}
-            style={{
-              fontFamily: 'var(--pw-font-body)',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: 'var(--pw-accent)',
-              textDecoration: 'none',
-            }}
-          >
-            See all
-          </Link>
-        </div>
-
-        {/* Document stack — overlapping cards anchored to bottom */}
-        <div className="relative flex-1 min-h-0 overflow-hidden">
-          {walletCards.map((card, i) => {
-            const frontIdx = walletCards.length - 1;
-            const peek = 22;
-            const cardHeight = 52;
-            const bottomOffset = (frontIdx - i) * peek;
-            return (
-              <div
-                key={i}
-                className="absolute left-0 right-0 flex items-center rounded-xl"
-                style={{
-                  background: card.gradient,
-                  height: cardHeight,
-                  bottom: bottomOffset,
-                  zIndex: i + 1,
-                  padding: '0 14px',
-                  gap: 8,
-                  boxShadow: '0 -2px 8px rgba(0,0,0,0.18)',
-                }}
-              >
-                {card.label ? (
-                  <p
-                    style={{
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      color: 'rgba(255,255,255,0.9)',
-                      flex: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.06em',
-                    }}
-                  >
-                    {card.label}
-                  </p>
-                ) : (
-                  <div style={{ flex: 1 }} />
-                )}
-                {card.badge && (
-                  <span
-                    style={{
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: '9px',
-                      fontWeight: 600,
-                      color: 'rgba(255,255,255,0.85)',
-                      background: 'rgba(255,255,255,0.2)',
-                      padding: '3px 8px',
-                      borderRadius: '5px',
-                      flexShrink: 0,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {card.badge}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Card B — urgency-sorted documents */}
+      <DocumentsSection data={data} />
     </>
   );
 }

@@ -154,6 +154,7 @@ const config: Config = {
       transitionTimingFunction: {
         smooth: "cubic-bezier(0.4, 0, 0.2, 1)",
         spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        calm:   "cubic-bezier(0.16, 1, 0.3, 1)",
       },
 
       // ─── Animation ────────────────────────────────────────────────

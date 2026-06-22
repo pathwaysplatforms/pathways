@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
-import type { DashboardData } from '@/modules/dashboard/types';
+import { CrsChip } from './CrsChip';
+import type { DashboardData, LatestDraw } from '@/modules/dashboard/types';
 
 interface MyPathwayCardProps {
   data: DashboardData;
@@ -166,19 +167,109 @@ interface HeaderProps {
   pathwayLabel: string;
   pathwaySubtitle: string;
   crsValue: string;
-  poolRank: string;
-  poolRankColor: string;
-  poolDotColor: string;
+  latestDraw: LatestDraw | null;
 }
 
-function CardHeader({
-  pathwayLabel,
-  pathwaySubtitle,
-  crsValue,
-  poolRank,
-  poolRankColor,
-  poolDotColor,
-}: HeaderProps) {
+/** Formats an ISO date string as "D Mon YYYY". */
+function formatDrawDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/** Maps a raw draw_type value to a short human-readable stream label. */
+function formatDrawType(drawType: string | null): string {
+  if (!drawType) return 'Express Entry';
+  const t = drawType.trim();
+  if (t === 'No Program Specified') return 'Express Entry';
+  return t;
+}
+
+function DrawContext({
+  crsScore,
+  draw,
+}: {
+  crsScore: number | null;
+  draw: LatestDraw;
+}) {
+  const gap = crsScore !== null ? draw.cutoffScore - crsScore : null;
+  const isAbove = gap !== null && gap <= 0;
+  const streamLabel = formatDrawType(draw.drawType);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingBottom: 10 }}>
+      <p className="pw-eyebrow">Draw cutoff</p>
+      <p
+        style={{
+          fontFamily: 'var(--pw-font-body)',
+          fontSize: '18px',
+          fontWeight: 500,
+          color: 'var(--pw-ink)',
+          lineHeight: 1,
+        }}
+      >
+        {draw.cutoffScore}
+      </p>
+      <p
+        style={{
+          fontFamily: 'var(--pw-font-body)',
+          fontSize: '12px',
+          fontWeight: 400,
+          color: 'var(--pw-muted)',
+          lineHeight: 1.3,
+        }}
+      >
+        Latest {streamLabel} draw · {formatDrawDate(draw.drawDate)}
+      </p>
+      {gap !== null && (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '2px 8px',
+            borderRadius: 9999,
+            fontSize: '10px',
+            fontFamily: 'var(--pw-font-body)',
+            fontWeight: 500,
+            background: isAbove ? '#DCFCE7' : '#FEF3C7',
+            color: isAbove ? '#16A34A' : '#D97706',
+            alignSelf: 'flex-start',
+          }}
+          aria-label={isAbove ? 'Above draw cutoff' : `Below draw cutoff by ${gap} points`}
+        >
+          {isAbove
+            ? 'Above cutoff ✓'
+            : `Below cutoff — ${gap} pts to go`}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DataPendingDraw() {
+  // FLAG: needs express_entry_draws scraper for comprehensive draw history
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingBottom: 10 }}>
+      <p className="pw-eyebrow">Latest draw cutoff</p>
+      <p
+        style={{
+          fontFamily: 'var(--pw-font-body)',
+          fontSize: '12px',
+          color: 'var(--pw-muted)',
+          fontStyle: 'italic',
+        }}
+      >
+        Draw data coming soon
+      </p>
+    </div>
+  );
+}
+
+function CardHeader({ pathwayLabel, pathwaySubtitle, crsValue, latestDraw }: HeaderProps) {
+  const crsNum = Number.isFinite(Number(crsValue)) ? Number(crsValue) : null;
   return (
     <div className="flex-shrink-0" style={{ padding: '22px 22px 18px' }}>
       <p className="pw-eyebrow">MY PATHWAY</p>
@@ -206,52 +297,14 @@ function CardHeader({
         {pathwaySubtitle}
       </p>
 
-      {/* Stats row */}
+      {/* Stats row: CRS chip + draw context (no pool rank — no real source in DB) */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 16 }}>
-        {/* CRS chip */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            background: 'rgba(0,0,0,0.04)',
-            borderRadius: 10,
-            padding: '10px 16px',
-          }}
-        >
-          <p className="pw-eyebrow" style={{ marginBottom: 2 }}>CRS Score</p>
-          <p
-            style={{
-              fontFamily: 'var(--pw-font-display)',
-              fontSize: '36px',
-              fontWeight: 400,
-              letterSpacing: '-0.02em',
-              lineHeight: 1,
-              color: 'var(--pw-ink)',
-            }}
-          >
-            {crsValue}
-          </p>
-        </div>
-
-        {/* Pool rank */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 10 }}>
-          <p className="pw-eyebrow">Pool Rank</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span
-              style={{ width: 7, height: 7, borderRadius: '50%', background: poolDotColor, flexShrink: 0 }}
-            />
-            <span
-              style={{
-                fontFamily: 'var(--pw-font-body)',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: poolRankColor,
-              }}
-            >
-              {poolRank}
-            </span>
-          </div>
-        </div>
+        <CrsChip crsValue={crsValue} />
+        {latestDraw ? (
+          <DrawContext crsScore={crsNum} draw={latestDraw} />
+        ) : (
+          <DataPendingDraw />
+        )}
       </div>
     </div>
   );
@@ -282,6 +335,13 @@ function ChecklistBody({ steps, isVisible }: { steps: StepDef[]; isVisible: bool
 
 /* ── State variants ─────────────────────────────────────────────────── */
 
+/** Returns "X–Y months" from processing time strings, or a fallback. */
+function processingTimeLabel(min: string | null, max: string | null): string {
+  if (min && max) return `${min}–${max} months`;
+  if (min) return `${min}+ months`;
+  return 'Processing time varies';
+}
+
 function State1({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
   const steps: StepDef[] = [
     { label: 'Complete profile',    status: 'active', ctaLabel: 'Finish profile →', ctaHref: '/onboarding/review' },
@@ -296,9 +356,7 @@ function State1({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }
         pathwayLabel="Pathway Pending"
         pathwaySubtitle="Complete your profile to unlock"
         crsValue="—"
-        poolRank="Not yet calculated"
-        poolRankColor="var(--pw-muted)"
-        poolDotColor="rgba(0,0,0,0.15)"
+        latestDraw={data.latestDraw}
       />
       <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
@@ -320,9 +378,7 @@ function State2({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }
         pathwayLabel="Not Selected Yet"
         pathwaySubtitle="Choose a pathway to begin"
         crsValue={crs}
-        poolRank={`Top ${100 - data.profileCompleteness}% of pool`}
-        poolRankColor="var(--pw-ink)"
-        poolDotColor="var(--pw-accent)"
+        latestDraw={data.latestDraw}
       />
       <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
@@ -331,6 +387,10 @@ function State2({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }
 
 function State2b({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
   const crs = data.crsScore !== null ? String(data.crsScore) : '—';
+  const subtitle = processingTimeLabel(
+    data.selectedPathwayProcessingTime?.split('–')[0] ?? null,
+    data.selectedPathwayProcessingTime?.split('–')[1] ?? null,
+  );
   const steps: StepDef[] = [
     { label: 'Profile complete',       status: 'done' },
     { label: 'Pathway selected',       status: 'done' },
@@ -342,11 +402,9 @@ function State2b({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean 
     <>
       <CardHeader
         pathwayLabel={data.selectedPathwayTitle ?? 'Pathway Selected'}
-        pathwaySubtitle={data.selectedPathwayProcessingTime ?? 'Processing time varies'}
+        pathwaySubtitle={subtitle}
         crsValue={crs}
-        poolRank={`Top ${100 - data.profileCompleteness}% of pool`}
-        poolRankColor="var(--pw-ink)"
-        poolDotColor="var(--pw-accent)"
+        latestDraw={data.latestDraw}
       />
       <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
@@ -356,19 +414,20 @@ function State2b({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean 
 function State3({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
   const crs = data.crsScore !== null ? String(data.crsScore) : '—';
   const stream = data.pathwayOfficialName ?? 'Federal Skilled Worker';
+  const timeLabel = processingTimeLabel(data.processingTimeMin, data.processingTimeMax);
 
   const steps: StepDef[] = [
     { label: 'Profile submitted',    status: 'done' },
     {
       label: 'Invitation to apply',
       status: 'active',
-      subtitle: `Active · exp ${data.processingTimeMax ?? '—'}`,
+      subtitle: `Active · exp ${data.processingTimeMax ? `${data.processingTimeMax} months` : '—'}`,
       ctaLabel: 'Continue application →',
       ctaHref: data.applicationId ? `/applications/${data.applicationId}` : '/dashboard',
     },
     { label: 'Medical exam',          status: 'locked', subtitle: 'Unlocks after submission' },
     { label: 'COPR issued',           status: 'locked', subtitle: 'Confirmation of permanent residence' },
-    { label: 'Landing',               status: 'locked', subtitle: `Est. ${data.processingTimeMax ?? '—'}` },
+    { label: 'Landing',               status: 'locked', subtitle: `Est. ${timeLabel}` },
   ];
   return (
     <>
@@ -376,9 +435,7 @@ function State3({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }
         pathwayLabel={data.pathwayTitle ?? 'Express Entry'}
         pathwaySubtitle={stream}
         crsValue={crs}
-        poolRank="Top 15% of pool"
-        poolRankColor="var(--pw-ink)"
-        poolDotColor="var(--pw-accent)"
+        latestDraw={data.latestDraw}
       />
       <ChecklistBody steps={steps} isVisible={isVisible} />
     </>
@@ -388,13 +445,14 @@ function State3({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }
 function State4({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }) {
   const crs = data.crsScore !== null ? String(data.crsScore) : '—';
   const stream = data.pathwayOfficialName ?? 'Federal Skilled Worker';
+  const timeLabel = processingTimeLabel(data.processingTimeMin, data.processingTimeMax);
 
   const steps: StepDef[] = [
     { label: 'Profile submitted',    status: 'done' },
     { label: 'Application submitted', status: 'done' },
     { label: 'Biometrics',           status: 'active', ctaLabel: 'Complete biometrics →', ctaHref: data.applicationId ? `/applications/${data.applicationId}` : '/dashboard' },
     { label: 'Medical exam',         status: 'locked' },
-    { label: 'Decision / Landing',   status: 'locked', subtitle: `Est. ${data.processingTimeMax ?? '—'}` },
+    { label: 'Decision / Landing',   status: 'locked', subtitle: `Est. ${timeLabel}` },
   ];
   return (
     <>
@@ -402,9 +460,7 @@ function State4({ data, isVisible }: MyPathwayCardProps & { isVisible: boolean }
         pathwayLabel={data.pathwayTitle ?? 'Express Entry'}
         pathwaySubtitle={stream}
         crsValue={crs}
-        poolRank="Submitted ✓"
-        poolRankColor="#14532D"
-        poolDotColor="#22C55E"
+        latestDraw={data.latestDraw}
       />
       <ChecklistBody steps={steps} isVisible={isVisible} />
     </>

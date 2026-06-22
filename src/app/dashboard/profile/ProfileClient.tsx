@@ -1,28 +1,29 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import type { ProfileTabData, ProfileDraft } from '@/modules/profile/types';
-import { updateProfileFields } from '@/app/actions/profile';
+import { useState, useTransition } from 'react';
+import type { ProfileTabData } from '@/modules/profile/types';
+import { updateProfileFields, recalculateCrsEstimate } from '@/app/actions/profile';
 import { resetOnboarding } from '@/app/actions/onboarding';
+import type { CrsEstimate } from '@/lib/crs-estimate';
+import type { SectionSavePayload } from './sections/shared';
+import { IdentitySection } from './sections/IdentitySection';
+import { OccupationSection } from './sections/OccupationSection';
+import { EducationSection } from './sections/EducationSection';
+import { LanguageSection } from './sections/LanguageSection';
+import { WorkHistorySection } from './sections/WorkHistorySection';
+import { ImmigrationIntentSection } from './sections/ImmigrationIntentSection';
+import { SpouseSection } from './sections/SpouseSection';
+import { CrsBonusSection } from './sections/CrsBonusSection';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function dash(): React.ReactNode {
-  return <span style={{ color: '#9B9B9B' }}>—</span>;
-}
-
-function display(v: string | number | boolean | null | undefined): React.ReactNode {
-  if (v === null || v === undefined) return dash();
-  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
-  return String(v);
-}
-
-function formatMaritalStatus(s: string | null): string | null {
-  if (!s) return null;
-  return s
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+function extractStoredEstimate(json: Record<string, unknown> | null): CrsEstimate | null {
+  if (!json) return null;
+  const est = json['crs_estimate'];
+  if (est && typeof est === 'object' && 'score' in est && 'breakdown' in est) {
+    return est as CrsEstimate;
+  }
+  return null;
 }
 
 function calcCompleteness(d: ProfileTabData): { pct: number; missing: string[] } {
@@ -33,7 +34,9 @@ function calcCompleteness(d: ProfileTabData): { pct: number; missing: string[] }
     { label: 'Work experience', value: d.yearsExperience },
     { label: 'ECA', value: d.ecaObtained },
   ];
-  const missing = checks.filter((c) => c.value === null || c.value === undefined).map((c) => c.label);
+  const missing = checks
+    .filter((c) => c.value === null || c.value === undefined)
+    .map((c) => c.label);
   const present = checks.length - missing.length;
   return {
     pct: d.profileCompletenessPct ?? Math.round((present / checks.length) * 100),
@@ -41,159 +44,216 @@ function calcCompleteness(d: ProfileTabData): { pct: number; missing: string[] }
   };
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-interface SectionHeaderProps {
-  label: string;
-  editing: boolean;
-  onEdit: () => void;
+function formatLastUpdated(isoString: string | null): string {
+  if (!isoString) return '';
+  return new Date(isoString).toLocaleDateString('en-CA', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
-function SectionHeader({ label, editing, onEdit }: SectionHeaderProps) {
+// ─── CRS Hero ─────────────────────────────────────────────────────────────────
+
+function CrsHero({
+  estimate,
+  pathwayName,
+  lastRecalcAt,
+  isRecalculating,
+  onRecalculate,
+}: {
+  estimate: CrsEstimate | null;
+  pathwayName: string | null;
+  lastRecalcAt: string | null;
+  isRecalculating: boolean;
+  onRecalculate: () => void;
+}) {
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div className="pw-card pw-entry" style={{ marginBottom: 28 }}>
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
-          marginBottom: 8,
+          gap: 16,
+          flexWrap: 'wrap',
         }}
       >
-        <p
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="pw-eyebrow" style={{ marginBottom: 12 }}>Estimated CRS Score</p>
+
+          {estimate ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 20, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--pw-font-display)',
+                    fontSize: '3.5rem',
+                    color: '#0D0D0D',
+                    lineHeight: 1,
+                  }}
+                >
+                  {estimate.score}
+                </span>
+                {pathwayName && (
+                  <span
+                    style={{
+                      fontFamily: 'var(--pw-font-body)',
+                      fontSize: 14,
+                      color: '#6B6B6B',
+                    }}
+                  >
+                    {pathwayName}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 12, color: '#9B9B9B' }}>
+                Range {estimate.low}–{estimate.high}
+                {estimate.margin ? ` (±${estimate.margin} pts)` : ''}
+                {lastRecalcAt ? ` · Updated ${formatLastUpdated(lastRecalcAt)}` : ''}
+              </p>
+              {estimate.belowCutoff && estimate.cutoffReason && (
+                <p
+                  style={{
+                    fontFamily: 'var(--pw-font-body)',
+                    fontSize: 12,
+                    color: 'var(--pw-error)',
+                    marginTop: 10,
+                    padding: '6px 10px',
+                    border: '1px solid rgba(185,28,28,0.2)',
+                    background: 'rgba(185,28,28,0.04)',
+                    display: 'inline-block',
+                  }}
+                >
+                  {estimate.cutoffReason}
+                </p>
+              )}
+            </>
+          ) : (
+            <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 14, color: '#9B9B9B', marginTop: 4 }}>
+              No estimate yet — complete your profile and save a section to recalculate.
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onRecalculate}
+          disabled={isRecalculating}
+          onMouseEnter={(e) => {
+            if (!isRecalculating) {
+              (e.currentTarget as HTMLButtonElement).style.background = '#0D0D0D';
+              (e.currentTarget as HTMLButtonElement).style.color = '#fff';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isRecalculating) {
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+              (e.currentTarget as HTMLButtonElement).style.color = '#0D0D0D';
+            }
+          }}
           style={{
-            fontFamily: 'var(--pw-font-body)',
-            fontSize: 10,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: '#9B9B9B',
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '8px 18px',
+            fontFamily: 'var(--pw-font-ui)',
+            fontSize: 12,
+            fontWeight: 500,
+            letterSpacing: '0.04em',
+            color: isRecalculating ? '#9B9B9B' : '#0D0D0D',
+            background: 'transparent',
+            border: '1px solid',
+            borderColor: isRecalculating ? 'rgba(0,0,0,0.15)' : '#0D0D0D',
+            borderRadius: 0,
+            cursor: isRecalculating ? 'not-allowed' : 'pointer',
+            flexShrink: 0,
+            transition: 'background 150ms ease, color 150ms ease',
           }}
         >
-          {label}
-        </p>
-        {!editing && (
-          <button
-            type="button"
-            onClick={onEdit}
-            style={{
-              fontFamily: 'var(--pw-font-body)',
-              fontSize: 11,
-              color: '#6B6B6B',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '2px 6px',
-              textDecoration: 'underline',
-              textUnderlineOffset: 2,
-            }}
-          >
-            Edit
-          </button>
-        )}
+          {isRecalculating ? 'Calculating…' : 'Recalculate CRS'}
+        </button>
       </div>
-      <div style={{ height: 1, background: 'rgba(0,0,0,0.07)', marginBottom: 12 }} />
+
+      {/* Breakdown grid */}
+      {estimate && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
+            gap: 8,
+            marginTop: 20,
+            paddingTop: 16,
+            borderTop: '1px solid rgba(0,0,0,0.07)',
+          }}
+        >
+          {(
+            [
+              ['Age', estimate.breakdown.age],
+              ['Education', estimate.breakdown.education],
+              ['Language', estimate.breakdown.language],
+              ['Experience', estimate.breakdown.experience],
+              ['Transferability', estimate.breakdown.transferability],
+              ['Additional', estimate.breakdown.additional],
+            ] as [string, number][]
+          ).map(([cat, pts]) => (
+            <div
+              key={cat}
+              style={{
+                textAlign: 'center',
+                padding: '10px 8px',
+                background: 'rgba(0,0,0,0.02)',
+              }}
+            >
+              <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '1.125rem', color: '#0D0D0D' }}>
+                {pts}
+              </p>
+              <p
+                style={{
+                  fontFamily: 'var(--pw-font-body)',
+                  fontSize: 10,
+                  color: '#9B9B9B',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  marginTop: 4,
+                }}
+              >
+                {cat}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-interface ProfileRowProps {
-  label: string;
-  value: React.ReactNode;
-}
+// ─── Completeness bar ─────────────────────────────────────────────────────────
 
-function ProfileRow({ label, value }: ProfileRowProps) {
+function CompletenessBar({ pct, missing }: { pct: number; missing: string[] }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-        gap: 24,
-        padding: '8px 0',
-        borderBottom: '1px solid rgba(0,0,0,0.05)',
-      }}
-    >
-      <span
-        style={{
-          fontFamily: 'var(--pw-font-body)',
-          fontSize: 12,
-          color: '#9B9B9B',
-          flexShrink: 0,
-          minWidth: 140,
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{
-          fontFamily: 'var(--pw-font-body)',
-          fontSize: 14,
-          color: '#0D0D0D',
-          textAlign: 'right',
-          flex: 1,
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-interface EditableRowProps {
-  label: string;
-  value: string;
-  onChange: (val: string) => void;
-  type?: 'text' | 'number';
-}
-
-function EditableRow({ label, value, onChange, type = 'text' }: EditableRowProps) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        justifyContent: 'space-between',
-        gap: 24,
-        padding: '8px 0',
-        borderBottom: '1px solid rgba(0,0,0,0.05)',
-      }}
-    >
-      <span
-        style={{
-          fontFamily: 'var(--pw-font-body)',
-          fontSize: 12,
-          color: '#9B9B9B',
-          flexShrink: 0,
-          minWidth: 140,
-        }}
-      >
-        {label}
-      </span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          flex: 1,
-          border: 'none',
-          borderBottom: '1px solid rgba(0,0,0,0.2)',
-          borderRadius: 0,
-          background: 'transparent',
-          fontFamily: 'var(--pw-font-body)',
-          fontSize: 14,
-          color: '#0D0D0D',
-          padding: '2px 0 4px',
-          outline: 'none',
-          textAlign: 'right',
-          transition: 'border-color 150ms ease',
-        }}
-        onFocus={(e) => {
-          (e.target as HTMLInputElement).style.borderBottomColor = '#0D0D0D';
-        }}
-        onBlur={(e) => {
-          (e.target as HTMLInputElement).style.borderBottomColor = 'rgba(0,0,0,0.2)';
-        }}
-      />
+    <div className="pw-entry" style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <p className="pw-eyebrow">Profile Completeness</p>
+        <span style={{ fontFamily: 'var(--pw-font-display)', fontSize: '1.125rem', color: '#0D0D0D' }}>
+          {pct}%
+        </span>
+      </div>
+      <div style={{ height: 2, background: 'rgba(0,0,0,0.07)', borderRadius: 1, overflow: 'hidden' }}>
+        <div
+          style={{
+            height: '100%',
+            background: '#0D0D0D',
+            borderRadius: 1,
+            width: `${pct}%`,
+            transition: 'width 600ms cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        />
+      </div>
+      {missing.length > 0 && (
+        <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 11, color: '#9B9B9B', marginTop: 6 }}>
+          Missing: {missing.join(', ')}
+        </p>
+      )}
     </div>
   );
 }
@@ -204,109 +264,110 @@ interface ProfileClientProps {
   data: ProfileTabData;
 }
 
-/** Renders the full Profile tab with per-section edit mode. */
-export function ProfileClient({ data }: ProfileClientProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+/** Profile tab — sectioned cards with per-section inline edit and CRS hero. */
+export function ProfileClient({ data: initialData }: ProfileClientProps) {
+  const [data, setData] = useState<ProfileTabData>(initialData);
+  const [isRecalculating, startRecalcTransition] = useTransition();
+  const [crsEstimate, setCrsEstimate] = useState<CrsEstimate | null>(
+    () => extractStoredEstimate(initialData.pathwayInputJson)
+  );
+  const [lastRecalcAt, setLastRecalcAt] = useState<string | null>(
+    () => (initialData.pathwayInputJson?.['crs_recalculated_at'] as string | null) ?? null
+  );
 
-  const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [savedData, setSavedData] = useState<ProfileTabData>(data);
-  const [draft, setDraft] = useState<ProfileDraft>({
-    fullName: data.fullName,
-    nationality: data.nationality,
-    currentCountry: data.currentCountry,
-    occupation: data.occupation,
-    yearsExperience: data.yearsExperience,
-    educationLevel: data.educationLevel,
-    degreeField: data.degreeField,
-    intendedProvince: data.intendedProvince,
-  });
+  async function handleSectionSave({ fields, recalculate }: SectionSavePayload) {
+    await updateProfileFields(fields);
+    setData((prev) => {
+      const next = { ...prev };
+      const keyMap: Record<string, keyof ProfileTabData> = {
+        full_name: 'fullName',
+        nationality: 'nationality',
+        current_country: 'currentCountry',
+        occupation: 'occupation',
+        years_experience: 'yearsExperience',
+        noc_teer_category: 'nocTeerCategory',
+        noc_code: 'nocCode',
+        has_canadian_experience: 'hasCanadianExperience',
+        education_level: 'educationLevel',
+        degree_field: 'degreeField',
+        eca_obtained: 'ecaObtained',
+        clb_listening: 'clbListening',
+        clb_reading: 'clbReading',
+        clb_speaking: 'clbSpeaking',
+        clb_writing: 'clbWriting',
+        intended_province: 'intendedProvince',
+        has_family_in_canada: 'hasFamilyInCanada',
+        canadian_work_years: 'canadianWorkYears',
+        foreign_work_years: 'foreignWorkYears',
+        canadian_work_recent: 'canadianWorkRecent',
+        foreign_work_recent: 'foreignWorkRecent',
+        spouse_coming_to_canada: 'spouseComingToCanada',
+        spouse_education_level: 'spouseEducationLevel',
+        spouse_clb_listening: 'spouseClbListening',
+        spouse_clb_reading: 'spouseClbReading',
+        spouse_clb_speaking: 'spouseClbSpeaking',
+        spouse_clb_writing: 'spouseClbWriting',
+        spouse_canadian_work_years: 'spouseCanadianWorkYears',
+        has_provincial_nomination: 'hasProvincialNomination',
+        has_canadian_job_offer: 'hasCanadianJobOffer',
+        has_sibling_in_canada: 'hasSiblingInCanada',
+      };
+      for (const [snake, camel] of Object.entries(keyMap)) {
+        if (snake in fields) {
+          (next as Record<string, unknown>)[camel] = (fields as Record<string, unknown>)[snake];
+        }
+      }
+      return next;
+    });
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      const els = document.querySelectorAll<HTMLElement>('.pw-entry');
-      els.forEach((el, i) => {
-        setTimeout(() => el.classList.add('is-visible'), i * 55);
+    if (recalculate) {
+      startRecalcTransition(async () => {
+        const result = await recalculateCrsEstimate();
+        if (result) {
+          const now = new Date().toISOString();
+          setCrsEstimate(result);
+          setLastRecalcAt(now);
+          setData((prev) => ({
+            ...prev,
+            pathwayInputJson: {
+              ...(prev.pathwayInputJson ?? {}),
+              crs_estimate: result,
+              crs_recalculated_at: now,
+            },
+          }));
+        }
       });
-    });
-  }, []);
-
-  function startEdit(section: string) {
-    setDraft({
-      fullName: savedData.fullName,
-      nationality: savedData.nationality,
-      currentCountry: savedData.currentCountry,
-      occupation: savedData.occupation,
-      yearsExperience: savedData.yearsExperience,
-      educationLevel: savedData.educationLevel,
-      degreeField: savedData.degreeField,
-      intendedProvince: savedData.intendedProvince,
-    });
-    setEditingSection(section);
-  }
-
-  function cancelEdit() {
-    setEditingSection(null);
-  }
-
-  function handleSave() {
-    startTransition(async () => {
-      await updateProfileFields({
-        full_name: draft.fullName ?? undefined,
-        nationality: draft.nationality ?? undefined,
-        current_country: draft.currentCountry ?? undefined,
-        occupation: draft.occupation ?? undefined,
-        years_experience: draft.yearsExperience ?? undefined,
-        education_level_voice: draft.educationLevel ?? undefined,
-        degree_field: draft.degreeField ?? undefined,
-        intended_province: draft.intendedProvince ?? undefined,
-      });
-
-      setSavedData((prev) => ({
-        ...prev,
-        fullName: draft.fullName,
-        nationality: draft.nationality,
-        currentCountry: draft.currentCountry,
-        occupation: draft.occupation,
-        yearsExperience: draft.yearsExperience,
-        educationLevel: draft.educationLevel,
-        degreeField: draft.degreeField,
-        intendedProvince: draft.intendedProvince,
-      }));
-      setEditingSection(null);
-      router.refresh();
-    });
-  }
-
-  function updateDraft(key: keyof ProfileDraft, raw: string) {
-    if (key === 'yearsExperience') {
-      const n = parseInt(raw, 10);
-      setDraft((prev) => ({ ...prev, [key]: Number.isNaN(n) ? null : n }));
-    } else {
-      setDraft((prev) => ({ ...prev, [key]: raw || null }));
     }
   }
 
-  const { pct, missing } = calcCompleteness(savedData);
-  const isEditing = editingSection !== null;
+  function handleManualRecalculate() {
+    startRecalcTransition(async () => {
+      const result = await recalculateCrsEstimate();
+      if (result) {
+        const now = new Date().toISOString();
+        setCrsEstimate(result);
+        setLastRecalcAt(now);
+        setData((prev) => ({
+          ...prev,
+          pathwayInputJson: {
+            ...(prev.pathwayInputJson ?? {}),
+            crs_estimate: result,
+            crs_recalculated_at: now,
+          },
+        }));
+      }
+    });
+  }
+
+  const { pct, missing } = calcCompleteness(data);
 
   return (
     <div className="flex-1 overflow-y-auto p-[28px] relative z-10">
-      <div style={{ maxWidth: 900 }}>
+      <div style={{ maxWidth: 960 }}>
+
         {/* Page header */}
         <div className="pw-entry" style={{ marginBottom: 28 }}>
-          <p
-            style={{
-              fontFamily: 'var(--pw-font-body)',
-              fontSize: 10,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: '#9B9B9B',
-              marginBottom: 6,
-            }}
-          >
-            PROFILE
-          </p>
+          <p className="pw-eyebrow" style={{ marginBottom: 6 }}>Profile</p>
           <h1
             style={{
               fontFamily: 'var(--pw-font-display)',
@@ -319,463 +380,39 @@ export function ProfileClient({ data }: ProfileClientProps) {
           </h1>
         </div>
 
-        {/* Completeness bar */}
-        <div className="pw-entry" style={{ marginBottom: 36 }}>
-          <p
-            style={{
-              fontFamily: 'var(--pw-font-body)',
-              fontSize: 10,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: '#9B9B9B',
-              marginBottom: 8,
-            }}
-          >
-            PROFILE COMPLETENESS
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 6 }}>
-            <div
-              style={{
-                flex: 1,
-                height: 2,
-                background: 'rgba(0,0,0,0.07)',
-                borderRadius: 1,
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  height: '100%',
-                  background: '#0D0D0D',
-                  borderRadius: 1,
-                  width: `${pct}%`,
-                  transition: 'width 600ms cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-              />
-            </div>
-            <span
-              style={{
-                fontFamily: 'var(--pw-font-display)',
-                fontSize: '1.125rem',
-                color: '#0D0D0D',
-                flexShrink: 0,
-              }}
-            >
-              {pct}%
-            </span>
-          </div>
-          {missing.length > 0 && (
-            <p
-              style={{
-                fontFamily: 'var(--pw-font-body)',
-                fontSize: 11,
-                color: '#9B9B9B',
-              }}
-            >
-              Missing: {missing.join(', ')}
-            </p>
-          )}
-        </div>
+        <CrsHero
+          estimate={crsEstimate}
+          pathwayName={data.pathwayName}
+          lastRecalcAt={lastRecalcAt}
+          isRecalculating={isRecalculating}
+          onRecalculate={handleManualRecalculate}
+        />
 
-        {/* Two-column grid */}
+        <CompletenessBar pct={pct} missing={missing} />
+
+        {/* Section grid */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: 40,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+            gap: 20,
             marginBottom: 40,
           }}
         >
-          {/* Left column */}
-          <div>
-            {/* Personal details */}
-            <div className="pw-entry" style={{ marginBottom: 32 }}>
-              <SectionHeader
-                label="PERSONAL DETAILS"
-                editing={editingSection === 'personal'}
-                onEdit={() => startEdit('personal')}
-              />
-
-              {editingSection === 'personal' ? (
-                <>
-                  <EditableRow
-                    label="Full name"
-                    value={draft.fullName ?? ''}
-                    onChange={(v) => updateDraft('fullName', v)}
-                  />
-                  <EditableRow
-                    label="Nationality"
-                    value={draft.nationality ?? ''}
-                    onChange={(v) => updateDraft('nationality', v)}
-                  />
-                  <ProfileRow label="Date of birth" value={display(savedData.dateOfBirth)} />
-                  <EditableRow
-                    label="Current country"
-                    value={draft.currentCountry ?? ''}
-                    onChange={(v) => updateDraft('currentCountry', v)}
-                  />
-                  <ProfileRow
-                    label="Marital status"
-                    value={display(formatMaritalStatus(savedData.maritalStatus))}
-                  />
-                </>
-              ) : (
-                <>
-                  <ProfileRow label="Full name" value={display(savedData.fullName)} />
-                  <ProfileRow label="Nationality" value={display(savedData.nationality)} />
-                  <ProfileRow label="Date of birth" value={display(savedData.dateOfBirth)} />
-                  <ProfileRow label="Current country" value={display(savedData.currentCountry)} />
-                  <ProfileRow
-                    label="Marital status"
-                    value={display(formatMaritalStatus(savedData.maritalStatus))}
-                  />
-                </>
-              )}
-
-              {editingSection === 'personal' && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '8px 18px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: '#FFFFFF',
-                      background: isPending ? '#999' : '#0D0D0D',
-                      borderRadius: 9999,
-                      border: 'none',
-                      cursor: isPending ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {isPending ? 'Saving…' : 'Save changes'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '7px 16px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      color: '#6B6B6B',
-                      background: 'transparent',
-                      border: '1px solid rgba(0,0,0,0.12)',
-                      borderRadius: 9999,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Immigration intent */}
-            <div className="pw-entry">
-              <SectionHeader
-                label="IMMIGRATION INTENT"
-                editing={editingSection === 'intent'}
-                onEdit={() => startEdit('intent')}
-              />
-
-              {editingSection === 'intent' ? (
-                <>
-                  <EditableRow
-                    label="Intended province"
-                    value={draft.intendedProvince ?? ''}
-                    onChange={(v) => updateDraft('intendedProvince', v)}
-                  />
-                  <ProfileRow label="Family in Canada" value={display(savedData.hasFamilyInCanada)} />
-                  <ProfileRow
-                    label="Provincial nomination"
-                    value={display(savedData.hasProvincialNomination)}
-                  />
-                </>
-              ) : (
-                <>
-                  <ProfileRow label="Intended province" value={display(savedData.intendedProvince)} />
-                  <ProfileRow label="Family in Canada" value={display(savedData.hasFamilyInCanada)} />
-                  <ProfileRow
-                    label="Provincial nomination"
-                    value={display(savedData.hasProvincialNomination)}
-                  />
-                </>
-              )}
-
-              {editingSection === 'intent' && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '8px 18px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: '#FFFFFF',
-                      background: isPending ? '#999' : '#0D0D0D',
-                      borderRadius: 9999,
-                      border: 'none',
-                      cursor: isPending ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {isPending ? 'Saving…' : 'Save changes'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '7px 16px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      color: '#6B6B6B',
-                      background: 'transparent',
-                      border: '1px solid rgba(0,0,0,0.12)',
-                      borderRadius: 9999,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right column */}
-          <div>
-            {/* Language scores */}
-            <div className="pw-entry" style={{ marginBottom: 32 }}>
-              <SectionHeader
-                label="LANGUAGE SCORES"
-                editing={false}
-                onEdit={() => {}}
-              />
-              <ProfileRow
-                label="Proficiency level"
-                value={display(savedData.englishLevel)}
-              />
-              <ProfileRow
-                label="CLB Listening"
-                value={savedData.clbListening !== null ? `CLB ${savedData.clbListening}` : dash()}
-              />
-              <ProfileRow
-                label="CLB Reading"
-                value={savedData.clbReading !== null ? `CLB ${savedData.clbReading}` : dash()}
-              />
-              <ProfileRow
-                label="CLB Speaking"
-                value={savedData.clbSpeaking !== null ? `CLB ${savedData.clbSpeaking}` : dash()}
-              />
-              <ProfileRow
-                label="CLB Writing"
-                value={savedData.clbWriting !== null ? `CLB ${savedData.clbWriting}` : dash()}
-              />
-            </div>
-
-            {/* Education */}
-            <div className="pw-entry" style={{ marginBottom: 32 }}>
-              <SectionHeader
-                label="EDUCATION"
-                editing={editingSection === 'education'}
-                onEdit={() => startEdit('education')}
-              />
-
-              {editingSection === 'education' ? (
-                <>
-                  <EditableRow
-                    label="Highest level"
-                    value={draft.educationLevel ?? ''}
-                    onChange={(v) => updateDraft('educationLevel', v)}
-                  />
-                  <EditableRow
-                    label="Field of study"
-                    value={draft.degreeField ?? ''}
-                    onChange={(v) => updateDraft('degreeField', v)}
-                  />
-                  <ProfileRow label="ECA obtained" value={display(savedData.ecaObtained)} />
-                </>
-              ) : (
-                <>
-                  <ProfileRow label="Highest level" value={display(savedData.educationLevel)} />
-                  <ProfileRow label="Field of study" value={display(savedData.degreeField)} />
-                  <ProfileRow label="ECA obtained" value={display(savedData.ecaObtained)} />
-                </>
-              )}
-
-              {editingSection === 'education' && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '8px 18px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: '#FFFFFF',
-                      background: isPending ? '#999' : '#0D0D0D',
-                      borderRadius: 9999,
-                      border: 'none',
-                      cursor: isPending ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {isPending ? 'Saving…' : 'Save changes'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '7px 16px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      color: '#6B6B6B',
-                      background: 'transparent',
-                      border: '1px solid rgba(0,0,0,0.12)',
-                      borderRadius: 9999,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Work experience */}
-            <div className="pw-entry">
-              <SectionHeader
-                label="WORK EXPERIENCE"
-                editing={editingSection === 'work'}
-                onEdit={() => startEdit('work')}
-              />
-
-              {editingSection === 'work' ? (
-                <>
-                  <EditableRow
-                    label="Occupation"
-                    value={draft.occupation ?? ''}
-                    onChange={(v) => updateDraft('occupation', v)}
-                  />
-                  <EditableRow
-                    label="Years of experience"
-                    value={draft.yearsExperience !== null ? String(draft.yearsExperience) : ''}
-                    onChange={(v) => updateDraft('yearsExperience', v)}
-                    type="number"
-                  />
-                  <ProfileRow
-                    label="NOC code"
-                    value={
-                      savedData.nocCode
-                        ? `${savedData.nocCode}${savedData.nocTeerCategory !== null ? ` (TEER ${savedData.nocTeerCategory})` : ''}`
-                        : dash()
-                    }
-                  />
-                  <ProfileRow
-                    label="Canadian experience"
-                    value={display(savedData.hasCanadianExperience)}
-                  />
-                </>
-              ) : (
-                <>
-                  <ProfileRow label="Occupation" value={display(savedData.occupation)} />
-                  <ProfileRow
-                    label="Years of experience"
-                    value={
-                      savedData.yearsExperience !== null
-                        ? `${savedData.yearsExperience} year${savedData.yearsExperience !== 1 ? 's' : ''}`
-                        : dash()
-                    }
-                  />
-                  <ProfileRow
-                    label="NOC code"
-                    value={
-                      savedData.nocCode
-                        ? `${savedData.nocCode}${savedData.nocTeerCategory !== null ? ` (TEER ${savedData.nocTeerCategory})` : ''}`
-                        : dash()
-                    }
-                  />
-                  <ProfileRow
-                    label="Canadian experience"
-                    value={display(savedData.hasCanadianExperience)}
-                  />
-                </>
-              )}
-
-              {editingSection === 'work' && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '8px 18px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: '#FFFFFF',
-                      background: isPending ? '#999' : '#0D0D0D',
-                      borderRadius: 9999,
-                      border: 'none',
-                      cursor: isPending ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {isPending ? 'Saving…' : 'Save changes'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    disabled={isPending}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '7px 16px',
-                      fontFamily: 'var(--pw-font-body)',
-                      fontSize: 13,
-                      color: '#6B6B6B',
-                      background: 'transparent',
-                      border: '1px solid rgba(0,0,0,0.12)',
-                      borderRadius: 9999,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <IdentitySection data={data} onSave={handleSectionSave} />
+          <OccupationSection data={data} onSave={handleSectionSave} />
+          <EducationSection data={data} onSave={handleSectionSave} />
+          <LanguageSection data={data} onSave={handleSectionSave} />
+          <WorkHistorySection data={data} onSave={handleSectionSave} />
+          <ImmigrationIntentSection data={data} onSave={handleSectionSave} />
+          <SpouseSection data={data} onSave={handleSectionSave} />
+          <CrsBonusSection data={data} onSave={handleSectionSave} />
         </div>
 
         {/* Redo onboarding */}
         <div
           className="pw-entry"
-          style={{
-            borderTop: '1px solid rgba(0,0,0,0.07)',
-            paddingTop: 32,
-            marginTop: 8,
-          }}
+          style={{ borderTop: '1px solid rgba(0,0,0,0.07)', paddingTop: 32 }}
         >
           <p
             style={{
@@ -801,25 +438,25 @@ export function ProfileClient({ data }: ProfileClientProps) {
           <form action={resetOnboarding}>
             <button
               type="submit"
-              disabled={isEditing || isPending}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 padding: '7px 16px',
-                fontFamily: 'var(--pw-font-body)',
-                fontSize: 13,
+                fontFamily: 'var(--pw-font-ui)',
+                fontSize: 12,
+                fontWeight: 500,
                 color: '#9B9B9B',
                 background: 'transparent',
                 border: '1px solid rgba(0,0,0,0.12)',
-                borderRadius: 9999,
-                cursor: isEditing || isPending ? 'not-allowed' : 'pointer',
-                opacity: isEditing || isPending ? 0.5 : 1,
+                borderRadius: 0,
+                cursor: 'pointer',
               }}
             >
               Redo onboarding
             </button>
           </form>
         </div>
+
       </div>
     </div>
   );

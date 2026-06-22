@@ -42,11 +42,23 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
     [handleFileSelect],
   );
 
-  const handleUpload = useCallback(() => {
+  const handleUpload = useCallback(async () => {
     if (!selectedFile || modalState !== 'idle') return;
     setModalState('uploading');
-    setTimeout(() => setModalState('success'), 1500);
-  }, [selectedFile, modalState]);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      if (document.document_type) formData.append('document_type', document.document_type);
+      const res = await fetch('/api/vault/upload', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        throw new Error(json?.error?.message ?? 'Upload failed');
+      }
+      setModalState('success');
+    } catch {
+      setModalState('error');
+    }
+  }, [selectedFile, modalState, document.document_type]);
 
   const formatBytes = (bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

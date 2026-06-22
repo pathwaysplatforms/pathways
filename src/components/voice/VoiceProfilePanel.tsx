@@ -135,8 +135,8 @@ export function VoiceProfilePanel({ profile }: VoiceProfilePanelProps) {
       {estimate && (
         <div
           style={{
-            background: "rgba(83,74,183,0.04)",
-            border: "1px solid rgba(83,74,183,0.12)",
+            background: "rgba(26,86,219,0.04)",
+            border: "1px solid rgba(26,86,219,0.12)",
             borderRadius: 10,
             padding: "12px 14px",
             flexShrink: 0,
@@ -200,7 +200,7 @@ export function VoiceProfilePanel({ profile }: VoiceProfilePanelProps) {
           <div
             style={{
               height: 6,
-              background: "rgba(83,74,183,0.10)",
+              background: "rgba(26,86,219,0.10)",
               borderRadius: 3,
               overflow: "hidden",
               marginBottom: 6,
@@ -263,7 +263,7 @@ export function VoiceProfilePanel({ profile }: VoiceProfilePanelProps) {
               style={{
                 height: "100%",
                 width: `${Math.round((visibleFields.length / 21) * 100)}%`,
-                background: "var(--voice-violet, #534AB7)",
+                background: "var(--pw-accent)",
                 borderRadius: 1,
                 transition: "width 500ms ease-out",
               }}

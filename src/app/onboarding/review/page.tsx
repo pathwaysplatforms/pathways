@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProfile } from "@/modules/auth/service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ReviewClient } from "./review-client";
+import { ParticleField } from "@/components/fx/ParticleField";
 import { buildPathwayInput, computeCrsEstimate } from "@/lib/pathway-input";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 
@@ -20,7 +21,7 @@ export default async function ReviewPage() {
 
   const extracted = (profile.voice_session_data ?? {}) as Partial<VoiceExtractedProfile>;
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
   const { data: session } = await db
     .from("voice_sessions")
     .select("id")
@@ -36,10 +37,11 @@ export default async function ReviewPage() {
 
   return (
     <main
-      className="min-h-screen flex flex-col items-center py-12 px-4"
+      className="relative min-h-screen flex flex-col items-center py-12 px-4 overflow-hidden"
       style={{ background: "var(--pw-bg)", fontFamily: "var(--pw-font-body)" }}
     >
-      <div className="w-full max-w-3xl">
+      <ParticleField density={0.4} opacity={0.04} parallax={8} />
+      <div className="relative w-full max-w-3xl">
         {/* Header */}
         <div className="mb-2">
           <span

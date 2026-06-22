@@ -76,6 +76,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
     { label: 'Application', icon: Route,            href: '/dashboard/application',   disabled: false },
     { label: 'Documents',   icon: Files,            href: '/dashboard/documents',     disabled: false },
     { label: 'Profile',     icon: User,             href: '/dashboard/profile',       disabled: false },
+    { label: 'Account',     icon: Settings,         href: '/dashboard/account',       disabled: false },
   ];
 
   const isPaid = subscriptionStatus === 'paid';
@@ -89,7 +90,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
       <div className="flex items-center gap-2 flex-shrink-0">
         <span
           className="text-pw-ink"
-          style={{ fontFamily: 'var(--pw-font-display)', fontSize: 20 }}
+          style={{ fontFamily: 'var(--pw-font-display)', fontSize: 20, fontWeight: 600 }}
         >
           Pathways
         </span>
@@ -99,7 +100,12 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
       {/* Nav links */}
       <div className="flex items-center h-full">
         {navItems.map(({ label, icon: Icon, href, disabled }) => {
-          const isActive = !disabled && (pathname === href || (href !== '#' && pathname.startsWith(href)));
+          const isActive =
+            !disabled &&
+            (pathname === href ||
+              (href !== '#' &&
+                href !== '/dashboard' &&
+                pathname.startsWith(href)));
 
           if (disabled) {
             return (

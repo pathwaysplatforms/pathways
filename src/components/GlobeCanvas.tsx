@@ -110,7 +110,7 @@ export function GlobeCanvas() {
         ctx.fill();
 
         if (r.z > 0.35) {
-          ctx.font = "10px 'DM Sans', system-ui, sans-serif";
+          ctx.font = "10px 'Urbanist', sans-serif";
           ctx.fillStyle = "rgba(26,26,26,0.7)";
           ctx.fillText(city.name, sx + 5, sy - 4);
         }

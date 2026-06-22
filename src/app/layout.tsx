@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Urbanist, Instrument_Serif, DM_Sans } from "next/font/google";
-import dynamic from "next/dynamic";
+import { Urbanist } from "next/font/google";
+import { DevToolbarLoader } from "@/components/dev/DevToolbarLoader";
 import "./globals.css";
-
-const DevToolbar = dynamic(() => import("@/components/dev/DevToolbar"), { ssr: false });
 
 const urbanist = Urbanist({
   subsets: ["latin"],
@@ -11,18 +9,6 @@ const urbanist = Urbanist({
   variable: "--font-urbanist",
 });
 
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
-});
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-dm-sans",
-});
 
 export const metadata: Metadata = {
   title: "Pathways",
@@ -33,9 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${urbanist.variable} ${instrumentSerif.variable} ${dmSans.variable}`}
+      className={urbanist.variable}
     >
-      <body className="font-sans">
+      <body className="font-sans" suppressHydrationWarning>
         {children}
         {/* Grain / film-noise overlay — barely perceptible paper texture */}
         <svg
@@ -62,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </filter>
           <rect width="100%" height="100%" filter="url(#pw-grain)" />
         </svg>
-        {process.env.NODE_ENV === "development" && <DevToolbar />}
+        {process.env.NODE_ENV === "development" && <DevToolbarLoader />}
       </body>
     </html>
   );
