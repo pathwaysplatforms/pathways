@@ -130,7 +130,13 @@
       "PowerShell(cd \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\"; $output = npx tsc --noEmit 2>&1; $errors = $output | Where-Object { $_ -match \"error TS\" }; \"Total errors: $\\($errors.Count\\)\"; $errors | Where-Object { $_ -notmatch \"display-preview\" })",
       "Bash(echo \"---EXIT:$?---\")",
       "Bash(netstat -ano)",
-      "Bash(findstr \":3000\")"
+      "Bash(findstr \":3000\")",
+      "mcp__plugin_supabase_supabase__list_projects",
+      "Bash(.\\\\venv\\\\Scripts\\\\python.exe -c \"import ast, sys; files=['parsers/canada_draws.py','parsers/canada_pool_snapshots.py','scrapers/draws_scraper.py','scrapers/pool_scraper.py']; [ast.parse\\(open\\(f\\).read\\(\\)\\) or print\\(f'OK: {f}'\\) for f in files]; print\\('All syntax OK'\\)\")",
+      "PowerShell(cd \"C:\\\\Users\\\\achto\\\\dev\\\\pathways-final\\\\scrapers\"; $files = @\\(\"parsers/canada_draws.py\",\"parsers/canada_pool_snapshots.py\",\"scrapers/draws_scraper.py\",\"scrapers/pool_scraper.py\"\\); foreach \\($f in $files\\) { $result = .\\\\venv\\\\Scripts\\\\python.exe -c \"import ast; ast.parse\\(open\\('$f'\\).read\\(\\)\\); print\\('OK: $f'\\)\" 2>&1; Write-Output $result })",
+      "Bash(python *)",
+      "mcp__plugin_supabase_supabase__list_tables",
+      "mcp__plugin_supabase_supabase__apply_migration"
     ]
   }
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { ReactNode } from 'react';
-import { ExternalLink, FileText, Shield, Clock, X, Copy, Check, Loader2 } from 'lucide-react';
+import { ExternalLink, FileText, Shield, Clock, X, Copy, Check, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { updateStepProgress } from '@/app/actions/progress';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { getEmailTemplates, resolveTemplate } from '@/lib/email-templates';
 import { documentBelongsToStep } from '@/lib/step-document-map';
 import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
@@ -78,6 +79,154 @@ function HighlightedText({ text }: { text: string }) {
         )
       )}
     </>
+  );
+}
+
+// ── Section — Checklist items ─────────────────────────────────────────────────
+
+export function ChecklistSection({ stepId, items }: { stepId: string; items: string[] }) {
+  const [open, setOpen] = useState(true);
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [hydrating, setHydrating] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+
+        // step_checklist_progress is a new table not yet in generated types; cast via never.
+        const { data } = await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          .select('checked_items')
+          .eq('user_id', user.id)
+          .eq('step_id', stepId)
+          .maybeSingle() as unknown as { data: { checked_items: number[] } | null };
+
+        if (!cancelled && data && Array.isArray(data.checked_items)) {
+          setChecked(new Set(data.checked_items));
+        }
+      } catch {
+        // Non-fatal — fall through to empty state
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [stepId]);
+
+  const persist = (nextChecked: Set<number>) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          // Payload cast to never because the table is not yet in the generated Database type.
+          .upsert(
+            { user_id: user.id, step_id: stepId, checked_items: [...nextChecked], updated_at: new Date().toISOString() } as never,
+            { onConflict: 'user_id,step_id' }
+          );
+      } catch {
+        // Silently fail — checklist state is low-stakes
+      }
+    }, 600);
+  };
+
+  const toggle = (i: number) => {
+    const next = new Set(checked);
+    next.has(i) ? next.delete(i) : next.add(i);
+    setChecked(next);
+    persist(next);
+  };
+
+  if (hydrating) {
+    return (
+      <div style={{
+        height: 16, borderRadius: 4,
+        background: 'linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'pw-shimmer 1.4s ease infinite',
+      }} />
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+          padding: 0, marginBottom: open ? 10 : 0,
+        }}
+        aria-expanded={open}
+      >
+        <span style={{ fontFamily: font.body, fontSize: 12, color: muted }}>
+          {checked.size}/{items.length} done
+        </span>
+        {open ? <ChevronUp size={14} color={muted} /> : <ChevronDown size={14} color={muted} />}
+      </button>
+
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((item, i) => {
+            const done = checked.has(i);
+            return (
+              <label
+                key={i}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                  cursor: 'pointer', padding: '6px 0',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={done}
+                  onChange={() => toggle(i)}
+                  style={{ marginTop: 2, accentColor: accent, flexShrink: 0, width: 14, height: 14 }}
+                />
+                <span style={{
+                  fontFamily: font.body, fontSize: 13, color: done ? muted : ink,
+                  textDecoration: done ? 'line-through' : 'none',
+                  lineHeight: 1.5,
+                }}>
+                  {item}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section — Pro tips ────────────────────────────────────────────────────────
+
+export function ProTipsSection({ tip }: { tip: string }) {
+  return (
+    <div style={{
+      padding: '12px 14px',
+      borderRadius: 8,
+      background: '#FFFBEB',
+      border: '1px solid #FDE68A',
+    }}>
+      <p style={{
+        fontFamily: font.body, fontSize: 12, color: '#92400E',
+        margin: 0, lineHeight: 1.6,
+      }}>
+        {tip}
+      </p>
+    </div>
   );
 }
 
@@ -372,6 +521,24 @@ export function StepDetailDrawer({
     });
   };
 
+  const handleMarkIncomplete = () => {
+    if (!pathwaySlug) return;
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'upcoming' });
+        setMarkedComplete(false);
+        setJustCompleted(false);
+      } catch {
+        setActionError('Failed to save. Please try again.');
+      }
+    });
+  };
+
   const statusStyles: Record<EnrichedApplicationStep['status'], { bg: string; color: string; label: string }> = {
     upcoming: { bg: '#F3F4F6', color: muted,      label: 'Upcoming' },
     current:  { bg: '#EFF6FF', color: accent,     label: 'In Progress' },
@@ -386,6 +553,9 @@ export function StepDetailDrawer({
   const templates     = pathwaySlug && profileContext ? getEmailTemplates(pathwaySlug, step.stepNumber) : [];
   const hasTemplates  = templates.length > 0;
   const showCoverLetter = step.stepNumber >= 3 && step.stepNumber <= 5;
+  const hasChecklist  = (step.checklistItems?.length ?? 0) > 0;
+  const hasProTips    = !!step.proTips;
+  const hasOfficialUrl = !!step.officialUrl;
 
   return (
     <>
@@ -469,7 +639,7 @@ export function StepDetailDrawer({
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{
               display: 'inline-block', padding: '2px 10px', borderRadius: 9999,
               background: ss.bg, color: ss.color,
@@ -484,6 +654,37 @@ export function StepDetailDrawer({
                 {step.estimatedDuration}
               </span>
             )}
+            {(step.estimatedDaysMin != null || step.estimatedDaysMax != null) && (
+              <span style={{
+                display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
+                border: `1px solid ${border}`, background: '#FFFFFF',
+                fontFamily: font.body, fontSize: 11, color: muted,
+              }}>
+                Est. {step.estimatedDaysMin != null && step.estimatedDaysMax != null
+                  ? `${step.estimatedDaysMin}–${step.estimatedDaysMax} days`
+                  : step.estimatedDaysMin != null
+                    ? `${step.estimatedDaysMin}+ days`
+                    : `up to ${step.estimatedDaysMax} days`}
+              </span>
+            )}
+            {step.feeCad != null && (
+              <span style={{
+                display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
+                border: `1px solid ${border}`, background: '#FFFFFF',
+                fontFamily: font.body, fontSize: 11, color: muted,
+              }}>
+                Est. fee: ${step.feeCad} CAD
+              </span>
+            )}
+            {step.formNumbers != null && step.formNumbers.length > 0 && step.formNumbers.map((f) => (
+              <span key={f} style={{
+                display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
+                border: `1px solid ${border}`, background: '#F9FAFB',
+                fontFamily: font.body, fontSize: 11, color: muted,
+              }}>
+                {f}
+              </span>
+            ))}
           </div>
 
           {step.description && (
@@ -495,6 +696,43 @@ export function StepDetailDrawer({
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '0 24px 8px' }}>
+
+          {hasChecklist && step.checklistItems && (
+            <div style={{ paddingTop: 20, paddingBottom: 16 }}>
+              <SectionLabel>Checklist</SectionLabel>
+              <ChecklistSection stepId={step.id} items={step.checklistItems} />
+              <SectionDivider />
+            </div>
+          )}
+
+          {hasProTips && step.proTips && (
+            <div style={{ paddingTop: 20, paddingBottom: 16 }}>
+              <SectionLabel>Pro Tip</SectionLabel>
+              <ProTipsSection tip={step.proTips} />
+              <SectionDivider />
+            </div>
+          )}
+
+          {hasOfficialUrl && step.officialUrl && (
+            <div style={{ paddingTop: 20, paddingBottom: 16 }}>
+              <a
+                href={step.officialUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 16px', borderRadius: 9999,
+                  border: `1px solid ${accent}`, background: '#FFFFFF',
+                  fontFamily: font.body, fontSize: 13, color: accent,
+                  textDecoration: 'none', fontWeight: 500,
+                }}
+              >
+                <ExternalLink size={13} />
+                Official source →
+              </a>
+              <SectionDivider />
+            </div>
+          )}
 
           {hasDocuments && (
             <div style={{ paddingTop: 20, paddingBottom: 16 }}>
@@ -546,24 +784,49 @@ export function StepDetailDrawer({
             </p>
           )}
           {markedComplete ? (
-            <div style={{
-              position: 'relative',
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 16px', borderRadius: 9999,
-              background: '#F0FDF4', color: '#16A34A',
-              fontFamily: 'var(--pw-font-ui)', fontSize: 13, fontWeight: 500,
-            }}>
-              <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                {justCompleted ? (
-                  <>
-                    <CheckmarkDraw size={14} color="#0D0D0D" />
-                    <ParticleBurst count={12} size={64} />
-                  </>
-                ) : (
-                  <Check size={14} />
-                )}
-              </span>
-              Completed
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                position: 'relative', flex: 1,
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 16px', borderRadius: 9999,
+                background: '#F0FDF4', color: '#16A34A',
+                fontFamily: 'var(--pw-font-ui)', fontSize: 13, fontWeight: 500,
+              }}>
+                <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                  {justCompleted ? (
+                    <>
+                      <CheckmarkDraw size={14} color="#0D0D0D" />
+                      <ParticleBurst count={12} size={64} />
+                    </>
+                  ) : (
+                    <Check size={14} />
+                  )}
+                </span>
+                Completed
+              </div>
+              <button
+                onClick={handleMarkIncomplete}
+                disabled={isPending || !pathwaySlug}
+                style={{
+                  flexShrink: 0,
+                  display: 'inline-flex', alignItems: 'center',
+                  padding: '8px 14px', borderRadius: 9999,
+                  border: `1px solid ${border}`, background: '#FFFFFF',
+                  fontFamily: 'var(--pw-font-ui)', fontSize: 12, fontWeight: 500,
+                  color: muted, cursor: isPending ? 'not-allowed' : 'pointer',
+                  transition: 'color 120ms ease, border-color 120ms ease',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = accent;
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = accent;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.color = muted;
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = border;
+                }}
+              >
+                Mark incomplete
+              </button>
             </div>
           ) : (
             <button
@@ -588,7 +851,10 @@ export function StepDetailDrawer({
         </div>
       </div>
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes pw-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+      `}</style>
     </>
   );
 }

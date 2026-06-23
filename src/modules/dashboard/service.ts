@@ -392,7 +392,7 @@ export async function getDashboardData(
 
       const { data: slugStepsData } = await db
         .from('pathway_steps')
-        .select('id, step_number, title, description, estimated_duration, resources')
+        .select('id, step_number, title, description, estimated_duration, resources, checklist_items, pro_tips, official_url, fee_cad, estimated_days_min, estimated_days_max, form_numbers')
         .eq('pathway_id', sp.id)
         .order('step_number', { ascending: true });
 
@@ -403,6 +403,13 @@ export async function getDashboardData(
         description: string;
         estimated_duration: string;
         resources: StepResource[] | null;
+        checklist_items: string[] | null;
+        pro_tips: string | null;
+        official_url: string | null;
+        fee_cad: number | null;
+        estimated_days_min: number | null;
+        estimated_days_max: number | null;
+        form_numbers: string[] | null;
       }[];
 
       // Fetch step progress for selected pathway (step_id needed to map back)
@@ -440,6 +447,13 @@ export async function getDashboardData(
           estimatedDuration: s.estimated_duration,
           status,
           resources: Array.isArray(s.resources) ? s.resources : [],
+          checklistItems: Array.isArray(s.checklist_items) && s.checklist_items.length > 0 ? s.checklist_items : null,
+          proTips: s.pro_tips ?? null,
+          officialUrl: s.official_url ?? null,
+          feeCad: s.fee_cad ?? null,
+          estimatedDaysMin: s.estimated_days_min ?? null,
+          estimatedDaysMax: s.estimated_days_max ?? null,
+          formNumbers: Array.isArray(s.form_numbers) && s.form_numbers.length > 0 ? s.form_numbers : null,
         };
       });
     }
