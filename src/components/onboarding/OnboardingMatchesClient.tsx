@@ -52,19 +52,19 @@ function UpgradeBanner({ onUpgrade, onDismiss }: { onUpgrade: () => void; onDism
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: W.green,
+        backgroundColor: "#00C950",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 16,
-        padding: "10px 20px",
+        gap: 14,
+        padding: "7px 20px",
         fontFamily: W.body,
       }}
     >
-      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", margin: 0, lineHeight: 1.4 }}>
+      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", margin: 0, lineHeight: 1.4 }}>
         <Lock
-          size={11}
-          color="rgba(255,255,255,0.6)"
+          size={10}
+          color="rgba(255,255,255,0.65)"
           style={{ display: "inline", verticalAlign: "middle", marginRight: 5 }}
         />
         Upgrade for full access — step-by-step tracking, document uploads, and unlimited pathways.
@@ -77,7 +77,7 @@ function UpgradeBanner({ onUpgrade, onDismiss }: { onUpgrade: () => void; onDism
           fontSize: 12,
           fontWeight: 500,
           fontFamily: W.body,
-          color: W.green,
+          color: "#00C950",
           backgroundColor: "#fff",
           border: "none",
           borderRadius: 9999,
@@ -98,13 +98,13 @@ function UpgradeBanner({ onUpgrade, onDismiss }: { onUpgrade: () => void; onDism
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: "rgba(255,255,255,0.5)",
+          color: "rgba(255,255,255,0.85)",
           display: "flex",
           alignItems: "center",
           padding: 4,
         }}
       >
-        <X size={14} />
+        <X size={15} />
       </button>
     </div>
   );
@@ -243,22 +243,22 @@ function PathwayCard({
       style={{
         animationDelay: `${revealDelay}ms`,
         backgroundColor: "#fff",
-        border: `1px solid ${W.border}`,
+        border: `1px solid ${hovered ? "rgba(0,0,0,0.13)" : W.border}`,
         borderRadius: 16,
-        padding: 24,
+        padding: 28,
         cursor: "pointer",
-        transition: "box-shadow 0.2s, transform 0.2s",
-        boxShadow: hovered ? "0 10px 40px rgba(0,0,0,0.10)" : "0 2px 10px rgba(0,0,0,0.05)",
-        transform: hovered ? "translateY(-2px)" : "translateY(0)",
+        transition: "box-shadow 0.1s ease, transform 0.1s ease, border-color 0.1s ease",
+        boxShadow: hovered ? "0 20px 56px rgba(0,0,0,0.15)" : "0 2px 12px rgba(0,0,0,0.06)",
+        transform: hovered ? "translateY(-5px)" : "translateY(0)",
         outline: "none",
       }}
     >
       {/* Rank + header */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
         <div
           style={{
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             borderRadius: 9999,
             backgroundColor: rank === 1 ? W.green : "rgba(0,0,0,0.06)",
             display: "flex",
@@ -268,21 +268,21 @@ function PathwayCard({
             marginTop: 2,
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 500, fontFamily: W.body, color: rank === 1 ? "#fff" : W.grey }}>
+          <span style={{ fontSize: 13, fontWeight: 500, fontFamily: W.body, color: rank === 1 ? "#fff" : W.grey }}>
             {rank}
           </span>
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
             <div>
-              <p style={{ fontSize: 11, fontFamily: W.body, color: W.grey, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>
+              <p style={{ fontSize: 12, fontFamily: W.body, color: W.grey, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>
                 {pw.flag_emoji} {pw.country_name} · {PATHWAY_TYPE_LABELS[pw.pathway_type]}
               </p>
               <h3
                 style={{
                   fontFamily: W.display,
-                  fontSize: "clamp(1.05rem, 2.5vw, 1.3rem)",
+                  fontSize: "clamp(1.1rem, 2.5vw, 1.45rem)",
                   fontWeight: 400,
                   color: W.ink,
                   letterSpacing: "-0.02em",
@@ -297,9 +297,9 @@ function PathwayCard({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                padding: "4px 10px",
+                padding: "5px 12px",
                 borderRadius: 9999,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 500,
                 fontFamily: W.body,
                 flexShrink: 0,
@@ -315,21 +315,21 @@ function PathwayCard({
       </div>
 
       {/* Why it fits */}
-      <p style={{ fontSize: 13, fontFamily: W.body, color: W.grey, lineHeight: 1.65, marginBottom: 14 }}>
+      <p style={{ fontSize: 14, fontFamily: W.body, color: W.grey, lineHeight: 1.65, marginBottom: 16 }}>
         {pw.why_it_fits}
       </p>
 
       {/* Key requirements */}
-      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 14px", display: "flex", flexDirection: "column", gap: 7 }}>
+      <ul style={{ listStyle: "none", padding: 0, margin: "0 0 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {pw.key_requirements.slice(0, 3).map((req) => (
           <li
             key={req}
-            style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, fontFamily: W.body, color: W.ink }}
+            style={{ display: "flex", alignItems: "flex-start", gap: 9, fontSize: 14, fontFamily: W.body, color: W.ink }}
           >
             <span
               style={{
-                width: 16,
-                height: 16,
+                width: 18,
+                height: 18,
                 borderRadius: 9999,
                 backgroundColor: W.light,
                 display: "inline-flex",
@@ -339,7 +339,7 @@ function PathwayCard({
                 marginTop: 1,
               }}
             >
-              <Check size={9} color={W.green} strokeWidth={2.5} />
+              <Check size={10} color={W.green} strokeWidth={2.5} />
             </span>
             {req}
           </li>
@@ -352,12 +352,12 @@ function PathwayCard({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          paddingTop: 14,
+          paddingTop: 16,
           borderTop: `1px solid ${W.border}`,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: W.body, color: W.grey }}>
-          <Clock size={12} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: W.body, color: W.grey }}>
+          <Clock size={13} />
           {pw.estimated_timeline}
         </div>
         <div
@@ -365,16 +365,16 @@ function PathwayCard({
             display: "flex",
             alignItems: "center",
             gap: 5,
-            fontSize: 12,
+            fontSize: 13,
             fontFamily: W.body,
             color: hovered ? W.muted : W.green,
             fontWeight: 500,
-            transition: "color 0.15s",
+            transition: "color 0.1s",
           }}
         >
-          <Lock size={11} />
+          <Lock size={12} />
           View full details
-          <ArrowRight size={11} />
+          <ArrowRight size={12} />
         </div>
       </div>
     </div>
@@ -460,18 +460,8 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
         />
       )}
 
-      {/* Banner spacer — pushes page content down when banner is visible */}
-      <div
-        aria-hidden="true"
-        style={{
-          height: showBanner ? 44 : 0,
-          transition: "height 0.25s",
-          flexShrink: 0,
-        }}
-      />
-
       {/* Section heading */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <p
           style={{
             fontSize: 11,
@@ -487,7 +477,7 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
           {phase === "analyzing" ? "Analysing your profile…" : "Your pathway matches"}
         </p>
         {phase === "done" && results && (
-          <p style={{ fontSize: 14, fontFamily: W.body, color: W.grey, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 15, fontFamily: W.body, color: W.grey, lineHeight: 1.6 }}>
             {results.summary}
           </p>
         )}
@@ -534,7 +524,7 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
       )}
 
       {phase === "done" && results && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {results.top_pathways.map((pw, i) => (
             <PathwayCard
               key={pw.pathway_id}

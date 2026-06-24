@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Mic, MessageSquare, FileText } from "lucide-react";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 import { VoiceTab } from "./VoiceTab";
@@ -26,9 +27,9 @@ const BOOLEAN_FIELDS = new Set(["spouse_coming_to_canada", "has_canadian_experie
 const TOTAL_DISPLAYABLE = 21;
 
 /** Split-panel onboarding interface with voice, chat, and form collection modes. */
-export function OnboardingLayout() {
+export function OnboardingLayout({ initialTab = "voice" }: { initialTab?: Tab }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("voice");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [profile, setProfile] = useState<Partial<VoiceExtractedProfile>>({});
   const [resetKey, setResetKey] = useState(0);
 
@@ -154,6 +155,40 @@ export function OnboardingLayout() {
               <VoiceProfilePanel profile={profile} />
             </div>
           </div>
+        </div>
+
+        {/* Prefer to type? — small CTAs to switch to form or chat */}
+        <div className="shrink-0 flex items-center justify-center gap-5 pb-1 px-8">
+          <Link
+            href="/onboarding/form"
+            style={{
+              fontSize: 13,
+              color: "var(--voice-text-muted, #8B8BA0)",
+              fontFamily: "Urbanist, sans-serif",
+              textDecoration: "none",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--voice-text, #1A1A2E)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--voice-text-muted, #8B8BA0)"; }}
+          >
+            Fill out a form →
+          </Link>
+          <span style={{ color: "var(--voice-text-muted, #8B8BA0)", fontSize: 13, opacity: 0.4 }}>·</span>
+          <button
+            onClick={() => setActiveTab("chat")}
+            style={{
+              fontSize: 13,
+              color: "var(--voice-text-muted, #8B8BA0)",
+              fontFamily: "Urbanist, sans-serif",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--voice-text, #1A1A2E)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--voice-text-muted, #8B8BA0)"; }}
+          >
+            Chat instead →
+          </button>
         </div>
 
         {/* Footer disclaimer */}

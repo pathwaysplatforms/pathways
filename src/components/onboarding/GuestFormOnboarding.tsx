@@ -324,6 +324,7 @@ const OVERLAY_STEPS: Array<{ key: NonNullable<SubmittingPhase>; label: string }>
 
 function MatchingLoadingOverlay({ phase }: { phase: NonNullable<SubmittingPhase> }) {
   const activeIdx = OVERLAY_STEPS.findIndex(s => s.key === phase);
+  const activeLabel = OVERLAY_STEPS[activeIdx]?.label ?? "";
 
   return (
     <div style={{
@@ -332,80 +333,81 @@ function MatchingLoadingOverlay({ phase }: { phase: NonNullable<SubmittingPhase>
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
     }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 48, padding: "0 32px" }}>
-        <span style={{ fontFamily: W.display, fontSize: 22, color: W.white, letterSpacing: "-0.01em" }}>
-          Pathways
-        </span>
+      {/* Wordmark */}
+      <span style={{
+        position: "absolute", top: 32,
+        fontFamily: W.display, fontSize: 20,
+        color: "rgba(255,255,255,0.55)", letterSpacing: "-0.01em",
+      }}>
+        Pathways
+      </span>
 
-        {/* Progress dots */}
-        <div style={{ display: "flex", gap: 10 }}>
-          {OVERLAY_STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={i === activeIdx ? "animate-pulse" : ""}
-              style={{
-                width: 8, height: 8, borderRadius: 9999,
-                backgroundColor: i < activeIdx
-                  ? "rgba(255,255,255,0.7)"
-                  : i === activeIdx
-                    ? W.white
-                    : "rgba(255,255,255,0.18)",
-                transition: "background-color 0.4s ease",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Step list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "min(100%, 300px)" }}>
-          {OVERLAY_STEPS.map(({ key, label }, i) => {
-            const done   = i < activeIdx;
-            const active = i === activeIdx;
-            return (
-              <div key={key} style={{
-                display: "flex", alignItems: "center", gap: 14,
-                opacity: done || active ? 1 : 0.25,
-                transition: "opacity 0.5s ease",
-              }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: 9999, flexShrink: 0,
-                  backgroundColor: done ? "rgba(255,255,255,0.88)" : "transparent",
-                  border: done ? "none" : `1.5px solid rgba(255,255,255,${active ? "0.45" : "0.15"})`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {done  && <Check size={12} color={W.green} strokeWidth={2.5} />}
-                  {active && (
-                    <div
-                      className="animate-pulse"
-                      style={{ width: 7, height: 7, borderRadius: 9999, backgroundColor: W.white }}
-                    />
-                  )}
-                </div>
-                <span style={{
-                  fontFamily: W.body, fontSize: 14,
-                  color: active ? W.white : done ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)",
-                  fontWeight: active ? 500 : 400,
-                  transition: "color 0.4s ease",
-                }}>
-                  {label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <p style={{ fontFamily: W.body, fontSize: 12, color: "rgba(255,255,255,0.28)", textAlign: "center", maxWidth: 220, lineHeight: 1.6 }}>
-          This usually takes 10–20 seconds.
-        </p>
+      {/* Pulse rings + center dot */}
+      <div style={{ position: "relative", width: 96, height: 96, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {/* Ring 3 — slowest, widest */}
+        <div className="pw-load-ring-3" style={{
+          position: "absolute", inset: 0, borderRadius: 9999,
+          border: "1.5px solid rgba(255,255,255,0.25)",
+        }} />
+        {/* Ring 2 */}
+        <div className="pw-load-ring-2" style={{
+          position: "absolute", inset: 0, borderRadius: 9999,
+          border: "1.5px solid rgba(255,255,255,0.30)",
+        }} />
+        {/* Ring 1 — fastest */}
+        <div className="pw-load-ring" style={{
+          position: "absolute", inset: 0, borderRadius: 9999,
+          border: "1.5px solid rgba(255,255,255,0.40)",
+        }} />
+        {/* Center breathing dot */}
+        <div className="pw-load-breathe" style={{
+          width: 22, height: 22, borderRadius: 9999,
+          backgroundColor: W.white,
+        }} />
       </div>
+
+      {/* Active step label */}
+      <p style={{
+        marginTop: 36,
+        fontFamily: W.body, fontSize: 15,
+        color: "rgba(255,255,255,0.85)",
+        letterSpacing: "0.01em",
+        transition: "opacity 0.4s ease",
+      }}>
+        {activeLabel}
+      </p>
+
+      {/* Step progress dots */}
+      <div style={{ display: "flex", gap: 6, marginTop: 20 }}>
+        {OVERLAY_STEPS.map((_, i) => (
+          <div key={i} style={{
+            width: i === activeIdx ? 20 : 6,
+            height: 6, borderRadius: 9999,
+            backgroundColor: i < activeIdx
+              ? "rgba(255,255,255,0.55)"
+              : i === activeIdx
+                ? W.white
+                : "rgba(255,255,255,0.18)",
+            transition: "width 0.4s ease, background-color 0.4s ease",
+          }} />
+        ))}
+      </div>
+
+      <p style={{
+        position: "absolute", bottom: 36,
+        fontFamily: W.body, fontSize: 12,
+        color: "rgba(255,255,255,0.25)",
+      }}>
+        This usually takes 10–20 seconds
+      </p>
     </div>
   );
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-/** Step-by-step guest onboarding form — one question per screen, website design language. */
-export function GuestFormOnboarding() {
+/** Step-by-step onboarding form — one question per screen, website design language. */
+export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth" }) {
   const router = useRouter();
   const { token, loading: sessionLoading, error: sessionError } = useGuestSession();
 
@@ -474,11 +476,46 @@ export function GuestFormOnboarding() {
   }
 
   async function handleSubmit() {
-    if (!token) return;
+    if (mode === "guest" && !token) return;
     setSubmittingPhase("saving");
     setSubmitError(null);
     try {
-      // Phase 1 — save answers
+      if (mode === "auth") {
+        // Phase 1 — save all answers to the authenticated profile
+        const saveRes = await fetch("/api/onboarding/profile", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildPayload(values)),
+        });
+        if (!saveRes.ok) {
+          const d = (await saveRes.json()) as { error?: { message: string } };
+          throw new Error(d.error?.message ?? "Could not save your answers.");
+        }
+
+        // Phase 2 — confirm onboarding (builds pathway input, marks step as complete)
+        setSubmittingPhase("searching");
+        await new Promise<void>((r) => setTimeout(r, 900));
+        setSubmittingPhase("ranking");
+        const confirmRes = await fetch("/api/onboarding/confirm", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ method: "form" }),
+        });
+        if (!confirmRes.ok) {
+          const d = (await confirmRes.json()) as { error?: { message: string } };
+          throw new Error(d.error?.message ?? "Could not confirm your profile.");
+        }
+
+        // Phase 3 — run matching; navigate to matches regardless of outcome
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const matchRes = await fetch("/api/pathways/match", { method: "POST" });
+          if (matchRes.ok) break;
+          if (attempt === 0) await new Promise<void>((r) => setTimeout(r, 2000));
+        }
+
+        router.push("/onboarding/matches");
+        return;
+      }
+
+      // ── Guest mode ─────────────────────────────────────────────────────────
       const patchRes = await fetch(`/api/guest/${token}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ onboarding_data: buildPayload(values) }),
@@ -488,13 +525,10 @@ export function GuestFormOnboarding() {
         throw new Error(d.error?.message ?? "Could not save your answers.");
       }
 
-      // Phase 2 — run matching (brief pause so the "searching" step is visible)
       setSubmittingPhase("searching");
       await new Promise<void>(r => setTimeout(r, 900));
       setSubmittingPhase("ranking");
 
-      // Try matching up to 2 times; navigate to results regardless of outcome.
-      // The results page shows a "still computing" state when pathway_results is null.
       for (let attempt = 0; attempt < 2; attempt++) {
         const matchRes = await fetch("/api/guest/match", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -518,7 +552,7 @@ export function GuestFormOnboarding() {
     return <MatchingLoadingOverlay phase={submittingPhase} />;
   }
 
-  if (sessionLoading) {
+  if (mode === "guest" && sessionLoading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: W.greenTint }}>
         <p style={{ color: W.grey500, fontFamily: W.body, fontSize: 14 }}>Starting session…</p>
@@ -526,7 +560,7 @@ export function GuestFormOnboarding() {
     );
   }
 
-  if (sessionError || !token) {
+  if (mode === "guest" && (sessionError || !token)) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: W.greenTint }}>
         <p style={{ color: "#DC2626", fontFamily: W.body, fontSize: 14 }}>Could not start a session. Please refresh the page.</p>
@@ -867,7 +901,9 @@ export function GuestFormOnboarding() {
       {/* Footer */}
       <footer style={{ flexShrink: 0, padding: "0 24px 24px", textAlign: "center" }}>
         <p style={{ fontFamily: W.body, fontSize: 12, color: W.grey300 }}>
-          No account needed — your results are saved for 7 days.
+          {mode === "auth"
+            ? "Your answers are saved to your account."
+            : "No account needed — your results are saved for 7 days."}
         </p>
       </footer>
     </div>

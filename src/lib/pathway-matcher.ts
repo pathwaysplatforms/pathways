@@ -492,6 +492,13 @@ export async function matchPathways(
   try {
     queryEmbedding = await embedProfile(voiceProfile);
   } catch (err) {
+    const cause = err as { status?: number; message?: string; error?: { message?: string } };
+    logger.error({
+      action: "pathway_matcher.embedding_failed",
+      status: cause?.status,
+      message: cause?.message ?? String(err),
+      detail: cause?.error?.message,
+    });
     throw new InternalError("Failed to generate profile embedding", undefined, err);
   }
   logger.info({ action: "pathway_matcher.embedding_done" });

@@ -122,12 +122,14 @@ export async function middleware(request: NextRequest) {
 
     const target = requiredRouteForStep(onboardingStep);
 
-    // /onboarding (root only) is always reachable — the page handles its own routing
-    // so that the public CTA lands on the choice screen regardless of auth state.
-    const isOnboardingRoot = pathname === "/onboarding";
+    // /onboarding (root) and /onboarding/form are both choice-screen entry points reachable
+    // at any not-yet-started step — the pages handle their own routing internally.
+    const isOnboardingEntryPath =
+      pathname === "/onboarding" ||
+      (pathname === "/onboarding/form" && target === "/onboarding/voice");
 
     // If the user's step requires a specific route and they are not on it, redirect
-    if (target !== null && !pathname.startsWith(target) && !isOnboardingRoot) {
+    if (target !== null && !pathname.startsWith(target) && !isOnboardingEntryPath) {
       return NextResponse.redirect(new URL(target, request.url));
     }
   }

@@ -20,7 +20,7 @@ const config: Config = {
       fontFamily: {
         sans:    ["Urbanist", "sans-serif"],
         display: ["Urbanist", "sans-serif"],
-        body:    ["DM Sans", "system-ui", "sans-serif"],
+        body:    ["var(--font-dm-sans)", "DM Sans", "system-ui", "sans-serif"],
       },
 
       // ─── Color Palette ────────────────────────────────────────────

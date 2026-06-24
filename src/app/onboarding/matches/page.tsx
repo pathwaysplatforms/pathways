@@ -25,6 +25,22 @@ export default async function MatchesPage() {
       className="min-h-screen flex flex-col"
       style={{ background: "var(--pw-bg)", fontFamily: "var(--pw-font-body)" }}
     >
+      {/* Pathways wordmark — aligned with content column, below fixed banner */}
+      <div style={{ width: "100%", padding: "52px 16px 0", flexShrink: 0 }}>
+        <div style={{ maxWidth: 780, margin: "0 auto" }}>
+          <span
+            style={{
+              fontFamily: "var(--pw-font-display)",
+              fontSize: 19,
+              color: "var(--pw-ink)",
+            }}
+          >
+            Pathways
+          </span>
+        </div>
+      </div>
+
+      {/* Centered page content */}
       <div
         style={{
           flex: 1,
@@ -34,20 +50,9 @@ export default async function MatchesPage() {
           padding: "0 16px 64px",
         }}
       >
-        <div style={{ width: "100%", maxWidth: 560 }}>
+        <div style={{ width: "100%", maxWidth: 780 }}>
           {/* Page header */}
-          <div style={{ paddingTop: 48, marginBottom: 32 }}>
-            <span
-              style={{
-                fontFamily: "var(--pw-font-display)",
-                fontSize: 18,
-                color: "var(--pw-ink)",
-                display: "block",
-                marginBottom: 24,
-              }}
-            >
-              Pathways
-            </span>
+          <div style={{ paddingTop: 40, marginBottom: 36 }}>
             <p
               style={{
                 fontSize: 11,
@@ -64,17 +69,17 @@ export default async function MatchesPage() {
             <h1
               style={{
                 fontFamily: "var(--pw-font-display)",
-                fontSize: "clamp(1.75rem, 5vw, 2.5rem)",
-                fontWeight: 400,
+                fontSize: "clamp(2.2rem, 5.5vw, 3.1rem)",
+                fontWeight: 500,
                 color: "var(--pw-ink)",
                 letterSpacing: "-0.02em",
-                lineHeight: 1.15,
-                marginBottom: 10,
+                lineHeight: 1.12,
+                marginBottom: 14,
               }}
             >
               Your Canadian pathways
             </h1>
-            <p style={{ fontSize: 14, color: "var(--pw-muted)", lineHeight: 1.65 }}>
+            <p style={{ fontSize: 16, color: "var(--pw-muted)", lineHeight: 1.65 }}>
               Based on your answers, here are your top immigration options.
               Upgrade to unlock full details, track your application, and upload documents.
             </p>
@@ -82,21 +87,21 @@ export default async function MatchesPage() {
 
           {/* Profile summary card */}
           {pathwayInput && (
-            <div className="pw-card" style={{ padding: "18px 20px", marginBottom: 32 }}>
+            <div className="pw-card" style={{ padding: "22px 24px", marginBottom: 28 }}>
               <p
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 500,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   color: "var(--pw-muted)",
                   fontFamily: "var(--pw-font-body)",
-                  marginBottom: 14,
+                  marginBottom: 16,
                 }}
               >
                 Profile summary
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 32px" }}>
                 {pathwayInput.personal.nationality && (
                   <SummaryRow label="Nationality" value={pathwayInput.personal.nationality} />
                 )}
@@ -143,20 +148,20 @@ function SummaryRow({
     <div>
       <p
         style={{
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 500,
           letterSpacing: "0.08em",
           textTransform: "uppercase",
           color: "var(--pw-muted)",
           fontFamily: "var(--pw-font-body)",
-          marginBottom: 2,
+          marginBottom: 3,
         }}
       >
         {label}
       </p>
       <p
         style={{
-          fontSize: 13,
+          fontSize: 14,
           fontFamily: "var(--pw-font-body)",
           color: accent ? "var(--pw-accent)" : "var(--pw-ink)",
           fontWeight: accent ? 500 : 400,

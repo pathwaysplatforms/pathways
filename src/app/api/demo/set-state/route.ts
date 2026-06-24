@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user || user.email !== DEMO_EMAIL) {
+    const isDev = process.env.NODE_ENV === "development";
+    if (!user || (!isDev && user.email !== DEMO_EMAIL)) {
       return NextResponse.json(
         { error: { code: "FORBIDDEN", message: "Only available for the demo user" } },
         { status: 403 }
@@ -61,12 +62,19 @@ export async function GET(request: NextRequest) {
       await db.from("profiles").update({ onboarding_status: "complete" }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
     } else {
-      const { data: pathway } = await db
+      // Prefer Express Entry (has seeded steps). Fall back to any active pathway.
+      const { data: expressEntry } = await db
         .from("pathways")
-        .select("id")
+        .select("id, slug")
+        .eq("slug", "express-entry")
         .eq("is_active", true)
-        .limit(1)
         .single();
+
+      const { data: anyPathway } = expressEntry
+        ? { data: null }
+        : await db.from("pathways").select("id, slug").eq("is_active", true).limit(1).single();
+
+      const pathway = (expressEntry ?? anyPathway) as { id: string; slug: string } | null;
 
       if (!pathway) {
         return NextResponse.json(
@@ -75,7 +83,11 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      await db.from("profiles").update({ onboarding_status: "complete" }).eq("id", profile.id);
+      await db.from("profiles").update({
+        onboarding_status: "complete",
+        onboarding_step: "complete",
+        selected_pathway_slug: pathway.slug,
+      }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
       await db.from("applications").insert({
         profile_id: profile.id,

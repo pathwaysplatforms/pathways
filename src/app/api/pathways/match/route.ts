@@ -17,7 +17,14 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 function handleError(error: unknown, log: Logger): Response {
   if (error instanceof PathwaysError) {
-    log.error({ action: "api.pathways.match.error", code: error.code, message: error.message });
+    const cause = error.cause as { status?: number; message?: string } | undefined;
+    log.error({
+      action: "api.pathways.match.error",
+      code: error.code,
+      message: error.message,
+      causeStatus: cause?.status,
+      causeMessage: cause?.message,
+    });
     return Response.json(
       { error: { code: error.code, message: error.message } },
       { status: error.statusCode }
