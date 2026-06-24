@@ -620,6 +620,7 @@ draws:
   canada_express_entry_latest:
     url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html
     use_browser: false
+    content_type: html
     country: canada
     program: express_entry
     parser: canada_draws
@@ -627,6 +628,24 @@ draws:
   canada_express_entry_history:
     url: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/mandate/policies-operational-instructions-agreements/ministerial-instructions/express-entry-rounds.html
     use_browser: false
+    content_type: html
     country: canada
     program: express_entry
     parser: canada_draws
+
+pool_snapshots:
+  canada_ee_pool_ckan:
+    # IRCC open data — CRS score distribution (CKAN package)
+    ckan_api_url: https://open.canada.ca/data/api/3/action/package_show
+    ckan_dataset_id: 011516e8-53e4-44f3-a5d4-c0c4c5ba3c0a
+    country: canada
+    program: express_entry
+    parser: canada_pool_snapshots
+
+  canada_ee_pool_results_page:
+    # HTML fallback — IRCC pool statistics results page
+    url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations/results.html
+    content_type: html
+    country: canada
+    program: express_entry
+    parser: canada_pool_snapshots

@@ -1,4 +1,5 @@
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
+import type { ScoredPathway, VisaType } from "@/modules/voice/matcher-engine";
 
 /** Education levels in the canonical Express Entry taxonomy. */
 export type EducationLevel =
@@ -76,6 +77,12 @@ export interface PathwayInput {
   data_completeness_pct: number;
   collection_method: "voice" | "chat" | "form";
   voice_session_id: string | null;
+  /** Pre-computed Akinator result injected when the matcher converges during the voice session. */
+  matcher_preselect?: {
+    top_visa_types: VisaType[];
+    scores: ScoredPathway[];
+    converged_at_turn: number;
+  };
 }
 
 /** CRS estimate output with context fields. */
@@ -241,12 +248,15 @@ export function computeCrsEstimate(input: PathwayInput): CrsEstimate {
  * Build the canonical PathwayInput JSON document from a voice session's
  * extracted profile. This is the only interface between the pre-pathway flow
  * and the pathway matching engine.
+ * Pass matcherResult when the Akinator matcher has converged — it is embedded
+ * as matcher_preselect so the downstream pipeline can use it as a fast-path hint.
  */
 export function buildPathwayInput(
   profileId: string,
   profile: Partial<VoiceExtractedProfile>,
   voiceSessionId: string | null,
-  method: "voice" | "chat" | "form" = "voice"
+  method: "voice" | "chat" | "form" = "voice",
+  matcherResult?: { scores: ScoredPathway[]; convergedAtTurn: number } | null
 ): PathwayInput {
   const age = computeAge(profile.date_of_birth ?? null) ?? 0;
   const eduNormalized = normalizeEducationLevel(profile.education_level_voice ?? null);
@@ -340,6 +350,14 @@ export function buildPathwayInput(
     based_on: estimate.basedOn,
     missing_for_exact: estimate.missingForExact,
   };
+
+  if (matcherResult && matcherResult.scores.length > 0) {
+    input.matcher_preselect = {
+      top_visa_types: matcherResult.scores.slice(0, 3).map((s) => s.visaType),
+      scores: matcherResult.scores,
+      converged_at_turn: matcherResult.convergedAtTurn,
+    };
+  }
 
   return input;
 }

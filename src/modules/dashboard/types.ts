@@ -48,6 +48,13 @@ export interface StepEmailTemplate {
 export interface EnrichedApplicationStep extends ApplicationStep {
   resources?: StepResource[];
   emailTemplates?: StepEmailTemplate[];
+  checklistItems?: string[] | null;
+  proTips?: string | null;
+  officialUrl?: string | null;
+  feeCad?: number | null;
+  estimatedDaysMin?: number | null;
+  estimatedDaysMax?: number | null;
+  formNumbers?: string[] | null;
 }
 
 /** Minimal profile fields passed to client components for template resolution. */

@@ -5,6 +5,7 @@ import { createRequestLogger } from "@/lib/logger";
 import { requireAuth, getProfile } from "@/modules/auth/service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildPathwayInput } from "@/lib/pathway-input";
+import type { ScoredPathway } from "@/modules/voice/matcher-engine";
 import { computeProfileCompletenessPct } from "@/lib/completeness";
 import { PathwaysError, AuthError, ValidationError, DatabaseError } from "@/lib/errors";
 import type { Logger } from "pino";
@@ -58,8 +59,18 @@ export async function POST(req: NextRequest): Promise<Response> {
     const voiceSessionId = body.voiceSessionId ?? null;
     const method = body.method ?? "voice";
 
-    const extracted = (profile.voice_session_data ?? {}) as Partial<VoiceExtractedProfile>;
-    const pathwayInput = buildPathwayInput(profile.id, extracted, voiceSessionId, method);
+    const rawSessionData = (profile.voice_session_data ?? {}) as Record<string, unknown>;
+    const extracted = rawSessionData as Partial<VoiceExtractedProfile>;
+
+    // Preserve Akinator preselect written by finalizeVoiceSession (if matcher converged during voice)
+    const matcherScored = rawSessionData._matcher_scored as ScoredPathway[] | undefined;
+    const matcherTurnCount = rawSessionData._matcher_turn_count as number | undefined;
+    const matcherResult =
+      matcherScored && matcherScored.length > 0 && matcherTurnCount != null
+        ? { scores: matcherScored, convergedAtTurn: matcherTurnCount }
+        : null;
+
+    const pathwayInput = buildPathwayInput(profile.id, extracted, voiceSessionId, method, matcherResult);
     const profileCompletenessPct = computeProfileCompletenessPct(extracted);
 
     const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;

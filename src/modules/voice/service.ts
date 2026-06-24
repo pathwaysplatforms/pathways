@@ -7,6 +7,17 @@ import { ValidationError, DatabaseError } from "@/lib/errors";
 import { TurnResponseSchema, VoiceExtractedProfileSchema, ConfirmRequestSchema } from "./types";
 import type { TurnResponse, VoiceExtractedProfile, Message, PartialExtractedProfile, ConfirmRequest } from "./types";
 import { computeProfileCompletenessPct } from "@/lib/completeness";
+import { buildPathwayInput } from "@/lib/pathway-input";
+import {
+  ALL_VISA_TYPES,
+  survivingPathways,
+  pickNextQuestion,
+  scorePathways,
+  updateMatcher,
+  profileToAnswers,
+  initialMatcherState,
+} from "./matcher-engine";
+import type { MatcherState, VisaType } from "./matcher-engine";
 
 const OPENING_GREETING =
   "Hi! I'm your Pathways assistant. I'll ask you a few questions to find the best Canadian immigration pathway for your situation — it takes about 3 minutes. To get started, could you tell me your full name?";
@@ -546,7 +557,8 @@ export async function finalizeVoiceSession(
   extractedProfile: VoiceExtractedProfile,
   fullTranscript: string,
   durationSeconds: number,
-  log: Logger
+  log: Logger,
+  convergedMatcher?: MatcherState | null
 ): Promise<void> {
   log.info({ action: "voice.session.finalizing", sessionId, profileId });
 
@@ -614,6 +626,33 @@ export async function finalizeVoiceSession(
       { profileId },
       profileError
     );
+  }
+
+  // When the Akinator matcher has converged, write an early pathway_input_json so the
+  // async pipeline can begin processing before the user hits "Confirm" on the review page.
+  if (convergedMatcher?.converged && convergedMatcher.scored && convergedMatcher.scored.length > 0) {
+    const pathwayInput = buildPathwayInput(
+      profileId,
+      extractedProfile,
+      sessionId,
+      "voice",
+      { scores: convergedMatcher.scored, convergedAtTurn: convergedMatcher.turnCount }
+    );
+    const { error: piError } = await adminDb
+      .from("profiles")
+      .update({ pathway_input_json: pathwayInput as unknown as Record<string, unknown> })
+      .eq("id", profileId);
+    if (piError) {
+      // Non-fatal: confirm route will write it again; just log and continue.
+      log.warn({ action: "voice.session.matcher.pathway_input.warn", profileId, error: piError.message });
+    } else {
+      log.info({
+        action: "voice.session.matcher.pathway_input.written",
+        profileId,
+        topVisaType: convergedMatcher.scored[0]?.visaType,
+        surviving: convergedMatcher.surviving.length,
+      });
+    }
   }
 
   log.info({ action: "voice.session.finalized", sessionId, profileId, status });
@@ -688,8 +727,18 @@ export async function* streamConversationTurn(
     transcript: string | null;
   };
 
-  const currentPartial = (sessionRow.extracted_data ?? {}) as PartialExtractedProfile;
+  const rawExtracted = (sessionRow.extracted_data ?? {}) as Record<string, unknown>;
+  const currentPartial = rawExtracted as PartialExtractedProfile;
   const currentTranscript = sessionRow.transcript ?? "";
+
+  // Restore persisted matcher state from extracted_data (underscore-prefixed keys)
+  const prevMatcherState: MatcherState = {
+    answers: profileToAnswers(currentPartial),
+    surviving: (rawExtracted._matcher_surviving as VisaType[] | undefined) ?? [...ALL_VISA_TYPES],
+    turnCount: (rawExtracted._matcher_turn_count as number | undefined) ?? 0,
+    converged: (rawExtracted._matcher_converged as boolean | undefined) ?? false,
+    scored: null,
+  };
 
   const truncatedHistory = history.slice(-20);
   const userTurn: Anthropic.MessageParam[] = transcript.trim()
@@ -708,14 +757,20 @@ export async function* streamConversationTurn(
     messages.push({ role: "user", content: "Hello" });
   }
 
-  const collectedFields = Object.entries(currentPartial as Record<string, unknown>)
-    .filter(([k, v]) => v !== null && v !== undefined && k !== "requires_review")
+  // Exclude internal matcher keys from the "already collected" context shown to Haiku
+  const collectedFields = Object.entries(rawExtracted)
+    .filter(([k, v]) => !k.startsWith("_") && v !== null && v !== undefined && k !== "requires_review")
     .map(([k, v]) => `  ${k}: ${JSON.stringify(v)}`)
     .join("\n");
 
-  const systemWithContext = collectedFields
+  // Append the matcher's next-question hint so Haiku prioritises the most discriminating field
+  const prevNextQuestion = rawExtracted._matcher_next_question as string | null | undefined;
+  let systemWithContext = collectedFields
     ? `${VOICE_SYSTEM_PROMPT}\n\n## FIELDS ALREADY COLLECTED — DO NOT ASK AGAIN\n${collectedFields}`
     : VOICE_SYSTEM_PROMPT;
+  if (prevNextQuestion) {
+    systemWithContext += `\n\nPriority field to establish if not yet known: ${prevNextQuestion}`;
+  }
 
   let fullText = "";
   const stream = anthropic.messages.stream({
@@ -786,15 +841,40 @@ export async function* streamConversationTurn(
 
   const updatedPartial = mergeDelta(currentPartial, delta, requires_review);
 
+  // Update Akinator matcher from the newly merged profile
+  const newMatcherState = updateMatcher(prevMatcherState, updatedPartial);
+  const answeredKeys = new Set(Object.keys(newMatcherState.answers) as (keyof typeof newMatcherState.answers)[]);
+  const nextQuestion = pickNextQuestion(newMatcherState.surviving, answeredKeys);
+
+  log.info({
+    action: "voice.matcher.update",
+    sessionId,
+    surviving: newMatcherState.surviving.length,
+    turnCount: newMatcherState.turnCount,
+    converged: newMatcherState.converged,
+    nextQuestion,
+  });
+
   const updatedTranscript =
     currentTranscript +
     (currentTranscript ? "\n" : "") +
     (transcript.trim() ? `User: ${transcript}\n` : "") +
     `Agent: ${message}`;
 
+  // Persist profile fields AND matcher metadata (underscore-prefixed) together in extracted_data
   const { error: updateError } = await db
     .from("voice_sessions")
-    .update({ extracted_data: updatedPartial, transcript: updatedTranscript })
+    .update({
+      extracted_data: {
+        ...updatedPartial,
+        _matcher_surviving: newMatcherState.surviving,
+        _matcher_turn_count: newMatcherState.turnCount,
+        _matcher_converged: newMatcherState.converged,
+        _matcher_next_question: nextQuestion ?? null,
+        _matcher_scored: newMatcherState.scored ?? null,
+      } as unknown as Record<string, unknown>,
+      transcript: updatedTranscript,
+    })
     .eq("id", sessionId);
 
   if (updateError) {
@@ -810,7 +890,8 @@ export async function* streamConversationTurn(
       finalProfile,
       updatedTranscript,
       durationSeconds,
-      log
+      log,
+      newMatcherState
     );
   }
 
