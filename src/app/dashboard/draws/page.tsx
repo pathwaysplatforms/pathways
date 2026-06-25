@@ -1,25 +1,11 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
 import { getProfile } from '@/modules/auth/service';
-import { DashboardShell } from '@/components/dashboard/DashboardShell';
 import { DrawsClient } from '@/components/draws/DrawsClient';
 import type { Draw } from '@/components/draws/DrawsClient';
-
-/** Derives avatar initials (up to 2 chars) from a full name. */
-function deriveInitials(fullName: string | null): string {
-  if (!fullName) return '?';
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length === 1) return (parts[0]?.[0] ?? '?').toUpperCase();
-  return `${parts[0]?.[0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase();
-}
-
-/** Extracts the first name from a full name string. */
-function deriveFirstName(fullName: string | null): string {
-  if (!fullName) return 'there';
-  return fullName.split(' ')[0] ?? 'there';
-}
 
 /** Express Entry draws history page — reference data, no auth required on the fetch itself. */
 export default async function DrawsPage() {
@@ -42,62 +28,56 @@ export default async function DrawsPage() {
   if (error) {
     logger.error({ action: 'draws.fetchError', error });
     return (
-      <DashboardShell
-        avatarInitials={deriveInitials(profile.full_name)}
-        firstName={deriveFirstName(profile.full_name)}
-      >
-        <div className="flex-1 overflow-y-auto flex items-center justify-center p-7">
-          <div
-            className="pw-entry is-visible"
+      <div className="flex-1 overflow-y-auto flex items-center justify-center p-7">
+        <div
+          className="pw-entry is-visible"
+          style={{
+            maxWidth: 400,
+            textAlign: 'center',
+            padding: '32px 28px',
+            border: '1px solid rgba(0,0,0,0.08)',
+            borderRadius: 12,
+          }}
+        >
+          <p
             style={{
-              maxWidth: 400,
-              textAlign: 'center',
-              padding: '32px 28px',
-              border: '1px solid rgba(0,0,0,0.08)',
-              borderRadius: 12,
+              fontFamily: 'var(--pw-font-display)',
+              fontSize: '1.25rem',
+              color: '#0D0D0D',
+              marginBottom: 8,
             }}
           >
-            <p
-              style={{
-                fontFamily: 'var(--pw-font-display)',
-                fontSize: '1.25rem',
-                fontWeight: 700,
-                color: '#0D0D0D',
-                marginBottom: 8,
-              }}
-            >
-              Failed to load draws
-            </p>
-            <p
-              style={{
-                fontFamily: 'var(--pw-font-body)',
-                fontSize: 14,
-                color: '#6B6B6B',
-                marginBottom: 20,
-              }}
-            >
-              {error.message ?? 'An unexpected error occurred. Please try again.'}
-            </p>
-            <a
-              href="/dashboard/draws"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '9px 20px',
-                fontFamily: 'var(--pw-font-body)',
-                fontSize: 14,
-                fontWeight: 500,
-                color: '#fff',
-                background: '#0D0D0D',
-                borderRadius: 9999,
-                textDecoration: 'none',
-              }}
-            >
-              Retry
-            </a>
-          </div>
+            Failed to load draws
+          </p>
+          <p
+            style={{
+              fontFamily: 'var(--pw-font-body)',
+              fontSize: 14,
+              color: '#6B6B6B',
+              marginBottom: 20,
+            }}
+          >
+            {error.message ?? 'An unexpected error occurred. Please try again.'}
+          </p>
+          <a
+            href="/dashboard/draws"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '9px 20px',
+              fontFamily: 'var(--pw-font-body)',
+              fontSize: 14,
+              fontWeight: 500,
+              color: '#fff',
+              background: '#0D0D0D',
+              borderRadius: 9999,
+              textDecoration: 'none',
+            }}
+          >
+            Retry
+          </a>
         </div>
-      </DashboardShell>
+      </div>
     );
   }
 
@@ -141,11 +121,17 @@ export default async function DrawsPage() {
   logger.info({ action: 'draws.complete', count: draws.length });
 
   return (
-    <DashboardShell
-      avatarInitials={deriveInitials(profile.full_name)}
-      firstName={deriveFirstName(profile.full_name)}
-    >
+    <>
+      <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
+        <Link
+          href="/dashboard"
+          className="text-pw-muted hover:text-pw-ink transition-colors"
+          style={{ fontFamily: 'var(--pw-font-body)', fontSize: '13px', textDecoration: 'none' }}
+        >
+          ← Back to Dashboard
+        </Link>
+      </div>
       <DrawsClient draws={draws} />
-    </DashboardShell>
+    </>
   );
 }

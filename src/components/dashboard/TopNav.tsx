@@ -34,12 +34,19 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
   const [tabsReady, setTabsReady] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setTabsReady(true), 50);
     return () => clearTimeout(t);
   }, []);
+
+  // Clear pending state the moment the real pathname catches up
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -79,15 +86,13 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
     { label: 'Settings',    icon: Settings,         href: '/dashboard/account',       disabled: false },
   ];
 
-  const isPaid = subscriptionStatus === 'paid';
-
   return (
     <nav
-      className="h-16 flex items-center justify-between px-8 flex-shrink-0 bg-white border-b border-black/[0.08]"
+      className="h-16 flex items-center px-8 flex-shrink-0 bg-white border-b border-black/[0.08]"
       aria-label="Main navigation"
     >
       {/* Wordmark */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex-1 flex items-center gap-2">
         <span
           className="text-pw-ink"
           style={{ fontFamily: 'var(--pw-font-display)', fontSize: 20, fontWeight: 600 }}
@@ -100,12 +105,10 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
       {/* Nav links */}
       <div className="flex items-center h-full">
         {navItems.map(({ label, icon: Icon, href, disabled }) => {
-          const isActive =
-            !disabled &&
-            (pathname === href ||
-              (href !== '#' &&
-                href !== '/dashboard' &&
-                pathname.startsWith(href)));
+          // Optimistic: treat clicked tab as active before navigation settles
+          const isActive = pendingHref != null
+            ? pendingHref === href
+            : !disabled && (pathname === href || (href !== '#' && href !== '/dashboard' && pathname.startsWith(href)));
 
           if (disabled) {
             return (
@@ -136,12 +139,17 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
             <Link
               key={label}
               href={href}
+              prefetch
               className={tabClass}
+              onClick={() => setPendingHref(href)}
+              onMouseEnter={() => { setHoveredLabel(label); router.prefetch(href); }}
+              onMouseLeave={() => setHoveredLabel(null)}
               style={{
                 fontSize: 14,
                 fontWeight: 400,
                 fontFamily: 'var(--pw-font-body)',
-                color: isActive ? 'var(--pw-ink)' : 'var(--pw-muted)',
+                color: (isActive || hoveredLabel === label) ? 'var(--pw-ink)' : 'var(--pw-muted)',
+                transition: 'color 90ms ease',
               }}
             >
               <Icon size={14} />
@@ -152,24 +160,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
       </div>
 
       {/* Account area */}
-      <div ref={dropdownRef} className="flex items-center gap-3 flex-shrink-0" style={{ position: 'relative' }}>
-        {/* Subscription badge */}
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '2px 8px',
-            borderRadius: 999,
-            fontSize: 11,
-            fontWeight: 500,
-            fontFamily: 'var(--pw-font-body)',
-            backgroundColor: isPaid ? 'var(--pw-accent)' : 'rgba(0,0,0,0.06)',
-            color: isPaid ? '#fff' : 'var(--pw-muted)',
-          }}
-        >
-          {TIER_LABELS[subscriptionStatus]}
-        </span>
-
+      <div ref={dropdownRef} className="flex-1 flex justify-end items-center" style={{ position: 'relative' }}>
         {/* Avatar button */}
         <button
           type="button"
@@ -187,16 +178,6 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
             borderRadius: 9999,
           }}
         >
-          <span
-            style={{
-              fontSize: 14,
-              fontWeight: 500,
-              fontFamily: 'var(--pw-font-body)',
-              color: 'var(--pw-muted)',
-            }}
-          >
-            {firstName}
-          </span>
           <div
             className="flex items-center justify-center rounded-full bg-pw-ink text-white select-none flex-shrink-0"
             style={{ width: 34, height: 34, fontSize: 12, fontFamily: 'var(--pw-font-body)' }}
@@ -238,7 +219,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
             </div>
 
             <Link
-              href="/account"
+              href="/dashboard/account"
               role="menuitem"
               onClick={() => setDropdownOpen(false)}
               style={{

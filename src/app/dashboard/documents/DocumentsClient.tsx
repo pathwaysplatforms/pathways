@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { DOCUMENT_TYPE_OPTIONS, DOCUMENT_TYPE_LABEL, MAX_FILES_PER_USER } from '@/modules/vault/types';
 import type { VaultFile, DocumentRequirement } from '@/modules/vault/types';
-import DisplayCards from '@/components/ui/display-cards';
 
 interface DocumentsClientProps {
   initialFiles: VaultFile[];
@@ -284,11 +283,12 @@ function ExpandedCard({
           className="relative flex flex-col gap-5 rounded-panel"
           style={{
             width: '100%',
-            maxWidth: 460,
+            maxWidth: 500,
+            minHeight: 520,
             background: 'var(--color-bg-surface)',
             boxShadow: 'var(--shadow-card-lg)',
             border: '1px solid var(--color-border-light)',
-            padding: '28px',
+            padding: '32px',
             pointerEvents: 'auto',
           }}
         >
@@ -567,76 +567,178 @@ function DocumentStack({ files, onExpand }: DocumentStackProps) {
   );
 }
 
-// ── Document grid card ──────────────────────────────────────────────────────────
+// ── Document icon card ──────────────────────────────────────────────────────────
 
 interface DocumentGridCardProps {
   file: VaultFile;
   onExpand: (file: VaultFile) => void;
 }
 
-/** Single card in the full document grid — clicking opens the expanded overlay. */
-function DocumentGridCard({ file, onExpand }: DocumentGridCardProps) {
+function docTypeColor(mimeType: string): string {
+  if (mimeType === 'application/pdf') return '#DC2626';
+  if (mimeType.startsWith('image/')) return '#7C3AED';
+  return '#4B5563';
+}
+
+function docTypeBadge(mimeType: string): string {
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType === 'image/png') return 'PNG';
+  if (mimeType === 'image/jpeg') return 'JPG';
+  return 'FILE';
+}
+
+/** Google Drive–style document card — large thumbnail preview with footer strip. */
+function DocumentIconCard({ file, onExpand }: DocumentGridCardProps) {
+  const [hovered, setHovered] = useState(false);
+  const displayName = file.displayName ?? file.fileName;
+  const typeColor = docTypeColor(file.mimeType);
+  const badge = docTypeBadge(file.mimeType);
+  const nameWithoutExt = displayName.replace(/\.[^.]+$/, '');
+  const label = nameWithoutExt.length > 22 ? nameWithoutExt.slice(0, 20) + '…' : nameWithoutExt;
+
   return (
-    <div
-      className="card card-interactive flex flex-col gap-3"
-      style={{ cursor: 'pointer', padding: '16px' }}
+    <button
+      type="button"
       onClick={() => onExpand(file)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onExpand(file); }}
-      aria-label={`Open ${file.displayName ?? file.fileName}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-label={`Open ${displayName}`}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+        border: hovered ? '1.5px solid #C8C9CC' : '1.5px solid #dddfe4',
+        background: '#ffffff',
+        cursor: 'pointer', borderRadius: 8, width: '100%',
+        transition: 'border-color 100ms ease, box-shadow 100ms ease',
+        boxShadow: hovered
+          ? '0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)'
+          : '0 1px 3px rgba(0,0,0,0.06)',
+        textAlign: 'left', fontFamily: 'var(--pw-font-body)', overflow: 'hidden',
+      }}
     >
-      <div className="flex items-start gap-3">
-        <span
-          className="inline-flex size-9 flex-shrink-0 items-center justify-center rounded-icon"
-          style={{ background: iconBg(file.mimeType) }}
-        >
-          <FileTypeIcon mimeType={file.mimeType} className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p
-            className="truncate text-sm font-medium"
-            style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--pw-font-display)' }}
-            title={file.displayName ?? file.fileName}
-          >
-            {file.displayName ?? file.fileName}
-          </p>
-          {file.documentType ? (
-            <span
-              className="mt-1.5 inline-block rounded-badge px-2 py-0.5 text-[11px]"
-              style={{
-                background: 'rgba(26,86,219,0.07)',
-                color: 'var(--pw-accent)',
-                border: '1px solid rgba(26,86,219,0.25)',
-                fontFamily: 'var(--pw-font-body)',
-              }}
-            >
-              {DOCUMENT_TYPE_LABEL[file.documentType] ?? file.documentType}
-            </span>
-          ) : (
-            <span
-              className="mt-1.5 inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px]"
-              style={{
-                background: 'rgba(26,86,219,0.05)',
-                color: 'var(--pw-accent)',
-                border: '1px dashed rgba(26,86,219,0.3)',
-                fontFamily: 'var(--pw-font-body)',
-              }}
-            >
-              Add label
-            </span>
-          )}
+      {/* Thumbnail area */}
+      <div style={{
+        position: 'relative', background: '#F8F9FA',
+        height: 160, overflow: 'hidden', flexShrink: 0,
+      }}>
+        {/* Folded corner */}
+        <div style={{
+          position: 'absolute', top: 0, right: 0,
+          width: 22, height: 22,
+          background: '#ECEEF1',
+          borderBottomLeftRadius: 5,
+          borderLeft: '1.5px solid #dddfe4',
+          borderBottom: '1.5px solid #dddfe4',
+        }} />
+        {/* Simulated document text lines */}
+        <div style={{ padding: '18px 16px 0' }}>
+          {[72, 88, 60, 80, 65, 78, 55, 82, 68, 74, 58, 86, 63].map((w, i) => (
+            <div key={i} style={{
+              height: 3, width: `${w}%`, marginBottom: 5,
+              background: i % 4 === 0 ? '#D1D5DB' : '#E5E7EB',
+              borderRadius: 9999,
+            }} />
+          ))}
+        </div>
+        {/* Type badge strip at bottom of thumbnail */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 22,
+          background: typeColor,
+          display: 'flex', alignItems: 'center', paddingLeft: 10,
+        }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.07em', fontFamily: 'var(--pw-font-body)' }}>
+            {badge}
+          </span>
         </div>
       </div>
-      <div className="flex items-center justify-between pt-0.5">
-        <p className="text-xs" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--pw-font-body)' }}>
-          {formatBytes(file.fileSize)} · {formatDate(file.uploadedAt)}
+
+      {/* Footer */}
+      <div style={{
+        padding: '10px 12px 11px',
+        borderTop: '1px solid #ECEEF1',
+        background: '#fff',
+      }}>
+        <p style={{
+          fontSize: 12, color: '#111827', fontFamily: 'var(--pw-font-body)',
+          lineHeight: 1.35, margin: 0, fontWeight: 500,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {label}
         </p>
-        <p
-          className="text-[10px] font-medium uppercase tracking-widest"
-          style={{ color: 'var(--pw-accent)' }}
-        >
-          Open →
+        {file.documentType && (
+          <p style={{
+            fontSize: 10, color: '#9CA3AF', fontFamily: 'var(--pw-font-body)',
+            lineHeight: 1.3, margin: '2px 0 0',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {DOCUMENT_TYPE_LABEL[file.documentType] ?? file.documentType}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
+// ── Placeholder card data ───────────────────────────────────────────────────────
+
+interface PlaceholderData {
+  label: string;
+  badge: string;
+  typeColor: string;
+  lineWidths: number[];
+}
+
+const PLACEHOLDER_CARDS: PlaceholderData[] = [
+  { label: 'Passport', badge: 'PDF', typeColor: '#DC2626', lineWidths: [72, 88, 60, 80, 65, 78, 55, 82, 68, 74, 58, 86, 63] },
+  { label: 'IELTS Results', badge: 'PDF', typeColor: '#DC2626', lineWidths: [80, 65, 90, 70, 55, 82, 60, 76, 88, 62, 72, 58, 84] },
+  { label: 'Bank Statement', badge: 'PDF', typeColor: '#DC2626', lineWidths: [60, 75, 88, 62, 78, 55, 70, 84, 66, 80, 58, 74, 68] },
+  { label: 'University Transcript', badge: 'PDF', typeColor: '#DC2626', lineWidths: [85, 60, 75, 90, 68, 72, 58, 80, 64, 88, 70, 56, 78] },
+  { label: 'Employment Letter', badge: 'PDF', typeColor: '#DC2626', lineWidths: [70, 82, 58, 76, 88, 64, 74, 60, 86, 68, 78, 54, 80] },
+  { label: 'Photo ID', badge: 'JPG', typeColor: '#7C3AED', lineWidths: [78, 62, 84, 66, 72, 58, 80, 70, 88, 64, 76, 60, 82] },
+];
+
+/** Ghost placeholder card matching DocumentIconCard — shown when vault is empty. */
+function PlaceholderDocumentCard({ label, badge, typeColor, lineWidths }: PlaceholderData) {
+  return (
+    <div
+      aria-hidden
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+        border: '1.5px solid #dddfe4', background: '#ffffff',
+        borderRadius: 8, width: '100%', overflow: 'hidden',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        opacity: 0.38, pointerEvents: 'none',
+      }}
+    >
+      <div style={{ position: 'relative', background: '#F8F9FA', height: 160, overflow: 'hidden' }}>
+        <div style={{
+          position: 'absolute', top: 0, right: 0, width: 22, height: 22,
+          background: '#ECEEF1', borderBottomLeftRadius: 5,
+          borderLeft: '1.5px solid #dddfe4', borderBottom: '1.5px solid #dddfe4',
+        }} />
+        <div style={{ padding: '18px 16px 0' }}>
+          {lineWidths.map((w, i) => (
+            <div key={i} style={{
+              height: 3, width: `${w}%`, marginBottom: 5,
+              background: i % 4 === 0 ? '#D1D5DB' : '#E5E7EB', borderRadius: 9999,
+            }} />
+          ))}
+        </div>
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 22,
+          background: typeColor, display: 'flex', alignItems: 'center', paddingLeft: 10,
+        }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.07em', fontFamily: 'var(--pw-font-body)' }}>
+            {badge}
+          </span>
+        </div>
+      </div>
+      <div style={{ padding: '10px 12px 11px', borderTop: '1px solid #ECEEF1', background: '#fff' }}>
+        <p style={{
+          fontSize: 12, color: '#111827', fontFamily: 'var(--pw-font-body)',
+          lineHeight: 1.35, margin: 0, fontWeight: 500,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {label}
         </p>
       </div>
     </div>
@@ -934,7 +1036,7 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
       <div className="flex-1 overflow-y-auto p-[28px]">
 
         {/* Header + error + dropzone */}
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-3xl">
           <div className="pw-entry mb-6 flex items-baseline justify-between">
             <p className="pw-eyebrow">Documents</p>
             <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -963,7 +1065,7 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
               onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
               onClick={uploading ? undefined : () => fileInputRef.current?.click()}
-              style={{ cursor: uploading ? 'default' : 'pointer', padding: '24px 20px' }}
+              style={{ cursor: uploading ? 'default' : 'pointer' }}
             >
               {uploading ? (
                 <div className="flex items-center justify-center gap-3">
@@ -1024,53 +1126,31 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
           )}
         </div>
 
-        {/* Content area */}
-        {files.length === 0 ? (
-          <div className="mx-auto max-w-2xl">
-            <div className="pw-entry flex flex-col items-center gap-8 pt-6">
-              <div className="flex flex-col items-center gap-2 text-center">
-                <p className="text-[15px] font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                  Your vault is empty
-                </p>
-                <p className="max-w-xs text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-                  Upload your immigration documents above — they&apos;ll appear here, labelled and ready for any application.
-                </p>
-              </div>
-              <div className="pb-12">
-                <DisplayCards />
-              </div>
+        {/* Document grid — always visible, placeholder cards when empty */}
+        <div className="mx-auto max-w-3xl">
+          <div className="pw-entry">
+            <p className="pw-eyebrow mb-4">
+              {files.length === 0 ? 'All documents (0)' : `All documents (${files.length})`}
+            </p>
+            <div
+              className="grid gap-3"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+            >
+              {files.length > 0
+                ? files.map((file) => (
+                    <DocumentIconCard
+                      key={file.id}
+                      file={file}
+                      onExpand={openExpanded}
+                    />
+                  ))
+                : PLACEHOLDER_CARDS.map((card) => (
+                    <PlaceholderDocumentCard key={card.label} {...card} />
+                  ))
+              }
             </div>
           </div>
-        ) : (
-          <div className="mx-auto max-w-2xl">
-
-            {/* Recently added teaser */}
-            <div className="pw-entry mb-10">
-              <p className="pw-eyebrow mb-4">Recently added</p>
-              <div className="flex justify-center">
-                <DocumentStack files={files} onExpand={openExpanded} />
-              </div>
-            </div>
-
-            {/* Full document grid */}
-            <div className="pw-entry">
-              <p className="pw-eyebrow mb-4">All documents ({files.length})</p>
-              <div
-                className="grid gap-3"
-                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}
-              >
-                {files.map((file) => (
-                  <DocumentGridCard
-                    key={file.id}
-                    file={file}
-                    onExpand={openExpanded}
-                  />
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
+        </div>
 
       </div>
 

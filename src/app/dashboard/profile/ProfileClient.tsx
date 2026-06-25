@@ -155,16 +155,15 @@ function CrsHero({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            padding: '8px 18px',
+            padding: '10px 20px',
             fontFamily: 'var(--pw-font-ui)',
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: 500,
-            letterSpacing: '0.04em',
             color: isRecalculating ? '#9B9B9B' : '#0D0D0D',
             background: 'transparent',
             border: '1px solid',
             borderColor: isRecalculating ? 'rgba(0,0,0,0.15)' : '#0D0D0D',
-            borderRadius: 0,
+            borderRadius: 8,
             cursor: isRecalculating ? 'not-allowed' : 'pointer',
             flexShrink: 0,
             transition: 'background 150ms ease, color 150ms ease',
@@ -438,18 +437,27 @@ export function ProfileClient({ data: initialData }: ProfileClientProps) {
           <form action={resetOnboarding}>
             <button
               type="submit"
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(185,28,28,0.05)';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--pw-error)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(185,28,28,0.35)';
+              }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                padding: '7px 16px',
+                padding: '8px 20px',
                 fontFamily: 'var(--pw-font-ui)',
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: 500,
-                color: '#9B9B9B',
+                color: 'var(--pw-error)',
                 background: 'transparent',
-                border: '1px solid rgba(0,0,0,0.12)',
+                border: '1px solid rgba(185,28,28,0.35)',
                 borderRadius: 0,
                 cursor: 'pointer',
+                transition: 'background 150ms ease, border-color 150ms ease',
               }}
             >
               Redo onboarding

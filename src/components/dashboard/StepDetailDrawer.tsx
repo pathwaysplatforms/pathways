@@ -23,15 +23,7 @@ const font = { body: 'var(--pw-font-body)' as const };
 
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p style={{
-      fontFamily: font.body,
-      fontSize: 10,
-      fontWeight: 600,
-      letterSpacing: '0.12em',
-      color: '#9CA3AF',
-      textTransform: 'uppercase',
-      margin: '0 0 12px',
-    }}>
+    <p className="pw-eyebrow" style={{ margin: '0 0 12px' }}>
       {children}
     </p>
   );
@@ -54,7 +46,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
       onClick={handleCopy}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        padding: '6px 14px', borderRadius: 9999, border: `1px solid ${border}`,
+        padding: '6px 14px', borderRadius: 8, border: `1px solid ${border}`,
         background: copied ? '#F0FDF4' : '#FFFFFF',
         color: copied ? '#16A34A' : ink,
         fontFamily: font.body, fontSize: 12, fontWeight: 500,
@@ -397,12 +389,13 @@ export function CoverLetterSection({ step, pathwaySlug }: {
           disabled={loading || !pathwaySlug}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '10px 20px', borderRadius: 9999,
-            background: loading ? '#E5E7EB' : ink,
-            color: loading ? muted : '#FFFFFF',
+            padding: '9px 20px', borderRadius: 8,
+            background: 'transparent',
+            color: loading ? muted : ink,
+            border: `1px solid ${loading ? border : ink}`,
             fontFamily: font.body, fontSize: 13, fontWeight: 500,
-            border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-            marginBottom: 16,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            marginBottom: 16, transition: 'background 120ms ease, color 120ms ease',
           }}
         >
           {loading && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
@@ -430,7 +423,7 @@ export function CoverLetterSection({ step, pathwaySlug }: {
                 disabled={loading}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '6px 14px', borderRadius: 9999,
+                  padding: '6px 14px', borderRadius: 8,
                   border: `1px solid ${border}`, background: '#FFFFFF', color: ink,
                   fontFamily: font.body, fontSize: 12, fontWeight: 500,
                   cursor: loading ? 'not-allowed' : 'pointer',
@@ -721,9 +714,9 @@ export function StepDetailDrawer({
                 rel="noopener noreferrer"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '8px 16px', borderRadius: 9999,
-                  border: `1px solid ${accent}`, background: '#FFFFFF',
-                  fontFamily: font.body, fontSize: 13, color: accent,
+                  padding: '8px 16px', borderRadius: 8,
+                  border: `1px solid ${border}`, background: '#FFFFFF',
+                  fontFamily: font.body, fontSize: 13, color: ink,
                   textDecoration: 'none', fontWeight: 500,
                 }}
               >
@@ -788,7 +781,7 @@ export function StepDetailDrawer({
               <div style={{
                 position: 'relative', flex: 1,
                 display: 'flex', alignItems: 'center', gap: 8,
-                padding: '10px 16px', borderRadius: 9999,
+                padding: '10px 16px', borderRadius: 8,
                 background: '#F0FDF4', color: '#16A34A',
                 fontFamily: 'var(--pw-font-ui)', fontSize: 13, fontWeight: 500,
               }}>
@@ -810,15 +803,15 @@ export function StepDetailDrawer({
                 style={{
                   flexShrink: 0,
                   display: 'inline-flex', alignItems: 'center',
-                  padding: '8px 14px', borderRadius: 9999,
+                  padding: '8px 14px', borderRadius: 8,
                   border: `1px solid ${border}`, background: '#FFFFFF',
                   fontFamily: 'var(--pw-font-ui)', fontSize: 12, fontWeight: 500,
                   color: muted, cursor: isPending ? 'not-allowed' : 'pointer',
                   transition: 'color 120ms ease, border-color 120ms ease',
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.color = accent;
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = accent;
+                  (e.currentTarget as HTMLButtonElement).style.color = ink;
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = ink;
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.color = muted;
@@ -836,10 +829,10 @@ export function StepDetailDrawer({
               style={{
                 width: '100%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                padding: '10px 20px', borderRadius: 9999,
+                padding: '10px 20px', borderRadius: 8,
                 background: isPending ? '#E5E7EB' : ink,
                 color: isPending ? muted : '#FFFFFF',
-                fontFamily: 'var(--pw-font-ui)', fontSize: 13, fontWeight: 500,
+                fontFamily: 'var(--pw-font-ui)', fontSize: 14, fontWeight: 500,
                 border: 'none', cursor: isPending ? 'not-allowed' : 'pointer',
                 transition: 'opacity 100ms ease',
               }}

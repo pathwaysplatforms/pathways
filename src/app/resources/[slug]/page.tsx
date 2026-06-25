@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ExternalLink } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { BackButton } from "@/components/ui/BackButton";
 import { generateCoverDataURI } from "@/lib/cover-art";
 import { formatDate } from "@/lib/utils/format-date";
 import { readingTime } from "@/lib/utils/reading-time";
@@ -98,6 +99,7 @@ export default async function PostPage({ params }: PageProps) {
       </div>
 
       <div className="max-w-3xl mx-auto px-gutter-lg py-12">
+        <BackButton href="/resources" />
         {/* Meta */}
         <div className="mb-6">
           {tags.length > 0 && (

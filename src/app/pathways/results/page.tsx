@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getProfile } from "@/modules/auth/service";
 import { PathwayRecommendations } from "@/components/pathways/PathwayRecommendations";
+import { BackButton } from "@/components/ui/BackButton";
 
 /** Pathway match results — accessible only after onboarding is complete. */
 export default async function PathwayResultsPage() {
@@ -20,6 +21,7 @@ export default async function PathwayResultsPage() {
       style={{ background: "var(--pw-bg)", fontFamily: "var(--pw-font-body)" }}
     >
       <div className="max-w-4xl mx-auto">
+        <BackButton href="/dashboard" />
         <div className="mb-10">
           <p className="pw-eyebrow mb-3">Your results</p>
           <h1

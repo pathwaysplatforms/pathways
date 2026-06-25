@@ -287,17 +287,16 @@ export function SectionCard({
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                padding: '7px 20px',
+                padding: '10px 20px',
                 fontFamily: 'var(--pw-font-ui)',
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: 500,
                 color: '#fff',
                 background: isSaving ? 'rgba(0,0,0,0.3)' : '#0D0D0D',
                 border: 'none',
-                borderRadius: 0,
+                borderRadius: 8,
                 cursor: isSaving ? 'not-allowed' : 'pointer',
                 transition: 'background 150ms ease',
-                letterSpacing: '0.04em',
               }}
             >
               {isSaving ? 'Saving…' : 'Save'}

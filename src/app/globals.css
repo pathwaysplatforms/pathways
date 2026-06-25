@@ -355,11 +355,11 @@ html, body {
 
   /* Upload zone */
   .doc-upload-zone {
-    background: var(--color-bg-surface);
+    background: rgba(235, 250, 251, 0.55);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
-    border: 2px dashed var(--color-border);
-    padding: 32px 20px;
+    border: 2px dashed var(--color-accent-200);
+    padding: 56px 20px;
     text-align: center;
     cursor: pointer;
     transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
@@ -375,6 +375,55 @@ html, body {
     border-color: var(--color-accent-500);
     background: var(--color-accent-50);
     box-shadow: var(--shadow-accent);
+  }
+
+  /* Document icon buttons (Google Drive / Finder style) */
+  .doc-icon-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 6px 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 10px;
+    width: 100%;
+    transition: background 110ms ease;
+    text-align: center;
+    font-family: var(--pw-font-body);
+  }
+
+  .doc-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .doc-icon-btn:active {
+    background: rgba(0, 0, 0, 0.09);
+  }
+
+  .doc-icon-page {
+    width: 68px;
+    height: 86px;
+    background: #ffffff;
+    border: 1.5px solid #dddfe4;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 3px 8px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+  }
+
+  .doc-icon-fold {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    background: #f0f2f5;
+    border-bottom-left-radius: 4px;
+    border-left: 1.5px solid #dddfe4;
+    border-bottom: 1.5px solid #dddfe4;
   }
 
   /* DisplayCards stacked layout */
@@ -449,12 +498,12 @@ html, body {
     font-family: var(--pw-font-body);
   }
 
-  /* Swiss eyebrow label */
+  /* Swiss eyebrow label — canonical section-label style */
   .pw-eyebrow {
     font-family: var(--pw-font-ui);
     font-size: 11px;
     font-weight: 500;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--pw-muted);
   }
@@ -609,14 +658,14 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 28px;
+  padding: 10px 20px;
   font-family: var(--pw-font-ui);
   font-size: 14px;
   font-weight: 500;
   color: #fff;
   background: var(--pw-ink);
   border: none;
-  border-radius: 0;
+  border-radius: 8px;
   cursor: pointer;
   text-decoration: none;
   transition: background 150ms ease, transform 120ms ease;
@@ -630,14 +679,14 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 11px 27px;
+  padding: 10px 20px;
   font-family: var(--pw-font-ui);
   font-size: 14px;
   font-weight: 500;
   color: var(--pw-ink);
   background: transparent;
   border: 1px solid var(--pw-ink);
-  border-radius: 0;
+  border-radius: 8px;
   cursor: pointer;
   text-decoration: none;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
@@ -650,7 +699,7 @@ html, body {
 .pw-nav-tab {
   position: relative;
   font-family: var(--pw-font-ui);
-  transition: color 150ms ease;
+  transition: color 100ms ease;
 }
 
 .pw-nav-tab::after {
@@ -663,11 +712,21 @@ html, body {
   background: var(--pw-accent);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 80ms ease, opacity 80ms ease;
+  opacity: 0.45;
+}
+
+.pw-nav-tab:hover {
+  color: var(--pw-ink);
+}
+
+.pw-nav-tab:hover::after {
+  transform: scaleX(1);
 }
 
 .pw-nav-tab.active::after {
   transform: scaleX(1);
+  opacity: 1;
 }
 
 .pw-nav-tab.no-transition::after {
