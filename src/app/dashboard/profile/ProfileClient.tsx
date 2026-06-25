@@ -363,7 +363,7 @@ export function ProfileClient({ data: initialData }: ProfileClientProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-[28px] relative z-10">
-      <div style={{ maxWidth: 960 }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
 
         {/* Page header */}
         <div className="pw-entry" style={{ marginBottom: 28 }}>

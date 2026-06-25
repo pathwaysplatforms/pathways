@@ -285,7 +285,7 @@ export function AccountClient({ accountData, userEmail }: AccountClientProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-[28px] relative z-10">
-      <div style={{ maxWidth: 620 }}>
+      <div style={{ maxWidth: 620, margin: "0 auto" }}>
 
         {/* Page header */}
         <div className="pw-entry" style={{ marginBottom: 36 }}>

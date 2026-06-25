@@ -14,7 +14,11 @@ const emailSchema = z.string().email();
 
 async function getOrigin(): Promise<string> {
   const h = await headers();
-  return h.get("origin") ?? "http://localhost:3000";
+  const origin = h.get("origin");
+  if (origin) return origin;
+  const host = h.get("host") ?? "localhost:3001";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  return `${proto}://${host}`;
 }
 
 export async function getSession(): Promise<Session | null> {

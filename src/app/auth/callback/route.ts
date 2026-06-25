@@ -13,15 +13,21 @@ function mapAuthError(msg: string): string {
   return "generic";
 }
 
+/** Build a redirect response using the Host header so the port is always correct. */
+function redirectTo(request: NextRequest, pathname: string, search = ""): NextResponse {
+  const host = request.headers.get("host") ?? "localhost:3001";
+  return NextResponse.redirect(`http://${host}${pathname}${search}`);
+}
+
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url);
+  const requestUrl = request.nextUrl;
   const code = requestUrl.searchParams.get("code");
   const guestToken = requestUrl.searchParams.get("guest_token");
   const reqLogger = createRequestLogger(crypto.randomUUID());
 
   if (!code) {
     reqLogger.warn({ action: "auth.callback_no_code" });
-    return NextResponse.redirect(new URL("/auth/login?error=invalid", request.url));
+    return redirectTo(request, "/auth/login", "?error=invalid");
   }
 
   try {
@@ -34,13 +40,13 @@ export async function GET(request: NextRequest) {
         error: exchangeError.message,
       });
       const errorCode = mapAuthError(exchangeError.message);
-      return NextResponse.redirect(new URL(`/auth/login?error=${errorCode}`, request.url));
+      return redirectTo(request, "/auth/login", `?error=${errorCode}`);
     }
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.redirect(new URL("/auth/login?error=generic", request.url));
+      return redirectTo(request, "/auth/login", "?error=generic");
     }
 
     // Migrate guest session data into the new profile if a token was passed
@@ -77,9 +83,13 @@ export async function GET(request: NextRequest) {
       redirectPath,
     });
 
-    return NextResponse.redirect(new URL(redirectPath, request.url));
+    return redirectTo(
+      request,
+      redirectPath.split("?")[0],
+      redirectPath.includes("?") ? `?${redirectPath.split("?")[1]}` : ""
+    );
   } catch (error) {
     reqLogger.error({ action: "auth.callback_error", error: String(error) });
-    return NextResponse.redirect(new URL("/auth/login?error=generic", request.url));
+    return redirectTo(request, "/auth/login", "?error=generic");
   }
 }

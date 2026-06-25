@@ -76,7 +76,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
     { label: 'Application', icon: Route,            href: '/dashboard/application',   disabled: false },
     { label: 'Documents',   icon: Files,            href: '/dashboard/documents',     disabled: false },
     { label: 'Profile',     icon: User,             href: '/dashboard/profile',       disabled: false },
-    { label: 'Account',     icon: Settings,         href: '/dashboard/account',       disabled: false },
+    { label: 'Settings',    icon: Settings,         href: '/dashboard/account',       disabled: false },
   ];
 
   const isPaid = subscriptionStatus === 'paid';

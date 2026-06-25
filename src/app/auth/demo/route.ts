@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
   }
 
   const logger = createRequestLogger(crypto.randomUUID());
-  const origin = new URL(request.url).origin;
+  const host = request.headers.get("host") ?? "localhost:3001";
+  const origin = `http://${host}`;
 
   try {
     const admin = createSupabaseAdminClient();
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(data.properties.action_link);
   } catch (error) {
     logger.error({ action: "demo.login_error", error: String(error) });
-    return NextResponse.redirect(new URL("/auth/login?error=auth", request.url));
+    const errHost = request.headers.get("host") ?? "localhost:3001";
+    return NextResponse.redirect(`http://${errHost}/auth/login?error=auth`);
   }
 }

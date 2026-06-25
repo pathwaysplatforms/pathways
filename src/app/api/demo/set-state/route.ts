@@ -56,10 +56,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (state === 1) {
-      await db.from("profiles").update({ onboarding_status: "in_progress" }).eq("id", profile.id);
+      await db.from("profiles").update({
+        onboarding_status: "in_progress",
+        onboarding_step: "not_started",
+        selected_pathway_slug: null,
+      }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
     } else if (state === 2) {
-      await db.from("profiles").update({ onboarding_status: "complete" }).eq("id", profile.id);
+      await db.from("profiles").update({
+        onboarding_status: "complete",
+        onboarding_step: "complete",
+        selected_pathway_slug: null,
+      }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
     } else {
       // Prefer Express Entry (has seeded steps). Fall back to any active pathway.
@@ -98,7 +106,8 @@ export async function GET(request: NextRequest) {
     }
 
     logger.info({ action: "demo.set_state", state });
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const host = request.headers.get("host") ?? "localhost:3001";
+    return NextResponse.redirect(`http://${host}/dashboard`);
   } catch (error) {
     logger.error({ action: "demo.set_state_error", error: String(error) });
     return NextResponse.json(
