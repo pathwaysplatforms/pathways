@@ -26,9 +26,12 @@ function formatDate(iso: string | null): string {
 
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginBottom: 36 }}>
+    <section style={{
+      paddingTop: 28,
+      paddingBottom: 28,
+      borderBottom: '1px solid rgba(0,0,0,0.06)',
+    }}>
       <p className="pw-eyebrow" style={{ marginBottom: 14 }}>{title}</p>
-      <div style={{ height: 1, background: 'rgba(0,0,0,0.07)', marginBottom: 20 }} />
       {children}
     </section>
   );
@@ -45,37 +48,29 @@ function GhostButton({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const active = hovered && !disabled;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      onMouseEnter={(e) => {
-        if (!disabled) {
-          (e.currentTarget as HTMLButtonElement).style.background = '#0D0D0D';
-          (e.currentTarget as HTMLButtonElement).style.color = '#fff';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) {
-          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-          (e.currentTarget as HTMLButtonElement).style.color = disabled ? '#9B9B9B' : '#0D0D0D';
-        }
-      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        padding: '8px 20px',
+        padding: '10px 20px',
         fontFamily: 'var(--pw-font-ui)',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 500,
-        color: disabled ? '#9B9B9B' : '#0D0D0D',
-        background: 'transparent',
+        color: disabled ? '#9B9B9B' : active ? '#fff' : '#0D0D0D',
+        background: active ? '#0D0D0D' : 'transparent',
         border: '1px solid',
         borderColor: disabled ? 'rgba(0,0,0,0.15)' : '#0D0D0D',
-        borderRadius: 0,
+        borderRadius: 8,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'background 150ms ease, color 150ms ease',
+        transition: 'background 120ms ease, color 120ms ease',
       }}
     >
       {children}
@@ -196,7 +191,7 @@ function DeleteModal({
               color: '#fff',
               background: canDelete ? 'var(--pw-error)' : 'rgba(0,0,0,0.2)',
               border: 'none',
-              borderRadius: 0,
+              borderRadius: 8,
               cursor: canDelete ? 'pointer' : 'not-allowed',
               transition: 'background 150ms ease',
             }}
@@ -285,10 +280,10 @@ export function AccountClient({ accountData, userEmail }: AccountClientProps) {
 
   return (
     <div className="flex-1 overflow-y-auto p-[28px] relative z-10">
-      <div style={{ maxWidth: 620 }}>
+      <div style={{ maxWidth: 620, margin: "0 auto" }}>
 
         {/* Page header */}
-        <div className="pw-entry" style={{ marginBottom: 36 }}>
+        <div className="pw-entry" style={{ marginBottom: 24 }}>
           <p className="pw-eyebrow" style={{ marginBottom: 6 }}>Account</p>
           <h1 style={{ fontFamily: 'var(--pw-font-display)', fontSize: '1.875rem', color: '#0D0D0D', lineHeight: 1.2 }}>
             Settings
@@ -329,7 +324,7 @@ export function AccountClient({ accountData, userEmail }: AccountClientProps) {
                   fontFamily: 'var(--pw-font-body)',
                   fontSize: 14,
                   border: '1px solid rgba(0,0,0,0.15)',
-                  borderRadius: 0,
+                  borderRadius: 8,
                   outline: 'none',
                   color: '#0D0D0D',
                   background: 'transparent',
@@ -338,6 +333,9 @@ export function AccountClient({ accountData, userEmail }: AccountClientProps) {
                 onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = '#0D0D0D'; }}
                 onBlur={(e) => { (e.target as HTMLInputElement).style.borderColor = 'rgba(0,0,0,0.15)'; }}
               />
+              <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 12, color: '#9B9B9B', marginTop: 5 }}>
+                Enter a new address to enable
+              </p>
             </div>
             <button
               type="button"
@@ -346,17 +344,18 @@ export function AccountClient({ accountData, userEmail }: AccountClientProps) {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                padding: '9px 20px',
+                padding: '10px 20px',
                 fontFamily: 'var(--pw-font-ui)',
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 500,
-                color: '#fff',
-                background: !newEmail || isChangingEmail ? 'rgba(0,0,0,0.25)' : '#0D0D0D',
-                border: 'none',
-                borderRadius: 0,
+                color: !newEmail || isChangingEmail ? 'rgba(0,0,0,0.28)' : '#fff',
+                background: !newEmail || isChangingEmail ? 'transparent' : '#0D0D0D',
+                border: '1px solid',
+                borderColor: !newEmail || isChangingEmail ? 'rgba(0,0,0,0.15)' : '#0D0D0D',
+                borderRadius: 8,
                 cursor: !newEmail || isChangingEmail ? 'not-allowed' : 'pointer',
                 flexShrink: 0,
-                transition: 'background 150ms ease',
+                transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
               }}
             >
               {isChangingEmail ? 'Sending…' : 'Send verification'}
@@ -410,7 +409,7 @@ export function AccountClient({ accountData, userEmail }: AccountClientProps) {
         </SettingsSection>
 
         {/* ── Delete account ───────────────────────────────────────────── */}
-        <section style={{ marginTop: 48, paddingTop: 28, borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+        <section style={{ paddingTop: 28 }}>
           <p className="pw-eyebrow" style={{ marginBottom: 14 }}>Danger Zone</p>
           <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 13, color: '#6B6B6B', lineHeight: 1.6, marginBottom: 20 }}>
             Permanently delete your account and all associated data. This action cannot be undone.

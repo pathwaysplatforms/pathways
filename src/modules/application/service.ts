@@ -33,6 +33,7 @@ interface PathwayStepRow {
   estimated_duration: string;
   is_optional: boolean;
   resources: StepResource[] | null;
+  checklist_items: string[] | null;
 }
 
 /** Raw document_requirements row from DB. */
@@ -122,7 +123,7 @@ export async function getApplicationData(
   const [stepsResult, docsResult] = await Promise.all([
     db
       .from('pathway_steps')
-      .select('id, step_number, title, description, estimated_duration, is_optional, resources')
+      .select('id, step_number, title, description, estimated_duration, is_optional, resources, checklist_items')
       .eq('pathway_id', pathway.id)
       .order('step_number', { ascending: true }),
     db
@@ -182,6 +183,7 @@ export async function getApplicationData(
       estimatedDuration: s.estimated_duration,
       status,
       resources: Array.isArray(s.resources) ? s.resources : [],
+      checklistItems: Array.isArray(s.checklist_items) && s.checklist_items.length > 0 ? s.checklist_items : null,
     };
   });
 
@@ -447,6 +449,7 @@ export async function getApplicationForLayout(
       status,
       estimated_duration: s.estimated_duration,
       is_optional: s.is_optional,
+      document_requirement_id: linkedDoc?.id ?? null,
     };
     if (linkedDoc) step.document = mapDocumentRequirement(linkedDoc, satisfiedTypes);
     return step;

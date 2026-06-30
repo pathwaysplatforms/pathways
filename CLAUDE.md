@@ -120,9 +120,10 @@ redirected to /onboarding/review. Middleware runs on all routes except
 
 ## Authentication
 Provider: Supabase Auth
-Methods: magic link (primary), Google OAuth (secondary)
+Methods: magic link (primary), Google OAuth (secondary), email+password (guest signup only)
 Session: cookie-based via @supabase/ssr — never use localStorage for tokens
-Password inputs: never generate them anywhere in the codebase
+Password inputs: allowed only in the guest signup modal (SaveResultsModal). Always use
+supabase.auth.signUp — never store, hash, or handle passwords manually.
 
 Admin check: server-side only, using the service role client.
 Pattern: const { data: profile } = await supabaseAdmin

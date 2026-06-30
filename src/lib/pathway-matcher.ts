@@ -492,6 +492,13 @@ export async function matchPathways(
   try {
     queryEmbedding = await embedProfile(voiceProfile);
   } catch (err) {
+    const cause = err as { status?: number; message?: string; error?: { message?: string } };
+    logger.error({
+      action: "pathway_matcher.embedding_failed",
+      status: cause?.status,
+      message: cause?.message ?? String(err),
+      detail: cause?.error?.message,
+    });
     throw new InternalError("Failed to generate profile embedding", undefined, err);
   }
   logger.info({ action: "pathway_matcher.embedding_done" });
@@ -791,4 +798,167 @@ export async function getCachedMatch(
   });
 
   return validated.success ? validated.data : null;
+}
+
+/**
+ * Run the pathway matching pipeline for a guest (unauthenticated) user.
+ * Accepts a VoiceExtractedProfile directly instead of loading from DB.
+ * Does not persist results — caller is responsible for saving to guest_sessions.
+ * @param guestId  UUID to use as user_id in the result (typically the session token).
+ */
+export async function matchPathwaysForGuest(
+  guestProfile: Partial<VoiceExtractedProfile>,
+  guestId: string,
+  log?: Logger
+): Promise<PathwayMatchResult> {
+  const logger = log ?? createLogger();
+  logger.info({ action: "pathway_matcher.guest.start" });
+
+  const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
+
+  // ── Step B: Profile → NL summary + embedding ──────────────────────────────
+  const nlSummary = profileToNLSummary(guestProfile);
+  let queryEmbedding: number[];
+  try {
+    queryEmbedding = await embedProfile(guestProfile);
+  } catch (err) {
+    throw new InternalError("Failed to generate profile embedding for guest", undefined, err);
+  }
+
+  // ── Step C: Resolve target country ────────────────────────────────────────
+  const isoCode = resolveCountryCode(guestProfile.destination_country ?? null) ?? "CA";
+
+  const { data: countryData, error: countryError } = await adminDb
+    .from("countries")
+    .select("id, name, iso_code")
+    .eq("iso_code", isoCode)
+    .single();
+
+  if (countryError || !countryData) {
+    throw new DatabaseError("Failed to resolve destination country for guest", { isoCode }, countryError ?? undefined);
+  }
+
+  const country = countryData as { id: string; name: string; iso_code: string };
+
+  // ── Step D: Load candidate pathways ───────────────────────────────────────
+  const { data: pathwayRows, error: pathwaysError } = await adminDb
+    .from("pathways")
+    .select(
+      `id, country_id, category_id, slug, title, official_name, description,
+       requires_degree, min_years_experience, english_min_score,
+       requires_english_test, additional_rules, is_active,
+       min_clb_speaking, min_clb_listening, min_clb_reading, min_clb_writing,
+       requires_eca, typical_crs_min, typical_crs_max,
+       requires_canadian_experience, requires_proof_of_funds,
+       processing_time_min, processing_time_max, program_type,
+       pathway_categories(name, slug)`
+    )
+    .eq("country_id", country.id)
+    .eq("is_active", true);
+
+  if (pathwaysError) {
+    throw new DatabaseError("Failed to load pathways for guest", undefined, pathwaysError);
+  }
+
+  const pathways = (pathwayRows ?? []) as PathwayRow[];
+  if (pathways.length === 0) {
+    throw new ValidationError(`No active pathways found for country ${country.name}.`);
+  }
+
+  const validSlugs = pathways.map((p) => p.slug);
+
+  // ── Step E: Vector search ─────────────────────────────────────────────────
+  const vectorParam = `[${queryEmbedding.join(",")}]`;
+  const chunkCountry = isoToChunkCountry(country.iso_code);
+
+  const { data: rawChunks, error: chunksError } = await adminDb.rpc(
+    "match_immigration_chunks",
+    { query_embedding: vectorParam, match_threshold: 0.1, match_count: 200, filter_country: chunkCountry }
+  );
+
+  if (chunksError) {
+    throw new DatabaseError("immigration_chunks vector search failed for guest", undefined, chunksError);
+  }
+
+  const allChunks = (rawChunks ?? []) as ImmigrationChunkRow[];
+
+  const chunksByVisaType = new Map<string, ImmigrationChunkRow[]>();
+  for (const chunk of allChunks) {
+    const existing = chunksByVisaType.get(chunk.visa_type);
+    if (existing) { existing.push(chunk); } else { chunksByVisaType.set(chunk.visa_type, [chunk]); }
+  }
+
+  // ── Step F: Hard eligibility filter ───────────────────────────────────────
+  const FALLBACK_VISA_TYPES = ["general", "permanent_residence", "express_entry"];
+  const candidates: PathwayCandidate[] = [];
+
+  for (const pathway of pathways) {
+    const eligibility = checkEligibility(pathway, guestProfile);
+    if (eligibility === "INELIGIBLE") continue;
+
+    const visaTypes = getVisaTypesForSlug(pathway.slug);
+    const effectiveVisaTypes = visaTypes.length > 0 ? visaTypes : FALLBACK_VISA_TYPES;
+    const pathwayChunks: ImmigrationChunkRow[] = [];
+    for (const vt of effectiveVisaTypes) {
+      for (const chunk of chunksByVisaType.get(vt) ?? []) {
+        if (!pathwayChunks.some((c) => c.id === chunk.id)) pathwayChunks.push(chunk);
+      }
+    }
+
+    candidates.push({
+      pathway_id: pathway.slug,
+      pathway_name: pathway.title,
+      country_code: country.iso_code,
+      pathway_type: pathway.program_type ?? inferPathwayType(pathway.slug),
+      description: pathway.description,
+      source_url: pathwayChunks.find((c) => c.source_url)?.source_url ?? null,
+      eligibility,
+      top_chunks: pathwayChunks.slice(0, 8).map((c) => c.chunk_text),
+    });
+  }
+
+  if (candidates.length < 1) {
+    throw new ValidationError("No eligible pathways found for this profile.");
+  }
+
+  // ── Step G: Claude synthesis ───────────────────────────────────────────────
+  const anthropic = getAnthropicClient();
+  const userMessage = buildClaudeUserMessage(nlSummary, guestProfile, candidates, validSlugs);
+  const validSlugConstraint = `\n\nCRITICAL CONSTRAINT: You may ONLY recommend pathways from this exact list of valid pathway IDs.\nValid pathway IDs: ${validSlugs.join(", ")}\nEach pathway_id in your response must exactly match one of the above slugs.`;
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    system: CLAUDE_SYSTEM + validSlugConstraint,
+    messages: [{ role: "user", content: userMessage }],
+  });
+
+  const block = message.content[0];
+  if (!block || block.type !== "text") throw new InternalError("Claude returned non-text content block");
+
+  let parsedResult: unknown;
+  try {
+    parsedResult = JSON.parse(extractJSON(block.text));
+  } catch (err) {
+    throw new InternalError("Claude returned invalid JSON for guest match", { raw: block.text.slice(0, 500) }, err);
+  }
+
+  const resultWithMeta = {
+    ...(parsedResult as Record<string, unknown>),
+    user_id: guestId,
+    matched_at: new Date().toISOString(),
+  };
+
+  const validated = PathwayMatchResultSchema.safeParse(resultWithMeta);
+  if (!validated.success) {
+    throw new InternalError("Claude response failed schema validation for guest", {
+      errors: validated.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`),
+    });
+  }
+
+  const result = validated.data;
+  result.top_pathways = result.top_pathways.filter((p) => validSlugs.includes(p.pathway_id));
+
+  logger.info({ action: "pathway_matcher.guest.done", count: result.top_pathways.length });
+  return result;
 }

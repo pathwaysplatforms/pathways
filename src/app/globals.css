@@ -75,8 +75,8 @@
   --pw-surface:  #F7F7F5;
 
   --pw-font-display: 'Urbanist', sans-serif;
-  --pw-font-body:    'Urbanist', sans-serif;
-  --pw-font-ui:      'Urbanist', sans-serif;
+  --pw-font-body:    var(--font-dm-sans, 'DM Sans', system-ui, sans-serif);
+  --pw-font-ui:      var(--font-dm-sans, 'DM Sans', system-ui, sans-serif);
 
   /* Motion */
   --pw-ease-calm:  cubic-bezier(0.16, 1, 0.3, 1);
@@ -94,7 +94,7 @@
 }
 
 html, body {
-  font-family: 'Urbanist', sans-serif;
+  font-family: var(--pw-font-body);
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
@@ -355,11 +355,11 @@ html, body {
 
   /* Upload zone */
   .doc-upload-zone {
-    background: var(--color-bg-surface);
+    background: rgba(235, 250, 251, 0.55);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
-    border: 2px dashed var(--color-border);
-    padding: 32px 20px;
+    border: 2px dashed var(--color-accent-200);
+    padding: 56px 20px;
     text-align: center;
     cursor: pointer;
     transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
@@ -375,6 +375,55 @@ html, body {
     border-color: var(--color-accent-500);
     background: var(--color-accent-50);
     box-shadow: var(--shadow-accent);
+  }
+
+  /* Document icon buttons (Google Drive / Finder style) */
+  .doc-icon-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 6px 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 10px;
+    width: 100%;
+    transition: background 110ms ease;
+    text-align: center;
+    font-family: var(--pw-font-body);
+  }
+
+  .doc-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .doc-icon-btn:active {
+    background: rgba(0, 0, 0, 0.09);
+  }
+
+  .doc-icon-page {
+    width: 68px;
+    height: 86px;
+    background: #ffffff;
+    border: 1.5px solid #dddfe4;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 3px 8px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+  }
+
+  .doc-icon-fold {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    background: #f0f2f5;
+    border-bottom-left-radius: 4px;
+    border-left: 1.5px solid #dddfe4;
+    border-bottom: 1.5px solid #dddfe4;
   }
 
   /* DisplayCards stacked layout */
@@ -449,12 +498,12 @@ html, body {
     font-family: var(--pw-font-body);
   }
 
-  /* Swiss eyebrow label */
+  /* Swiss eyebrow label — canonical section-label style */
   .pw-eyebrow {
     font-family: var(--pw-font-ui);
     font-size: 11px;
     font-weight: 500;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--pw-muted);
   }
@@ -609,14 +658,14 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 28px;
+  padding: 10px 20px;
   font-family: var(--pw-font-ui);
   font-size: 14px;
   font-weight: 500;
   color: #fff;
   background: var(--pw-ink);
   border: none;
-  border-radius: 0;
+  border-radius: 8px;
   cursor: pointer;
   text-decoration: none;
   transition: background 150ms ease, transform 120ms ease;
@@ -630,14 +679,14 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 11px 27px;
+  padding: 10px 20px;
   font-family: var(--pw-font-ui);
   font-size: 14px;
   font-weight: 500;
   color: var(--pw-ink);
   background: transparent;
   border: 1px solid var(--pw-ink);
-  border-radius: 0;
+  border-radius: 8px;
   cursor: pointer;
   text-decoration: none;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
@@ -650,7 +699,7 @@ html, body {
 .pw-nav-tab {
   position: relative;
   font-family: var(--pw-font-ui);
-  transition: color 150ms ease;
+  transition: color 100ms ease;
 }
 
 .pw-nav-tab::after {
@@ -663,11 +712,21 @@ html, body {
   background: var(--pw-accent);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 80ms ease, opacity 80ms ease;
+  opacity: 0.45;
+}
+
+.pw-nav-tab:hover {
+  color: var(--pw-ink);
+}
+
+.pw-nav-tab:hover::after {
+  transform: scaleX(1);
 }
 
 .pw-nav-tab.active::after {
   transform: scaleX(1);
+  opacity: 1;
 }
 
 .pw-nav-tab.no-transition::after {
@@ -688,6 +747,43 @@ html, body {
 .pw-redo-link:hover {
   opacity: 1;
   color: #0D0D0D;
+}
+
+/* ─── Shimmer skeleton loading ───────────────────────────────────── */
+@keyframes pw-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.pw-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 800px 100%;
+  animation: pw-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── Pathway card reveal ────────────────────────────────────────── */
+@keyframes pw-card-reveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pw-card-reveal {
+  animation: pw-card-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Form step slide animations ────────────────────────────────── */
+@keyframes step-slide-from-right {
+  from { opacity: 0; transform: translateX(52px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes step-slide-from-left {
+  from { opacity: 0; transform: translateX(-52px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.step-slide-forward {
+  animation: step-slide-from-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.step-slide-backward {
+  animation: step-slide-from-left 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* ─── Interactive micro-states (hover hairline, press dip, focus ring) ── */
@@ -742,6 +838,28 @@ html, body {
   to { stroke-dashoffset: 0; }
 }
 
+/* ─── Matching loading overlay animations ───────────────────────── */
+@keyframes pw-load-breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.90; }
+  50%       { transform: scale(1.07); opacity: 1;    }
+}
+@keyframes pw-load-ring {
+  0%   { transform: scale(1);   opacity: 0.45; }
+  100% { transform: scale(2.6); opacity: 0;    }
+}
+.pw-load-breathe {
+  animation: pw-load-breathe 2.2s ease-in-out infinite;
+}
+.pw-load-ring {
+  animation: pw-load-ring 2.2s ease-out infinite;
+}
+.pw-load-ring-2 {
+  animation: pw-load-ring 2.2s ease-out 0.73s infinite;
+}
+.pw-load-ring-3 {
+  animation: pw-load-ring 2.2s ease-out 1.46s infinite;
+}
+
 /* ─── Semantic state tokens ─────────────────────────────────────── */
 :root {
   --pw-success: #15803d;   /* green-700 — success indicators only */
@@ -794,6 +912,10 @@ html, body {
   .pw-entry-right,
   .pw-rule-reveal,
   .pw-rule-line,
+  .step-slide-forward,
+  .step-slide-backward,
+  .pw-shimmer,
+  .pw-card-reveal,
   .pw-page-enter {
     animation: none !important;
     transition: none !important;

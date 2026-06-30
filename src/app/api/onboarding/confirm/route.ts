@@ -7,7 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildPathwayInput } from "@/lib/pathway-input";
 import type { ScoredPathway } from "@/modules/voice/matcher-engine";
 import { computeProfileCompletenessPct } from "@/lib/completeness";
-import { PathwaysError, AuthError, ValidationError } from "@/lib/errors";
+import { PathwaysError, AuthError, ValidationError, DatabaseError } from "@/lib/errors";
 import type { Logger } from "pino";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       .eq("id", profile.id);
 
     if (error) {
-      throw new Error(`Failed to save pathway input: ${error.message}`);
+      throw new DatabaseError(`Failed to save pathway input: ${error.message}`, { profileId: profile.id });
     }
 
     log.info({ action: "api.onboarding.confirm.done", profileId: profile.id });

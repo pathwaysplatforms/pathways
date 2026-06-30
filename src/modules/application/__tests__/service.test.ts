@@ -10,7 +10,7 @@ vi.mock('next/headers', () => ({
 }));
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getApplicationForLayout } from '../service';
+import { getApplicationForLayout, getApplicationData } from '../service';
 
 const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -87,6 +87,107 @@ const PATHWAY = {
   data: { id: 'pathway-1', slug: 'express-entry-fsw', title: 'Skilled Worker', official_name: 'FSW Program' },
   error: null,
 };
+
+// ─── getApplicationData ────────────────────────────────────────────────────────
+
+function makeAppDataClient(setup: {
+  profileResult: QueryResult;
+  pathwayResult?: QueryResult;
+  stepsResult?: QueryResult;
+  docsResult?: QueryResult;
+  progressResult?: QueryResult;
+}) {
+  const {
+    profileResult,
+    pathwayResult = { data: null, error: null },
+    stepsResult = { data: [], error: null },
+    docsResult = { data: [], error: null },
+    progressResult = { data: [], error: null },
+  } = setup;
+
+  const fromFn = vi.fn().mockImplementation((table: string) => {
+    if (table === 'profiles') return makeChain(profileResult);
+    if (table === 'pathways') return makeChain(pathwayResult);
+    if (table === 'pathway_steps') return makeChain(stepsResult);
+    if (table === 'document_requirements') return makeChain(docsResult);
+    if (table === 'pathway_progress') return makeChain(progressResult);
+    return makeChain({ data: null, error: null });
+  });
+
+  vi.mocked(createSupabaseServerClient).mockReturnValue(
+    { from: fromFn } as unknown as ReturnType<typeof createSupabaseServerClient>
+  );
+}
+
+const APP_DATA_PROFILE = {
+  data: { id: 'prof-1', selected_pathway_slug: 'express-entry-fsw' },
+  error: null,
+};
+
+const APP_DATA_PATHWAY = {
+  data: {
+    id: 'path-1', slug: 'express-entry-fsw', title: 'Express Entry',
+    official_name: 'Federal Skilled Worker', description: 'Points-based system',
+    processing_time_min: '6 months', processing_time_max: '12 months', fee_gbp: 0,
+  },
+  error: null,
+};
+
+describe('getApplicationData', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('returns full pathway data including checklist_items', async () => {
+    makeAppDataClient({
+      profileResult: APP_DATA_PROFILE,
+      pathwayResult: APP_DATA_PATHWAY,
+      stepsResult: {
+        data: [{
+          id: 'step-1', step_number: 1, title: 'ECA', description: 'Get credentials assessed',
+          estimated_duration: '8 weeks', is_optional: false,
+          resources: [{ label: 'WES', url: 'https://wes.org', type: 'official' }],
+          checklist_items: ['Submit to WES', 'Pay fee'],
+        }],
+        error: null,
+      },
+      docsResult: { data: [{ id: 'doc-1', name: 'ECA Report', is_mandatory: true }], error: null },
+    });
+
+    const result = await getApplicationData('user-1', mockLogger as never);
+
+    expect(result).not.toBeNull();
+    expect(result!.pathwaySlug).toBe('express-entry-fsw');
+    expect(result!.steps).toHaveLength(1);
+    expect(result!.steps[0].checklistItems).toEqual(['Submit to WES', 'Pay fee']);
+    expect(result!.documents).toHaveLength(1);
+  });
+
+  it('sets checklistItems to null when the DB column is empty', async () => {
+    makeAppDataClient({
+      profileResult: APP_DATA_PROFILE,
+      pathwayResult: APP_DATA_PATHWAY,
+      stepsResult: {
+        data: [{
+          id: 'step-1', step_number: 1, title: 'ECA', description: 'desc',
+          estimated_duration: '4 weeks', is_optional: false, resources: null, checklist_items: null,
+        }],
+        error: null,
+      },
+    });
+
+    const result = await getApplicationData('user-1', mockLogger as never);
+
+    expect(result!.steps[0].checklistItems).toBeNull();
+  });
+
+  it('returns null when profile has no selected_pathway_slug', async () => {
+    makeAppDataClient({
+      profileResult: { data: { id: 'prof-1', selected_pathway_slug: null }, error: null },
+    });
+
+    const result = await getApplicationData('user-1', mockLogger as never);
+    expect(result).toBeNull();
+  });
+});
 
 describe('getApplicationForLayout', () => {
   beforeEach(() => {

@@ -1,171 +1,171 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DatabaseError } from '@/lib/errors';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock('@/lib/supabase/admin');
-vi.mock('@/lib/logger', () => ({
-  createRequestLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
+// ─── Supabase admin mock ──────────────────────────────────────────────────────
+const singleMock = vi.fn();
+const selectMock = vi.fn();
+const updateMock = vi.fn();
+const deleteMock = vi.fn();
+const eqMock = vi.fn();
+
+const queryBuilder = {
+  select: selectMock,
+  update: updateMock,
+  delete: deleteMock,
+  eq: eqMock,
+  single: singleMock,
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  selectMock.mockReturnValue(queryBuilder);
+  updateMock.mockReturnValue(queryBuilder);
+  deleteMock.mockReturnValue(queryBuilder);
+  eqMock.mockReturnValue(queryBuilder);
+});
+
+const mockDeleteUser = vi.fn();
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createSupabaseAdminClient: () => ({
+    from: () => queryBuilder,
+    auth: { admin: { deleteUser: mockDeleteUser } },
+  }),
 }));
 
-import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { getAccountData, buildUserExport } from '../service';
+const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
-const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+import {
+  getAccountProfile,
+  updateAccountProfile,
+  upgradeSubscription,
+  deleteAccount,
+} from "../service";
+import { NotFoundError, DatabaseError, ValidationError } from "@/lib/errors";
 
-const mockAuthUser = {
-  id: 'user-1',
-  email: 'test@example.com',
-  last_sign_in_at: '2026-06-01T10:00:00Z',
-  created_at: '2026-01-01T00:00:00Z',
-};
-
-const mockProfile = {
-  id: 'profile-1',
-  auth_user_id: 'user-1',
-  full_name: 'Jane Smith',
-  nationality: 'Indian',
-  current_country: 'India',
-  date_of_birth: '1990-01-01',
-  marital_status: 'single',
-  occupation: 'Software Engineer',
-  years_experience: 3,
-  education_level: 'bachelors',
-  created_at: '2026-01-01T00:00:00Z',
-};
-
-function makeAdminClient(getUserResult: { data: { user: unknown } | { user: null }; error: unknown }) {
-  const adminAuthMock = {
-    getUserById: vi.fn().mockResolvedValue(getUserResult),
+// ─── getAccountProfile ────────────────────────────────────────────────────────
+describe("getAccountProfile", () => {
+  const mockProfile = {
+    id: "profile-1",
+    auth_user_id: "user-1",
+    full_name: "Alice Smith",
+    email: "alice@example.com",
+    avatar_url: null,
+    preferred_language: "en",
+    phone: null,
+    nationality: "Canadian",
+    country_of_residence: "Canada",
+    subscription_status: "free",
+    is_admin: false,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
   };
 
-  const chainFn = (data: unknown, error: unknown = null) => ({
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data, error }),
-    maybeSingle: vi.fn().mockResolvedValue({ data, error }),
-    then: (resolve: (v: { data: unknown; error: unknown }) => void) => resolve({ data, error }),
+  it("returns profile on success", async () => {
+    singleMock.mockResolvedValueOnce({ data: mockProfile, error: null });
+    const result = await getAccountProfile("user-1", mockLog as never);
+    expect(result).toEqual(mockProfile);
+    expect(mockLog.info).toHaveBeenCalledWith(expect.objectContaining({ action: "account.getProfile.done" }));
   });
 
-  const fromFn = vi.fn().mockImplementation((table: string) => {
-    if (table === 'profiles') return chainFn(mockProfile);
-    if (table === 'applications') return { ...chainFn([]), select: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
-    return chainFn(null);
+  it("throws NotFoundError when profile is missing", async () => {
+    singleMock.mockResolvedValueOnce({ data: null, error: null });
+    await expect(getAccountProfile("missing-id", mockLog as never)).rejects.toThrow(NotFoundError);
   });
 
-  vi.mocked(createSupabaseAdminClient).mockReturnValue({
-    auth: { admin: adminAuthMock },
-    from: fromFn,
-  } as unknown as ReturnType<typeof createSupabaseAdminClient>);
-}
-
-// ─── getAccountData ───────────────────────────────────────────────────────────
-
-describe('getAccountData', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('returns account data for a valid user', async () => {
-    makeAdminClient({ data: { user: mockAuthUser }, error: null });
-
-    const result = await getAccountData('user-1', mockLogger as never);
-
-    expect(result.email).toBe('test@example.com');
-    expect(result.lastSignInAt).toBe('2026-06-01T10:00:00Z');
-    expect(result.createdAt).toBe('2026-01-01T00:00:00Z');
-  });
-
-  it('returns null lastSignInAt when field is missing', async () => {
-    makeAdminClient({
-      data: { user: { ...mockAuthUser, last_sign_in_at: undefined } },
-      error: null,
-    });
-
-    const result = await getAccountData('user-1', mockLogger as never);
-    expect(result.lastSignInAt).toBeNull();
-  });
-
-  it('returns empty string email when user has no email', async () => {
-    makeAdminClient({
-      data: { user: { ...mockAuthUser, email: undefined } },
-      error: null,
-    });
-
-    const result = await getAccountData('user-1', mockLogger as never);
-    expect(result.email).toBe('');
-  });
-
-  it('throws DatabaseError when admin API returns an error', async () => {
-    makeAdminClient({ data: { user: null }, error: { message: 'User not found' } });
-
-    await expect(getAccountData('user-1', mockLogger as never)).rejects.toThrow(DatabaseError);
-  });
-
-  it('throws DatabaseError when user object is null', async () => {
-    makeAdminClient({ data: { user: null }, error: null });
-
-    await expect(getAccountData('user-1', mockLogger as never)).rejects.toThrow(DatabaseError);
+  it("throws NotFoundError on database error", async () => {
+    singleMock.mockResolvedValueOnce({ data: null, error: { message: "row not found" } });
+    await expect(getAccountProfile("user-1", mockLog as never)).rejects.toThrow(NotFoundError);
   });
 });
 
-// ─── buildUserExport ──────────────────────────────────────────────────────────
+// ─── updateAccountProfile ─────────────────────────────────────────────────────
+describe("updateAccountProfile", () => {
+  const updatedProfile = {
+    id: "profile-1",
+    auth_user_id: "user-1",
+    full_name: "Alice Updated",
+    email: "alice@example.com",
+    avatar_url: null,
+    preferred_language: "fr",
+    phone: null,
+    nationality: null,
+    country_of_residence: null,
+    subscription_status: "free",
+    is_admin: false,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-06-17T00:00:00Z",
+  };
 
-describe('buildUserExport', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('returns export data with profile and empty applications', async () => {
-    const adminAuthMock = {
-      getUserById: vi.fn().mockResolvedValue({ data: { user: mockAuthUser }, error: null }),
-    };
-
-    const profileChain = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
-    };
-    const appsChain = {
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockResolvedValue({ data: [], error: null }),
-    };
-
-    vi.mocked(createSupabaseAdminClient).mockReturnValue({
-      auth: { admin: adminAuthMock },
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === 'profiles') return profileChain;
-        if (table === 'applications') return appsChain;
-        return profileChain;
-      }),
-    } as unknown as ReturnType<typeof createSupabaseAdminClient>);
-
-    const result = await buildUserExport('user-1', mockLogger as never);
-
-    expect(result.profile.fullName).toBe('Jane Smith');
-    expect(result.profile.email).toBe('test@example.com');
-    expect(result.applications).toHaveLength(0);
-    expect(result.exportedAt).toBeTruthy();
+  it("returns updated profile on success", async () => {
+    singleMock.mockResolvedValueOnce({ data: updatedProfile, error: null });
+    const result = await updateAccountProfile(
+      "user-1",
+      { full_name: "Alice Updated", preferred_language: "fr" },
+      mockLog as never
+    );
+    expect(result.full_name).toBe("Alice Updated");
+    expect(result.preferred_language).toBe("fr");
   });
 
-  it('throws DatabaseError when auth user fetch fails', async () => {
-    vi.mocked(createSupabaseAdminClient).mockReturnValue({
-      auth: { admin: { getUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: { message: 'fail' } }) } },
-      from: vi.fn(),
-    } as unknown as ReturnType<typeof createSupabaseAdminClient>);
-
-    await expect(buildUserExport('user-1', mockLogger as never)).rejects.toThrow(DatabaseError);
+  it("throws ValidationError for invalid preferred_language", async () => {
+    await expect(
+      updateAccountProfile("user-1", { preferred_language: "english" }, mockLog as never)
+    ).rejects.toThrow(ValidationError);
   });
 
-  it('throws DatabaseError when profile fetch fails', async () => {
-    const adminAuthMock = {
-      getUserById: vi.fn().mockResolvedValue({ data: { user: mockAuthUser }, error: null }),
-    };
+  it("throws ValidationError for invalid phone format", async () => {
+    await expect(
+      updateAccountProfile("user-1", { phone: "555-1234" }, mockLog as never)
+    ).rejects.toThrow(ValidationError);
+  });
 
-    vi.mocked(createSupabaseAdminClient).mockReturnValue({
-      auth: { admin: adminAuthMock },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: { code: '42P01', message: 'DB error' } }),
-      }),
-    } as unknown as ReturnType<typeof createSupabaseAdminClient>);
+  it("throws DatabaseError when update fails", async () => {
+    singleMock.mockResolvedValueOnce({ data: null, error: { message: "db error" } });
+    await expect(
+      updateAccountProfile("user-1", { full_name: "Alice" }, mockLog as never)
+    ).rejects.toThrow(DatabaseError);
+  });
+});
 
-    await expect(buildUserExport('user-1', mockLogger as never)).rejects.toThrow(DatabaseError);
+// ─── upgradeSubscription ──────────────────────────────────────────────────────
+describe("upgradeSubscription", () => {
+  it("resolves successfully on upgrade", async () => {
+    eqMock.mockResolvedValueOnce({ error: null });
+    await expect(upgradeSubscription("user-1", mockLog as never)).resolves.toBeUndefined();
+    expect(mockLog.info).toHaveBeenCalledWith(expect.objectContaining({ action: "account.upgradeSubscription.done" }));
+  });
+
+  it("throws DatabaseError when update fails", async () => {
+    eqMock.mockResolvedValueOnce({ error: { message: "constraint violation" } });
+    await expect(upgradeSubscription("user-1", mockLog as never)).rejects.toThrow(DatabaseError);
+  });
+
+  it("logs start and done actions", async () => {
+    eqMock.mockResolvedValueOnce({ error: null });
+    await upgradeSubscription("user-1", mockLog as never);
+    expect(mockLog.info).toHaveBeenCalledWith(expect.objectContaining({ action: "account.upgradeSubscription.start" }));
+    expect(mockLog.info).toHaveBeenCalledWith(expect.objectContaining({ action: "account.upgradeSubscription.done" }));
+  });
+});
+
+// ─── deleteAccount ────────────────────────────────────────────────────────────
+describe("deleteAccount", () => {
+  it("deletes profile and auth user on success", async () => {
+    eqMock.mockResolvedValueOnce({ error: null });
+    mockDeleteUser.mockResolvedValueOnce({ error: null });
+    await expect(deleteAccount("user-1", mockLog as never)).resolves.toBeUndefined();
+    expect(mockDeleteUser).toHaveBeenCalledWith("user-1");
+  });
+
+  it("throws DatabaseError when profile deletion fails", async () => {
+    eqMock.mockResolvedValueOnce({ error: { message: "foreign key violation" } });
+    await expect(deleteAccount("user-1", mockLog as never)).rejects.toThrow(DatabaseError);
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("throws DatabaseError when auth deletion fails", async () => {
+    eqMock.mockResolvedValueOnce({ error: null });
+    mockDeleteUser.mockResolvedValueOnce({ error: { message: "user not found" } });
+    await expect(deleteAccount("user-1", mockLog as never)).rejects.toThrow(DatabaseError);
   });
 });

@@ -1,127 +1,135 @@
 import { redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProfile } from "@/modules/auth/service";
-import { getT } from "@/lib/i18n";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { PathwayInput } from "@/lib/pathway-input";
-import { MatchesCTA } from "@/components/onboarding/MatchesCTA";
+import { OnboardingMatchesClient } from "@/components/onboarding/OnboardingMatchesClient";
+import type { SubscriptionStatus } from "@/modules/account/types";
 
-/** Fetch the first active pathway slug to pre-select when the user clicks the CTA. */
-async function fetchTopPathwaySlug(): Promise<string | null> {
-  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
-  const { data } = await db
-    .from("pathways")
-    .select("slug")
-    .eq("is_active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return (data as { slug: string } | null)?.slug ?? null;
-}
-
-/** Polished transition screen shown after the user confirms their review. */
+/** Pathway matches shown after onboarding completes. */
 export default async function MatchesPage() {
-  const t = await getT();
   const profile = await getProfile();
+
   if (!profile || profile.onboarding_step !== "complete") {
     redirect("/onboarding/voice");
   }
 
   const pathwayInput = (profile.pathway_input_json as PathwayInput | null) ?? null;
-  const topPathwaySlug = await fetchTopPathwaySlug();
+  const validStatuses: SubscriptionStatus[] = ["guest", "free", "paid"];
+  const subscriptionStatus: SubscriptionStatus = validStatuses.includes(
+    profile.subscription_status as SubscriptionStatus
+  )
+    ? (profile.subscription_status as SubscriptionStatus)
+    : "free";
 
   return (
     <main
-      className="min-h-screen flex flex-col items-center justify-center px-4 py-16"
+      className="min-h-screen flex flex-col"
       style={{ background: "var(--pw-bg)", fontFamily: "var(--pw-font-body)" }}
     >
-      <div className="w-full max-w-lg">
-
-        {/* Wordmark */}
-        <div className="mb-12">
+      {/* Pathways wordmark — aligned with content column, below fixed banner */}
+      <div style={{ width: "100%", padding: "52px 16px 0", flexShrink: 0 }}>
+        <div style={{ maxWidth: 780, margin: "0 auto" }}>
           <span
-            className="text-pw-ink text-lg"
-            style={{ fontFamily: "var(--pw-font-display)" }}
+            style={{
+              fontFamily: "var(--pw-font-display)",
+              fontSize: 19,
+              color: "var(--pw-ink)",
+            }}
           >
             Pathways
           </span>
         </div>
+      </div>
 
-        <hr className="pw-rule mb-10" />
-
-        {/* Eyebrow + Headline */}
-        <p className="pw-eyebrow mb-4">Onboarding complete</p>
-        <h1
-          className="text-3xl md:text-4xl text-pw-ink mb-3 leading-tight"
-          style={{ fontFamily: "var(--pw-font-display)", fontWeight: 400 }}
-        >
-          {t("matches_title")}
-        </h1>
-        <p className="text-pw-muted text-sm leading-relaxed mb-10">
-          {t("matches_subtitle")}
-        </p>
-
-        {/* Profile summary */}
-        {pathwayInput && (
-          <div className="pw-card p-6 mb-6">
-            <p className="pw-eyebrow mb-4">Profile summary</p>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              {pathwayInput.personal.nationality && (
-                <SummaryRow label="Nationality" value={pathwayInput.personal.nationality} />
-              )}
-              {pathwayInput.personal.age > 0 && (
-                <SummaryRow label="Age" value={`${pathwayInput.personal.age}`} />
-              )}
-              {pathwayInput.education.level_self_reported && (
-                <SummaryRow label="Education" value={pathwayInput.education.level_self_reported} />
-              )}
-              {pathwayInput.work.occupation && (
-                <SummaryRow label="Occupation" value={pathwayInput.work.occupation} />
-              )}
-              <SummaryRow
-                label="CRS estimate"
-                value={`${pathwayInput.crs_estimate.range_low} – ${pathwayInput.crs_estimate.range_high}`}
-                accent
-              />
-              <SummaryRow label="Completeness" value={`${pathwayInput.data_completeness_pct}%`} />
-            </div>
+      {/* Centered page content */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "0 16px 64px",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 780 }}>
+          {/* Page header */}
+          <div style={{ paddingTop: 40, marginBottom: 36 }}>
+            <p
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--pw-muted)",
+                fontFamily: "var(--pw-font-body)",
+                marginBottom: 8,
+              }}
+            >
+              Onboarding complete
+            </p>
+            <h1
+              style={{
+                fontFamily: "var(--pw-font-display)",
+                fontSize: "clamp(2.2rem, 5.5vw, 3.1rem)",
+                fontWeight: 500,
+                color: "var(--pw-ink)",
+                letterSpacing: "-0.02em",
+                lineHeight: 1.12,
+                marginBottom: 14,
+              }}
+            >
+              Your Canadian pathways
+            </h1>
+            <p style={{ fontSize: 16, color: "var(--pw-muted)", lineHeight: 1.65 }}>
+              Based on your answers, here are your top immigration options.
+              Upgrade to unlock full details, track your application, and upload documents.
+            </p>
           </div>
-        )}
 
-        {/* What happens next */}
-        <div className="pw-card p-6 mb-10">
-          <p className="pw-eyebrow mb-4">What happens next</p>
-          <ol className="space-y-4">
-            {[
-              "Our engine checks your eligibility against every active Canadian pathway",
-              "You'll see a prioritised list of pathways you qualify for on your dashboard",
-              "Each pathway comes with a step-by-step checklist and document tracker",
-            ].map((step, i) => (
-              <li key={i} className="flex gap-3 text-sm text-pw-muted">
-                <span className="shrink-0 w-5 h-5 rounded-full border border-black/[0.08] flex items-center justify-center text-xs" style={{ color: "var(--pw-ink)" }}>
-                  {i + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
+          {/* Profile summary card */}
+          {pathwayInput && (
+            <div className="pw-card" style={{ padding: "22px 24px", marginBottom: 28 }}>
+              <p
+                style={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--pw-muted)",
+                  fontFamily: "var(--pw-font-body)",
+                  marginBottom: 16,
+                }}
+              >
+                Profile summary
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 32px" }}>
+                {pathwayInput.personal.nationality && (
+                  <SummaryRow label="Nationality" value={pathwayInput.personal.nationality} />
+                )}
+                {pathwayInput.personal.age > 0 && (
+                  <SummaryRow label="Age" value={`${pathwayInput.personal.age}`} />
+                )}
+                {pathwayInput.education.level_self_reported && (
+                  <SummaryRow label="Education" value={pathwayInput.education.level_self_reported} />
+                )}
+                {pathwayInput.work.occupation && (
+                  <SummaryRow label="Occupation" value={pathwayInput.work.occupation} />
+                )}
+                <SummaryRow
+                  label="CRS estimate"
+                  value={`${pathwayInput.crs_estimate.range_low}–${pathwayInput.crs_estimate.range_high}`}
+                  accent
+                />
+                <SummaryRow
+                  label="Profile completeness"
+                  value={`${pathwayInput.data_completeness_pct}%`}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Match results — loading animation + cards + paywall */}
+          <OnboardingMatchesClient subscriptionStatus={subscriptionStatus} />
         </div>
-
-        {/* CTA */}
-        <MatchesCTA label={t("matches_go_dashboard")} topPathwaySlug={topPathwaySlug} />
-
-        {/* Dev-only raw JSON */}
-        {process.env.NODE_ENV === "development" && pathwayInput && (
-          <details className="mt-8 text-xs">
-            <summary className="cursor-pointer text-pw-muted hover:text-pw-ink">
-              pathway_input_json (dev only)
-            </summary>
-            <pre className="mt-2 p-3 bg-pw-surface rounded overflow-auto text-pw-muted max-h-80">
-              {JSON.stringify(pathwayInput, null, 2)}
-            </pre>
-          </details>
-        )}
-
       </div>
     </main>
   );
@@ -138,10 +146,26 @@ function SummaryRow({
 }) {
   return (
     <div>
-      <p className="pw-eyebrow mb-0.5">{label}</p>
       <p
-        className="text-sm truncate"
-        style={{ color: accent ? "var(--pw-accent)" : "var(--pw-ink)" }}
+        style={{
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--pw-muted)",
+          fontFamily: "var(--pw-font-body)",
+          marginBottom: 3,
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          fontSize: 14,
+          fontFamily: "var(--pw-font-body)",
+          color: accent ? "var(--pw-accent)" : "var(--pw-ink)",
+          fontWeight: accent ? 500 : 400,
+        }}
       >
         {value}
       </p>

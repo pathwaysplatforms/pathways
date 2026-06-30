@@ -273,7 +273,7 @@ export function ApplicationInProgressGrid({ data }: Props) {
             style={{
               height: '100%',
               width: `${pct}%`,
-              background: '#1A56DB',
+              background: 'rgba(255,255,255,0.70)',
               borderRadius: 9999,
               transition: 'width 600ms cubic-bezier(0.16,1,0.3,1)',
             }}
@@ -297,7 +297,7 @@ export function ApplicationInProgressGrid({ data }: Props) {
         )}
         {!currentStep && <div style={{ flex: 1 }} />}
 
-        {/* Single dominant CTA in #1A56DB */}
+        {/* Single dominant CTA — white fill on dark card */}
         <Link
           href={appHref}
           aria-label={ctaLabel}
@@ -305,13 +305,13 @@ export function ApplicationInProgressGrid({ data }: Props) {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '9px 16px',
+            padding: '10px 20px',
             fontFamily: 'var(--pw-font-body)',
-            fontSize: '12px',
+            fontSize: '14px',
             fontWeight: 500,
-            color: '#fff',
-            background: '#1A56DB',
-            borderRadius: '9999px',
+            color: '#0A0A0A',
+            background: '#FFFFFF',
+            borderRadius: 8,
             textDecoration: 'none',
             flexShrink: 0,
             overflow: 'hidden',

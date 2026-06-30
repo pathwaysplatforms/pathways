@@ -172,19 +172,39 @@ const PATHWAY_ROWS = [
   pathway_categories: null,
 }));
 
+const COUNTRY_ROW = { id: "ctry-ca", name: "Canada", iso_code: "CA" };
+
 function setupSuccessfulDbMocks() {
+  // Shared single: used for profiles + countries queries so per-test overrides work
   mockSingle.mockResolvedValue({ data: completeProfile, error: null });
   mockEqFinal.mockResolvedValue({ data: PATHWAY_ROWS, error: null });
   mockEq.mockReturnValue({ single: mockSingle, eq: mockEqFinal });
   mockSelect.mockReturnValue({ eq: mockEq });
 
-  mockOrder.mockReturnValue({ limit: mockLimit });
-  mockLimit.mockReturnValue({ single: vi.fn().mockResolvedValue({ data: null, error: null }) });
+  // countries single returns country row unless overridden per-test
+  const countriesSingle = vi.fn().mockResolvedValue({ data: COUNTRY_ROW, error: null });
 
+  // pathways: select().eq("country_id").eq("is_active") — double-chained, no .single()
+  const pathwaysPromise = Promise.resolve({ data: PATHWAY_ROWS, error: null });
+  const pathwaysEq2 = vi.fn().mockReturnValue(pathwaysPromise);
+  const pathwaysEq1 = vi.fn().mockReturnValue({ eq: pathwaysEq2 });
+  const pathwaysSelect = vi.fn().mockReturnValue({ eq: pathwaysEq1 });
+
+  // pathway_matches: insert + select().eq().order().limit().single()
+  mockOrder.mockReturnValue({ limit: mockLimit });
+  mockLimit.mockReturnValue({ single: mockSingle });
   mockInsert.mockResolvedValue({ error: null });
+
+  mockEq.mockReturnValue({ single: mockSingle, eq: mockEq });
+  mockSelect.mockReturnValue({ eq: mockEq });
 
   mockFrom.mockImplementation((table: string) => {
     if (table === "profiles") return { select: mockSelect };
+    if (table === "countries") {
+      const eq = vi.fn().mockReturnValue({ single: countriesSingle });
+      return { select: vi.fn().mockReturnValue({ eq }) };
+    }
+    if (table === "pathways") return { select: pathwaysSelect };
     if (table === "pathway_matches") {
       return {
         select: vi.fn().mockReturnValue({
@@ -245,6 +265,26 @@ describe("matchPathways", () => {
     });
 
     await expect(matchPathways(USER_ID)).rejects.toThrow(DatabaseError);
+  });
+
+  it("throws ValidationError when no active pathways exist for the country", async () => {
+    const pathwaysPromise = Promise.resolve({ data: [], error: null });
+    const pathwaysEq2 = vi.fn().mockReturnValue(pathwaysPromise);
+    const pathwaysEq1 = vi.fn().mockReturnValue({ eq: pathwaysEq2 });
+    const pathwaysSelect = vi.fn().mockReturnValue({ eq: pathwaysEq1 });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "profiles") return { select: mockSelect };
+      if (table === "countries") {
+        const eq = vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue({ data: COUNTRY_ROW, error: null }) });
+        return { select: vi.fn().mockReturnValue({ eq }) };
+      }
+      if (table === "pathways") return { select: pathwaysSelect };
+      if (table === "pathway_matches") return { select: vi.fn(), insert: mockInsert };
+      return { select: mockSelect, insert: mockInsert };
+    });
+
+    await expect(matchPathways(USER_ID)).rejects.toThrow(ValidationError);
   });
 
   it("still returns matches when chunk retrieval is empty (graceful RAG degradation)", async () => {

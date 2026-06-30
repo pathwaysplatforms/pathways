@@ -1,0 +1,790 @@
+# Pathways — Resources Page & Blog System Spec
+> For Claude: Read DESIGN_TOKENS.md, COMPONENT_SPEC.md, and pathways-desktop-first-responsive.md before this file. This spec covers three things: (1) the public /resources page on the marketing website, (2) the /admin/blog dashboard on the platform, and (3) the shared Supabase schema and API routes that power both. Build each section in order.
+
+---
+
+## 1. Architecture Overview
+
+```
+Marketing Website (pathways.app)
+  /resources                    ← Public page, two tabs: Articles + Resources
+  /resources/[slug]             ← Individual post/resource page
+
+Platform (app.pathways.app)
+  /admin/blog                   ← Post list, drafts, published
+  /admin/blog/new               ← AI post generator + manual editor
+  /admin/blog/[id]/edit         ← Edit existing post
+  /admin/resources/new          ← URL import + auto-fill form
+
+Shared
+  Supabase Postgres             ← Single posts table for both sites
+  Next.js Route Handlers        ← URL scraper, Claude generation
+```
+
+---
+
+## 2. Supabase Schema
+
+### Run this migration in Supabase SQL editor:
+
+```sql
+-- Enable required extensions
+create extension if not exists "uuid-ossp";
+
+-- Posts table (covers both blog articles and external resources)
+create table public.posts (
+  id              uuid default uuid_generate_v4() primary key,
+  title           text not null,
+  slug            text not null unique,
+  excerpt         text,                          -- 1-2 sentence summary shown on cards
+  body            text,                          -- Markdown body (null for external resources)
+  cover_seed      text,                          -- Seed string for deterministic SVG generation (use slug)
+  tags            text[] default '{}',
+  type            text not null check (type in ('article', 'resource')),
+  status          text not null default 'draft' check (status in ('draft', 'published')),
+  source_url      text,                          -- External URL (resources only)
+  source_name     text,                          -- e.g. "Government of Canada", "IRCC"
+  ai_summary      text,                          -- Claude-generated summary of external content
+  author_id       uuid references auth.users(id),
+  created_at      timestamptz default now(),
+  updated_at      timestamptz default now(),
+  published_at    timestamptz
+);
+
+-- Auto-update updated_at
+create or replace function update_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger posts_updated_at
+  before update on public.posts
+  for each row execute function update_updated_at();
+
+-- Row-level security
+alter table public.posts enable row level security;
+
+-- Public can read published posts
+create policy "Public can read published posts"
+  on public.posts for select
+  using (status = 'published');
+
+-- Admin users (role = 'admin' in user metadata) can do everything
+create policy "Admins have full access"
+  on public.posts for all
+  using (
+    auth.jwt() ->> 'role' = 'admin'
+    or (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+  );
+
+-- Index for performance
+create index posts_type_status_idx on public.posts(type, status, published_at desc);
+create index posts_slug_idx on public.posts(slug);
+create index posts_tags_idx on public.posts using gin(tags);
+```
+
+### Set yourself as admin
+After creating your account, run in Supabase SQL editor:
+```sql
+update auth.users
+set raw_user_meta_data = raw_user_meta_data || '{"role": "admin"}'
+where email = 'your@email.com';
+```
+
+---
+
+## 3. SVG Cover Art Generator
+
+Create this utility at `lib/cover-art.ts`. Generates a unique deterministic abstract SVG from a seed string (the post slug). Same slug always produces the same cover. Uses the Pathways green palette.
+
+```ts
+// lib/cover-art.ts
+
+const PALETTES = [
+  // Deep green on light
+  { bg: '#F2F6F5', shapes: ['#0D4A3A', '#2A5C4E', '#1C3D32', '#E8F0EE'] },
+  // Light on deep green
+  { bg: '#0D4A3A', shapes: ['#E8F0EE', '#F2F6F5', '#2A5C4E', '#ffffff'] },
+  // Muted green tones
+  { bg: '#E8F0EE', shapes: ['#0D4A3A', '#2A5C4E', '#1C3D32', '#F2F6F5'] },
+  // Near-black with green
+  { bg: '#0A0A0A', shapes: ['#0D4A3A', '#2A5C4E', '#E8F0EE', '#F2F6F5'] },
+]
+
+// Deterministic pseudo-random from string seed
+function seededRandom(seed: string) {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  let s = Math.abs(hash)
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff
+    return s / 0x7fffffff
+  }
+}
+
+export function generateCoverSVG(seed: string, width = 800, height = 420): string {
+  const rand = seededRandom(seed)
+  const palette = PALETTES[Math.floor(rand() * PALETTES.length)]
+  
+  const elements: string[] = []
+
+  // Background
+  elements.push(`<rect width="${width}" height="${height}" fill="${palette.bg}"/>`)
+
+  // Topographic contour lines (signature Pathways motif)
+  const numContours = 4 + Math.floor(rand() * 4)
+  for (let i = 0; i < numContours; i++) {
+    const cx = rand() * width
+    const cy = rand() * height
+    const rx = 80 + rand() * 280
+    const ry = 40 + rand() * 140
+    const rotation = rand() * 360
+    const color = palette.shapes[Math.floor(rand() * palette.shapes.length)]
+    const opacity = 0.08 + rand() * 0.14
+    elements.push(`
+      <ellipse
+        cx="${cx}" cy="${cy}"
+        rx="${rx}" ry="${ry}"
+        transform="rotate(${rotation} ${cx} ${cy})"
+        fill="none"
+        stroke="${color}"
+        stroke-width="1.5"
+        opacity="${opacity}"
+      />
+    `)
+  }
+
+  // Geometric shapes
+  const numShapes = 3 + Math.floor(rand() * 4)
+  for (let i = 0; i < numShapes; i++) {
+    const shapeType = Math.floor(rand() * 3)
+    const color = palette.shapes[Math.floor(rand() * palette.shapes.length)]
+    const opacity = 0.06 + rand() * 0.18
+    const size = 40 + rand() * 160
+
+    if (shapeType === 0) {
+      // Rectangle
+      const x = rand() * width
+      const y = rand() * height
+      const rotation = rand() * 45
+      elements.push(`
+        <rect
+          x="${x}" y="${y}"
+          width="${size}" height="${size * (0.4 + rand() * 0.6)}"
+          transform="rotate(${rotation} ${x + size/2} ${y + size/2})"
+          fill="${color}"
+          opacity="${opacity}"
+          rx="4"
+        />
+      `)
+    } else if (shapeType === 1) {
+      // Circle
+      elements.push(`
+        <circle
+          cx="${rand() * width}" cy="${rand() * height}"
+          r="${size / 2}"
+          fill="${color}"
+          opacity="${opacity}"
+        />
+      `)
+    } else {
+      // Triangle
+      const x = rand() * width
+      const y = rand() * height
+      elements.push(`
+        <polygon
+          points="${x},${y} ${x + size},${y} ${x + size/2},${y - size * 0.8}"
+          fill="${color}"
+          opacity="${opacity}"
+        />
+      `)
+    }
+  }
+
+  // Subtle diagonal lines (depth texture)
+  const numLines = 3 + Math.floor(rand() * 3)
+  for (let i = 0; i < numLines; i++) {
+    const x1 = rand() * width
+    const y1 = rand() * height
+    const color = palette.shapes[Math.floor(rand() * palette.shapes.length)]
+    elements.push(`
+      <line
+        x1="${x1}" y1="${y1}"
+        x2="${x1 + 100 + rand() * 200}" y2="${y1 + 60 + rand() * 120}"
+        stroke="${color}"
+        stroke-width="1"
+        opacity="${0.06 + rand() * 0.1}"
+      />
+    `)
+  }
+
+  return `
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 ${width} ${height}"
+      width="${width}"
+      height="${height}"
+    >
+      ${elements.join('\n')}
+    </svg>
+  `.trim()
+}
+
+// Returns a data URI for use in <img src={...}>
+export function generateCoverDataURI(seed: string): string {
+  const svg = generateCoverSVG(seed)
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+}
+```
+
+---
+
+## 4. Public Resources Page (Marketing Website)
+
+### File: `app/resources/page.tsx`
+
+### URL Structure
+```
+/resources          → defaults to Articles tab
+/resources?tab=articles
+/resources?tab=resources
+/resources/[slug]   → individual post or resource
+```
+
+### Page Layout
+- Background: `white`
+- Max width: `1200px`, centered
+- Page header section with title and tab switcher
+- Below tabs: card grid
+- Sidebar on desktop (right, 280px) with tag filter and featured resources
+
+### Page Header
+```
+[Eyebrow: "Knowledge Base"]
+[Title: "Resources & Articles" — font-display, text-5xl]
+[Subtitle: "Immigration guides, visa explainers, and curated
+            resources to help you navigate your journey."]
+
+[Tab switcher — pill style]
+  [Articles]  [Resources]
+```
+
+### Tab Switcher Component
+```tsx
+// Uses URL search params for tab state (SEO-friendly, each tab is a unique URL)
+// style: pill tabs, not underline tabs
+// Active tab: bg-green-deep text-white rounded-full px-6 py-2
+// Inactive tab: text-grey-500 hover:text-grey-900 px-6 py-2
+// Wrap in <nav aria-label="Content tabs">
+```
+
+### Card Grid
+- 3 columns desktop, 2 columns tablet, 1 column mobile
+- `gap-8`
+- Cards sorted by `published_at desc`
+- Pagination: load 9 cards, "Load more" button (not page numbers — better UX)
+
+### Post Card Component (`components/resources/PostCard.tsx`)
+```tsx
+function PostCard({ post }) {
+  return (
+    <Link href={`/resources/${post.slug}`} className="group block">
+      <article className="
+        rounded-2xl overflow-hidden
+        border border-grey-100
+        hover:shadow-green hover:-translate-y-1
+        transition-all duration-300
+        bg-white
+      ">
+        {/* Cover art — generated SVG, aspect ratio 16:9 */}
+        <div className="aspect-video overflow-hidden">
+          <img
+            src={generateCoverDataURI(post.cover_seed || post.slug)}
+            alt=""
+            aria-hidden="true"
+            className="w-full h-full object-cover
+                       group-hover:scale-105 transition-transform duration-500"
+            width={800}
+            height={420}
+          />
+        </div>
+
+        {/* Card body */}
+        <div className="p-6">
+          {/* Tags */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {post.tags.slice(0, 2).map(tag => (
+              <span key={tag} className="
+                text-xs font-medium text-green-deep
+                bg-green-tint px-3 py-1 rounded-full
+              ">{tag}</span>
+            ))}
+          </div>
+
+          {/* Title */}
+          <h2 className="
+            font-display text-xl text-grey-900
+            leading-snug mb-3
+            group-hover:text-green-deep transition-colors duration-200
+          ">
+            {post.title}
+          </h2>
+
+          {/* Excerpt */}
+          <p className="text-grey-500 text-sm leading-relaxed mb-4 line-clamp-2">
+            {post.excerpt}
+          </p>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between">
+            <time className="text-xs text-grey-400">
+              {formatDate(post.published_at)}
+            </time>
+            {/* For resources: show source name */}
+            {post.type === 'resource' && post.source_name && (
+              <span className="text-xs text-grey-400 flex items-center gap-1">
+                <ExternalLinkIcon size={10} />
+                {post.source_name}
+              </span>
+            )}
+            {/* For articles: show read time */}
+            {post.type === 'article' && (
+              <span className="text-xs text-grey-400">
+                {readingTime(post.body)} min read
+              </span>
+            )}
+          </div>
+        </div>
+      </article>
+    </Link>
+  )
+}
+```
+
+### Data Fetching (Server Component)
+```tsx
+// app/resources/page.tsx
+import { createClient } from '@/lib/supabase/server'
+
+export default async function ResourcesPage({ searchParams }) {
+  const tab = searchParams.tab === 'resources' ? 'resource' : 'article'
+  const supabase = createClient()
+
+  const { data: posts } = await supabase
+    .from('posts')
+    .select('id, title, slug, excerpt, cover_seed, tags, type, source_name, published_at, body')
+    .eq('status', 'published')
+    .eq('type', tab)
+    .order('published_at', { ascending: false })
+    .limit(9)
+
+  return <ResourcesPageClient posts={posts} activeTab={tab} />
+}
+
+// Static metadata for SEO
+export const metadata = {
+  title: 'Resources & Articles — Pathways',
+  description: 'Immigration guides, visa explainers, CRS calculators, and curated resources to help you navigate your journey to Canada and beyond.',
+}
+```
+
+### Individual Post Page (`app/resources/[slug]/page.tsx`)
+- Renders full markdown body using `react-markdown` with `remark-gfm`
+- For external resources: shows the summary + a large "Visit Source →" CTA button
+- Cover art full-width at top, below the navbar
+- Author, date, tags below the title
+- "Related articles" section at bottom (same tags, 3 cards)
+- Generate static params for all published posts (`generateStaticParams`)
+- Full OG meta tags per post for social sharing
+
+---
+
+## 5. Admin Dashboard (Platform)
+
+### File structure
+```
+app/admin/
+  layout.tsx          ← Auth guard (redirect if not admin)
+  blog/
+    page.tsx          ← Post list
+    new/page.tsx      ← New article (AI generator + editor)
+  resources/
+    new/page.tsx      ← URL import tool
+```
+
+### Auth Guard (`app/admin/layout.tsx`)
+```tsx
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+
+export default async function AdminLayout({ children }) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  const role = user.user_metadata?.role
+  if (role !== 'admin') redirect('/dashboard')
+
+  return (
+    <div className="min-h-screen bg-grey-100">
+      <AdminNavbar />
+      <main className="max-w-5xl mx-auto px-8 py-12">
+        {children}
+      </main>
+    </div>
+  )
+}
+```
+
+### Post List Page (`app/admin/blog/page.tsx`)
+- Table view: Title | Type | Status | Published date | Actions
+- Status badge: `draft` (grey pill) / `published` (green pill)
+- Actions: Edit | Unpublish | Delete
+- Two buttons top right: "New Article" and "Add Resource"
+- Filter by status (All / Draft / Published)
+- Search by title
+
+### New Article Page (`app/admin/blog/new/page.tsx`)
+
+#### Layout: Two-panel
+```
+┌─────────────────────────┬──────────────────────────┐
+│   LEFT: Generator       │   RIGHT: Preview          │
+│                         │                           │
+│  [Topic input]          │  [Rendered markdown]      │
+│  [Tags input]           │  [Cover art preview]      │
+│  [Generate button]      │                           │
+│                         │                           │
+│  [Markdown editor]      │                           │
+│  (editable after gen)   │                           │
+│                         │                           │
+│  [Draft] [Publish]      │                           │
+└─────────────────────────┴──────────────────────────┘
+```
+
+#### Generation Flow
+1. Admin types a topic (e.g. "How to improve your CRS score for Express Entry")
+2. Optionally adds tags
+3. Clicks "Generate with AI"
+4. A loading state shows ("Writing your article...")
+5. Claude streams the post back into the markdown editor
+6. Cover art generates instantly from the slug (derived from title)
+7. Admin edits if needed, then clicks "Save Draft" or "Publish"
+
+### New Resource Page (`app/admin/resources/new/page.tsx`)
+
+#### Layout: Single column form
+```
+[URL input + "Import" button]
+
+─── Auto-filled after import ───
+
+[Title field]
+[Source name field]
+[Excerpt / summary field — Claude-generated, editable]
+[Tags field]
+[Cover art preview — generated from slug]
+
+[Save Draft]  [Publish]
+```
+
+#### Import Flow
+1. Admin pastes a URL
+2. Clicks "Import"
+3. Loading state: "Fetching page content..."
+4. Server fetches the URL, extracts text
+5. Claude generates: title suggestion, 2-3 sentence summary, tag suggestions
+6. Form auto-fills — all fields remain editable
+7. Admin reviews, adjusts, publishes
+
+---
+
+## 6. API Route Handlers
+
+### AI Article Generator (`app/api/admin/generate-post/route.ts`)
+
+```ts
+import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
+import { NextRequest } from 'next/server'
+
+export async function POST(req: NextRequest) {
+  // Auth check
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.user_metadata?.role !== 'admin') {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  const { topic, tags } = await req.json()
+
+  const anthropic = new Anthropic()
+
+  // Stream the response
+  const stream = anthropic.messages.stream({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2000,
+    messages: [{
+      role: 'user',
+      content: `Write a detailed, helpful blog post for an immigration platform called Pathways.
+
+Topic: ${topic}
+Tags: ${tags?.join(', ') || 'immigration, Canada'}
+
+Format the response as clean markdown with:
+- A compelling H1 title
+- An intro paragraph
+- 3-5 H2 sections with substantive content
+- A conclusion with a clear next step
+
+Tone: Clear, trustworthy, and reassuring. Written for someone navigating immigration for the first time.
+Length: 600-900 words.
+Do not include any preamble — start directly with the # Title.
+Do not include legal advice — add a brief disclaimer at the end.`
+    }]
+  })
+
+  // Return as a streaming text response
+  return new Response(stream.toReadableStream())
+}
+```
+
+### URL Importer (`app/api/admin/import-resource/route.ts`)
+
+```ts
+import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
+import { NextRequest } from 'next/server'
+
+export async function POST(req: NextRequest) {
+  // Auth check
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.user_metadata?.role !== 'admin') {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  const { url } = await req.json()
+
+  // Fetch the page content
+  let pageText = ''
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Pathways/1.0 (+https://pathways.app)' }
+    })
+    const html = await res.text()
+    // Strip HTML tags to get plain text (basic — use a library like node-html-parser for better results)
+    pageText = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000) // Cap at 8k chars to stay within context
+  } catch {
+    return Response.json({ error: 'Could not fetch that URL' }, { status: 400 })
+  }
+
+  // Extract domain as source name
+  const sourceName = new URL(url).hostname.replace('www.', '')
+
+  const anthropic = new Anthropic()
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 500,
+    messages: [{
+      role: 'user',
+      content: `You are helping curate immigration resources for a platform called Pathways.
+
+Here is the text content of a web page:
+---
+${pageText}
+---
+
+Return ONLY a JSON object (no markdown, no preamble) with these fields:
+{
+  "title": "A clear, descriptive title for this resource (max 80 chars)",
+  "excerpt": "A 2-3 sentence summary of what this resource covers and why it's useful for someone navigating immigration (max 200 chars)",
+  "tags": ["tag1", "tag2", "tag3"]  // 2-4 relevant tags from: ["Express Entry", "PNP", "Canada", "Study Permit", "Work Permit", "Family Sponsorship", "CRS Score", "Documents", "Timeline", "Costs", "IRCC"]
+}`
+    }]
+  })
+
+  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+
+  try {
+    const parsed = JSON.parse(text)
+    return Response.json({ ...parsed, sourceName, sourceUrl: url })
+  } catch {
+    return Response.json({ error: 'Could not parse resource data' }, { status: 500 })
+  }
+}
+```
+
+### Publish Post (`app/api/admin/publish-post/route.ts`)
+
+```ts
+export async function POST(req: NextRequest) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.user_metadata?.role !== 'admin') {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  const body = await req.json()
+
+  // Generate slug from title
+  const slug = body.title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 80)
+
+  const { data, error } = await supabase.from('posts').insert({
+    title: body.title,
+    slug,
+    excerpt: body.excerpt,
+    body: body.body || null,
+    cover_seed: slug,
+    tags: body.tags || [],
+    type: body.type,
+    status: body.status || 'draft',
+    source_url: body.sourceUrl || null,
+    source_name: body.sourceName || null,
+    author_id: user.id,
+    published_at: body.status === 'published' ? new Date().toISOString() : null,
+  }).select().single()
+
+  if (error) return Response.json({ error }, { status: 500 })
+  return Response.json({ post: data })
+}
+```
+
+---
+
+## 7. SEO Configuration
+
+### Individual post pages — dynamic metadata
+```ts
+// app/resources/[slug]/page.tsx
+export async function generateMetadata({ params }) {
+  const supabase = createClient()
+  const { data: post } = await supabase
+    .from('posts')
+    .select('title, excerpt, slug, tags')
+    .eq('slug', params.slug)
+    .single()
+
+  if (!post) return {}
+
+  return {
+    title: `${post.title} — Pathways`,
+    description: post.excerpt,
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      type: 'article',
+      tags: post.tags,
+    },
+  }
+}
+```
+
+### Static generation
+```ts
+export async function generateStaticParams() {
+  const supabase = createClient()
+  const { data: posts } = await supabase
+    .from('posts')
+    .select('slug')
+    .eq('status', 'published')
+
+  return posts?.map(p => ({ slug: p.slug })) ?? []
+}
+
+// Revalidate every hour
+export const revalidate = 3600
+```
+
+---
+
+## 8. Placeholder Posts to Seed on Launch
+
+Create these via the admin dashboard on first launch to populate the page:
+
+### Articles
+```
+1. Title: "Understanding Express Entry: A Complete Guide for 2025"
+   Tags: ["Express Entry", "Canada", "CRS Score"]
+   Topic to generate: "A complete beginner's guide to Canada's Express Entry system,
+   including how the CRS score works, what the draws look like, and how to improve
+   your chances of receiving an ITA."
+
+2. Title: "Provincial Nominee Programs: Which Province is Right for You?"
+   Tags: ["PNP", "Canada", "Express Entry"]
+   Topic to generate: "An overview of Canada's Provincial Nominee Programs,
+   comparing the major provinces and their streams, and helping readers
+   figure out which province aligns with their profile."
+
+3. Title: "Documents You'll Need for a Canadian Immigration Application"
+   Tags: ["Documents", "Canada", "Timeline"]
+   Topic to generate: "A practical checklist of documents required for
+   Canadian immigration applications, including tips on getting foreign
+   documents authenticated and translated."
+```
+
+### Resources (import these URLs)
+```
+1. https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry.html
+2. https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/provincial-nominees.html
+3. https://www.cic.gc.ca/english/helpcentre/results-by-topic.asp?top=29
+```
+
+---
+
+## 9. Utility Functions
+
+```ts
+// lib/utils/reading-time.ts
+export function readingTime(body: string | null): number {
+  if (!body) return 0
+  const words = body.trim().split(/\s+/).length
+  return Math.ceil(words / 200) // average 200 wpm
+}
+
+// lib/utils/format-date.ts
+export function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
+// lib/utils/slugify.ts
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 80)
+}
+```
+
+---
+
+## 10. Dependencies to Install
+
+```bash
+npm install react-markdown remark-gfm
+```
+
+All other dependencies (Anthropic SDK, Supabase client) are already in the project.

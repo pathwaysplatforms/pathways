@@ -5,7 +5,7 @@ import { createRequestLogger } from "@/lib/logger";
 import { requireAuth, getProfile } from "@/modules/auth/service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { VoiceExtractedProfileSchema } from "@/modules/voice/types";
-import { PathwaysError, AuthError, ValidationError } from "@/lib/errors";
+import { PathwaysError, AuthError, ValidationError, DatabaseError } from "@/lib/errors";
 import type { Logger } from "pino";
 
 const ProfileUpdateSchema = VoiceExtractedProfileSchema.omit({ requires_review: true }).partial();
@@ -50,11 +50,15 @@ export async function POST(req: NextRequest): Promise<Response> {
       throw new ValidationError("Invalid profile update body");
     }
 
+    // destination_country is in the voice schema but not a DB column — keep it in
+    // voice_session_data only so PostgREST doesn't reject the update.
+    const { destination_country: _dc, ...dbSafeUpdates } = updates as typeof updates & { destination_country?: unknown };
+
     const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
     const { error } = await adminDb
       .from("profiles")
       .update({
-        ...updates,
+        ...dbSafeUpdates,
         onboarding_step: "voice_in_progress",
         voice_session_data: {
           ...(profile.voice_session_data ?? {}),
@@ -64,7 +68,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       .eq("id", profile.id);
 
     if (error) {
-      throw new Error(`Failed to update profile: ${error.message}`);
+      throw new DatabaseError(`Failed to update profile: ${error.message}`, { profileId: profile.id });
     }
 
     log.info({ action: "api.onboarding.profile.done", profileId: profile.id });

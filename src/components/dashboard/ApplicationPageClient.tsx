@@ -1,11 +1,16 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
-import { ChevronDown } from 'lucide-react';
+import { Clock, Home, ExternalLink, FileText, Mail, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { updateStepProgress } from '@/app/actions/progress';
-import { StepDetailDrawer } from '@/components/dashboard/StepDetailDrawer';
+import { EmailTemplatesSection } from '@/components/dashboard/StepDetailDrawer';
 import { documentBelongsToStep } from '@/lib/step-document-map';
+import { getEmailTemplates } from '@/lib/email-templates';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
+import { ParticleBurst } from '@/components/fx/ParticleBurst';
 import type { EnrichedApplicationStep, DashboardDocument, ProfileContext } from '@/modules/dashboard/types';
 
 export interface ApplicationPageClientProps {
@@ -22,378 +27,754 @@ export interface ApplicationPageClientProps {
   documents: DashboardDocument[];
 }
 
-const ink = '#0A0A0A';
-const muted = '#6B7280';
-const border = '#E5E5E5';
-const accent = '#1A56DB';
-const font = {
-  body: 'var(--pw-font-body)' as const,
-  display: 'var(--pw-font-display)' as const,
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+const INK = '#0A0A0A';
+const MUTED = '#6B7280';
+const BORDER_CARD = 'rgba(0,0,0,0.08)'; // matches profile page cards
+const BORDER_INNER = 'rgba(0,0,0,0.06)'; // inner dividers
+const BG = '#FFFFFF';
+const TEXT_TERTIARY = '#9CA3AF';
+const GREEN = '#16A34A';
+const GREEN_BG = '#F0FDF4';
+const ACCENT = '#1A56DB';
+const font = { body: 'var(--pw-font-body)' as const, display: 'var(--pw-font-display)' as const };
+
+const CARD: CSSProperties = { background: BG, border: `1px solid ${BORDER_CARD}`, borderRadius: 12 };
+
+const EYEBROW: CSSProperties = {
+  fontFamily: font.body, fontSize: 11, fontWeight: 500,
+  letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+  color: TEXT_TERTIARY, margin: 0,
 };
 
-function MetaLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{
-      fontFamily: font.body,
-      fontSize: 10,
-      fontWeight: 500,
-      letterSpacing: '0.12em',
-      color: '#9CA3AF',
-      textTransform: 'uppercase',
-      margin: '0 0 12px',
-    }}>
-      {children}
-    </p>
-  );
-}
-
-function ColumnLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{
-      fontFamily: font.body,
-      fontSize: 10,
-      fontWeight: 500,
-      letterSpacing: '0.1em',
-      color: '#9CA3AF',
-      textTransform: 'uppercase',
-      margin: '0 0 4px',
-    }}>
-      {children}
-    </p>
-  );
-}
+// ── Sidebar step circle ───────────────────────────────────────────────────────
 
 type StepStatus = 'complete' | 'current' | 'upcoming';
 
-function StepCircle({ status, stepNumber }: { status: StepStatus; stepNumber: number }) {
+/** Circular icon conveying step completion state in the sidebar. */
+function SidebarStepCircle({ status, stepNumber }: { status: StepStatus; stepNumber: number }) {
   if (status === 'complete') {
     return (
-      <div style={{
-        width: 28, height: 28, borderRadius: '50%',
-        background: accent, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <svg width="12" height="9" viewBox="0 0 12 9" fill="none">
-          <path d="M1 4.5L4.5 8L11 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <div style={{ width: 20, height: 20, borderRadius: '50%', background: INK, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+          <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
     );
   }
   if (status === 'current') {
     return (
-      <div style={{
-        width: 28, height: 28, borderRadius: '50%',
-        border: `2px solid ${accent}`,
-        background: 'transparent', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: accent, fontFamily: font.body, fontSize: 12,
-      }}>
+      <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${INK}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: INK, fontFamily: font.body, fontSize: 10 }}>
         {stepNumber}
       </div>
     );
   }
   return (
-    <div style={{
-      width: 28, height: 28, borderRadius: '50%',
-      border: '1.5px solid #E5E5E5',
-      background: 'transparent', flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#9CA3AF', fontFamily: font.body, fontSize: 12,
-    }}>
+    <div style={{ width: 20, height: 20, borderRadius: '50%', border: '1.5px solid #D1D5DB', background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontFamily: font.body, fontSize: 10 }}>
       {stepNumber}
     </div>
   );
 }
 
-interface StepRowProps {
-  step: EnrichedApplicationStep;
-  isExpanded: boolean;
+// ── Accordion checklist ───────────────────────────────────────────────────────
+
+interface AccordionChecklistProps {
+  stepId: string;
+  checklistItems: string[];
+  stepDocs: DashboardDocument[];
   pathwaySlug: string;
-  documents: DashboardDocument[];
-  onToggle: () => void;
-  onViewDetails: () => void;
-  onMarkComplete: (stepId: string) => void;
-  locallyCompleted: boolean;
+  stepNumber: number;
+  profileContext: ProfileContext | null;
+  resources: EnrichedApplicationStep['resources'];
+  onCheckedChange: (n: number) => void;
 }
 
-/** Single accordion row in the step list. */
-function StepRow({
-  step,
-  isExpanded,
+/**
+ * Accordion-style checklist card — each row expands inline to reveal its
+ * content and actions. DB tasks, documents, email drafts, and resources
+ * are all surfaced here as first-class checklist items.
+ */
+function AccordionChecklist({
+  stepId,
+  checklistItems,
+  stepDocs,
   pathwaySlug,
-  documents,
-  onToggle,
-  onViewDetails,
-  onMarkComplete,
-  locallyCompleted,
-}: StepRowProps) {
-  const [isPending, startTransition] = useTransition();
-  const displayStatus: StepStatus = locallyCompleted ? 'complete' : step.status;
-  const textColor = displayStatus === 'upcoming' ? '#9CA3AF' : ink;
+  stepNumber,
+  profileContext,
+  resources,
+  onCheckedChange,
+}: AccordionChecklistProps) {
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [hydrating, setHydrating] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCheckedChangeRef = useRef(onCheckedChange);
+  onCheckedChangeRef.current = onCheckedChange;
 
-  const stepDocs = documents.filter((d) => documentBelongsToStep(d.name, step.stepNumber));
+  const templates = getEmailTemplates(pathwaySlug, stepNumber);
   const hasDocuments = stepDocs.length > 0;
+  const hasEmail = templates.length > 0 && profileContext !== null;
+  const hasResources = (resources?.length ?? 0) > 0;
 
-  const handleMarkComplete = (e: React.MouseEvent) => {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data } = await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          .select('checked_items')
+          .eq('user_id', user.id)
+          .eq('step_id', stepId)
+          .maybeSingle() as unknown as { data: { checked_items: number[] } | null };
+        if (!cancelled && data && Array.isArray(data.checked_items)) {
+          const loaded = new Set<number>(data.checked_items);
+          setChecked(loaded);
+          onCheckedChangeRef.current(loaded.size);
+        }
+      } catch {
+        // Non-fatal
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [stepId]);
+
+  const persist = (next: Set<number>) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          .upsert(
+            { user_id: user.id, step_id: stepId, checked_items: [...next], updated_at: new Date().toISOString() } as never,
+            { onConflict: 'user_id,step_id' }
+          );
+      } catch {
+        // Silently fail
+      }
+    }, 600);
+  };
+
+  const toggleChecked = (i: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    startTransition(async () => {
-      await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
-      onMarkComplete(step.id);
+    const next = new Set(checked);
+    next.has(i) ? next.delete(i) : next.add(i);
+    setChecked(next);
+    onCheckedChangeRef.current(next.size);
+    persist(next);
+  };
+
+  const toggleOpen = (key: string) => {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
     });
   };
 
+  const totalCheckable = checklistItems.length;
+  const doneCount = checked.size;
+
   return (
-    <div style={{ borderBottom: `1px solid ${border}` }}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle(); }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '14px 0', cursor: 'pointer',
-        }}
-      >
-        <StepCircle status={displayStatus} stepNumber={step.stepNumber} />
-        <p style={{
-          fontFamily: font.body, fontSize: 14, color: textColor,
-          margin: 0, flex: 1, minWidth: 0,
-        }}>
-          {step.label}
-        </p>
-        {step.estimatedDuration && (
-          <span style={{
-            fontFamily: font.body, fontSize: 12, color: muted,
-            flexShrink: 0, whiteSpace: 'nowrap',
-          }}>
-            {step.estimatedDuration}
+    <div style={CARD}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${BORDER_INNER}` }}>
+        <span style={{ fontFamily: font.body, fontSize: 13, fontWeight: 500, color: INK }}>
+          Tasks &amp; actions
+        </span>
+        {totalCheckable > 0 && (
+          <span style={{ fontFamily: font.body, fontSize: 12, color: MUTED }}>
+            {hydrating ? '–' : doneCount} of {totalCheckable} done
           </span>
         )}
-        <ChevronDown
-          size={16}
-          color={muted}
-          style={{
-            flexShrink: 0,
-            transition: 'transform 200ms ease',
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
-        />
       </div>
 
-      <div style={{
-        maxHeight: isExpanded ? 600 : 0,
-        overflow: 'hidden',
-        transition: 'max-height 300ms cubic-bezier(0.16,1,0.3,1)',
-      }}>
-        <div style={{
-          background: '#FAFAF9',
-          borderTop: `1px solid #F3F4F6`,
-          padding: '14px 0 16px',
-          marginLeft: 40,
-        }}>
-          {step.description && (
-            <p style={{
-              fontFamily: font.body, fontSize: 13, color: '#374151',
-              margin: '0 0 14px', lineHeight: 1.6,
-            }}>
-              {step.description}
-            </p>
-          )}
+      {/* DB checklist items */}
+      {checklistItems.map((item, i) => {
+        const key = `task-${i}`;
+        const isOpen = openKeys.has(key);
+        const done = checked.has(i);
+        return (
+          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
+            {/* Row header */}
+            <button
+              type="button"
+              onClick={() => toggleOpen(key)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              {/* Custom checkbox */}
+              <span
+                role="checkbox"
+                aria-checked={done}
+                tabIndex={0}
+                onClick={(e) => toggleChecked(i, e)}
+                onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') toggleChecked(i, e as unknown as React.MouseEvent); }}
+                className={done ? 'task-cb task-cb-checked' : 'task-cb'}
+                style={{ flexShrink: 0 }}
+              />
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: done ? MUTED : INK, textDecoration: done ? 'line-through' : 'none', lineHeight: 1.5 }}>
+                {item}
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {/* Expanded content */}
+            {isOpen && (
+              <div style={{ padding: '0 20px 16px 52px' }}>
+                <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, lineHeight: 1.6, margin: 0 }}>
+                  {item}
+                </p>
+                <button
+                  type="button"
+                  onClick={(e) => toggleChecked(i, e)}
+                  style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: done ? GREEN_BG : BG, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: done ? GREEN : INK, cursor: 'pointer' }}
+                >
+                  {done ? '✓ Marked done' : 'Mark as done'}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
-          {hasDocuments && (
-            <div style={{ marginBottom: 14 }}>
-              <p style={{
-                fontFamily: font.body, fontSize: 10, fontWeight: 500,
-                letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase',
-                margin: '0 0 8px',
-              }}>
-                Documents Needed
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* Documents section item */}
+      {hasDocuments && (() => {
+        const key = 'documents';
+        const isOpen = openKeys.has(key);
+        return (
+          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
+            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileText size={10} color={MUTED} />
+              </div>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+                Documents needed
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({stepDocs.length})</span>
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '4px 20px 16px 52px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {stepDocs.map((doc) => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                      background: doc.isMandatory ? ink : 'transparent',
-                      border: doc.isMandatory ? 'none' : `1.5px solid ${muted}`,
-                      display: 'inline-block',
-                    }} />
-                    <span style={{ fontFamily: font.body, fontSize: 12, color: ink }}>
-                      {doc.name}
-                      {!doc.isMandatory && (
-                        <span style={{ color: muted, marginLeft: 4 }}>(optional)</span>
-                      )}
-                    </span>
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: `1px dashed ${BORDER_CARD}`, borderRadius: 8 }}>
+                    <FileText size={13} color={MUTED} style={{ flexShrink: 0 }} />
+                    <span style={{ fontFamily: font.body, fontSize: 13, color: MUTED, flex: 1, minWidth: 0 }}>{doc.name}</span>
+                    <button type="button" style={{ fontFamily: font.body, fontSize: 12, fontWeight: 500, color: ACCENT, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                      Upload
+                    </button>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
-              style={{
-                fontFamily: font.body, fontSize: 13, color: accent,
-                background: 'none', border: 'none', padding: 0,
-                cursor: 'pointer',
-              }}
-            >
-              View details →
-            </button>
-
-            {locallyCompleted ? (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '7px 16px', borderRadius: 9999,
-                background: '#F0FDF4', color: '#16A34A',
-                fontFamily: font.body, fontSize: 12, fontWeight: 500,
-              }}>
-                ✓ Completed
-              </span>
-            ) : (
-              <button
-                onClick={handleMarkComplete}
-                disabled={isPending}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '7px 16px', borderRadius: 9999,
-                  background: isPending ? '#E5E7EB' : ink,
-                  color: isPending ? muted : '#FFFFFF',
-                  fontFamily: font.body, fontSize: 12, fontWeight: 500,
-                  border: 'none', cursor: isPending ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isPending ? 'Saving...' : 'Mark as complete →'}
-              </button>
             )}
           </div>
+        );
+      })()}
+
+      {/* Email drafts section item */}
+      {hasEmail && (() => {
+        const key = 'email';
+        const isOpen = openKeys.has(key);
+        return (
+          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
+            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Mail size={10} color={MUTED} />
+              </div>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+                Email drafts
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({templates.length})</span>
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {isOpen && profileContext && (
+              <div style={{ padding: '4px 20px 16px 52px' }}>
+                <EmailTemplatesSection pathwaySlug={pathwaySlug} stepNumber={stepNumber} profileContext={profileContext} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Official resources section item */}
+      {hasResources && resources && (() => {
+        const key = 'resources';
+        const isOpen = openKeys.has(key);
+        return (
+          <div key={key}>
+            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ExternalLink size={10} color={MUTED} />
+              </div>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+                Official resources
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({resources.length})</span>
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '4px 12px 12px 52px' }}>
+                {resources.map((r, i) => (
+                  <a
+                    key={i}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 6, textDecoration: 'none' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = '#F9FAFB'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}
+                  >
+                    <ExternalLink size={13} style={{ color: MUTED, flexShrink: 0 }} />
+                    <span style={{ fontFamily: font.body, fontSize: 13, color: INK, flex: 1, minWidth: 0 }}>{r.label}</span>
+                    <ExternalLink size={11} style={{ color: MUTED, flexShrink: 0, opacity: 0.4 }} />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Empty state */}
+      {checklistItems.length === 0 && !hasDocuments && !hasEmail && !hasResources && (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: 0 }}>
+            No tasks for this step.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Pathway overview panel ────────────────────────────────────────────────────
+
+/** Pathway overview — shown when no step is selected. */
+function OverviewPanel({ pathway }: { pathway: ApplicationPageClientProps['pathway'] }) {
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ ...CARD, padding: '28px' }}>
+        <p style={{ ...EYEBROW, marginBottom: 12 }}>Your pathway</p>
+        <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 400, color: INK, margin: '0 0 4px', lineHeight: 1.2 }}>
+          {pathway.title}
+        </h1>
+        {pathway.officialName && (
+          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: '0 0 20px' }}>{pathway.officialName}</p>
+        )}
+        <hr style={{ border: 'none', borderTop: `1px solid ${BORDER_INNER}`, margin: '0 0 20px' }} />
+        <div style={{ display: 'flex', gap: 40, marginBottom: pathway.description ? 20 : 0 }}>
+          <div>
+            <p style={{ ...EYEBROW, marginBottom: 4 }}>Processing time</p>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: INK, margin: 0 }}>{pathway.processingTime}</p>
+          </div>
+          <div>
+            <p style={{ ...EYEBROW, marginBottom: 4 }}>Total steps</p>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: INK, margin: 0 }}>{pathway.totalSteps}</p>
+          </div>
+        </div>
+        {pathway.description && (
+          <p style={{ fontFamily: font.body, fontSize: 14, color: '#374151', margin: '0 0 28px', lineHeight: 1.7, maxWidth: 560 }}>
+            {pathway.description}
+          </p>
+        )}
+        <Link
+          href="/onboarding/matches"
+          style={{ fontFamily: font.body, fontSize: 13, color: INK, textDecoration: 'none', opacity: 0.7 }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.7'; }}
+        >
+          Change pathway →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ── Step detail panel ─────────────────────────────────────────────────────────
+
+interface StepDetailPanelProps {
+  step: EnrichedApplicationStep;
+  steps: EnrichedApplicationStep[];
+  documents: DashboardDocument[];
+  pathwaySlug: string;
+  profileContext: ProfileContext | null;
+  isCompleted: boolean;
+  onMarkComplete: (stepId: string) => void;
+  onMarkIncomplete: (stepId: string) => void;
+  onSelectStep: (id: string | 'overview') => void;
+}
+
+/** Step detail — objective card, accordion task list, completion bar. */
+function StepDetailPanel({
+  step,
+  steps,
+  documents,
+  pathwaySlug,
+  profileContext,
+  isCompleted,
+  onMarkComplete,
+  onMarkIncomplete,
+  onSelectStep,
+}: StepDetailPanelProps) {
+  const [isPending, startTransition] = useTransition();
+  const [justCompleted, setJustCompleted] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [checkedCount, setCheckedCount] = useState(0);
+
+  const handleCheckedChange = useCallback((n: number) => { setCheckedCount(n); }, []);
+
+  const handleMarkComplete = () => {
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
+        setJustCompleted(true);
+        onMarkComplete(step.id);
+      } catch {
+        setActionError('Failed to save. Please try again.');
+      }
+    });
+  };
+
+  const handleMarkIncomplete = () => {
+    setActionError(null);
+    setJustCompleted(false);
+    startTransition(async () => {
+      try {
+        await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'upcoming' });
+        onMarkIncomplete(step.id);
+      } catch {
+        setActionError('Failed to save. Please try again.');
+      }
+    });
+  };
+
+  const stepDocs = documents.filter((d) => documentBelongsToStep(d.name, step.stepNumber));
+  const currentIdx = steps.findIndex((s) => s.id === step.id);
+  const nextStep = currentIdx >= 0 && currentIdx < steps.length - 1 ? steps[currentIdx + 1] : null;
+
+  const totalTasks = step.checklistItems?.length ?? 0;
+  const remaining = totalTasks > 0 ? totalTasks - checkedCount : 0;
+  const completionLabel = isCompleted
+    ? 'Step complete'
+    : totalTasks > 0
+      ? `${remaining} ${remaining === 1 ? 'task' : 'tasks'} remaining`
+      : 'Ready to mark complete';
+
+  const ss = isCompleted || step.status === 'complete'
+    ? { bg: GREEN_BG, color: GREEN, label: 'Complete' }
+    : step.status === 'current'
+      ? { bg: '#F3F4F6', color: INK, label: 'In progress' }
+      : { bg: '#F3F4F6', color: MUTED, label: 'Upcoming' };
+
+  const checklistItems = step.checklistItems ?? [];
+
+  return (
+    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto', background: BG, padding: '28px 32px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Section 1 — Objective */}
+          <div style={CARD}>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={EYEBROW}>Step {step.stepNumber}</span>
+                  <span style={{ display: 'inline-block', padding: '2px 9px', borderRadius: 9999, background: ss.bg, color: ss.color, fontFamily: font.body, fontSize: 11, fontWeight: 500 }}>
+                    {ss.label}
+                  </span>
+                </div>
+                {step.estimatedDuration && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 9999, background: '#F3F4F6', fontFamily: font.body, fontSize: 12, color: MUTED }}>
+                    <Clock size={12} />
+                    {step.estimatedDuration}
+                  </span>
+                )}
+              </div>
+              <h1 style={{ fontFamily: font.display, fontSize: 20, fontWeight: 500, color: INK, margin: '0 0 12px', lineHeight: 1.3 }}>
+                {step.label}
+              </h1>
+              {step.description && (
+                <p style={{ fontFamily: font.body, fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.65 }}>
+                  {step.description}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Section 2 — Accordion tasks & actions */}
+          <AccordionChecklist
+            key={step.id}
+            stepId={step.id}
+            checklistItems={checklistItems}
+            stepDocs={stepDocs}
+            pathwaySlug={pathwaySlug}
+            stepNumber={step.stepNumber}
+            profileContext={profileContext}
+            resources={step.resources}
+            onCheckedChange={handleCheckedChange}
+          />
+
+        </div>
+      </div>
+
+      {/* Completion bar */}
+      <div style={{ background: BG, borderTop: `1px solid ${BORDER_INNER}`, padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ position: 'relative', flexShrink: 0, width: 20, height: 20 }}>
+              {isCompleted && justCompleted ? (
+                <>
+                  <CheckmarkDraw size={20} color={GREEN} />
+                  <ParticleBurst count={10} size={48} />
+                </>
+              ) : (
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: isCompleted ? GREEN : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <path d="M1 3.5L3.5 6L8 1" stroke={isCompleted ? 'white' : '#9CA3AF'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              )}
+            </div>
+            <span style={{ fontFamily: font.body, fontSize: 13, fontWeight: 500, color: isCompleted ? GREEN : INK }}>
+              {completionLabel}
+            </span>
+          </div>
+          {actionError && (
+            <p style={{ fontFamily: font.body, fontSize: 12, color: '#DC2626', margin: '4px 0 0' }}>{actionError}</p>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => onSelectStep('overview')}
+            style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: BG, fontFamily: font.body, fontSize: 13, fontWeight: 500, color: INK, cursor: 'pointer' }}
+          >
+            ← Back to overview
+          </button>
+          {isCompleted ? (
+            <button
+              type="button"
+              onClick={handleMarkIncomplete}
+              disabled={isPending}
+              style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: BG, fontFamily: font.body, fontSize: 13, fontWeight: 500, color: MUTED, cursor: isPending ? 'not-allowed' : 'pointer' }}
+            >
+              Mark incomplete
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleMarkComplete}
+              disabled={isPending}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: isPending ? '#E5E7EB' : INK, color: isPending ? MUTED : '#FFFFFF', border: 'none', fontFamily: font.body, fontSize: 13, fontWeight: 500, cursor: isPending ? 'not-allowed' : 'pointer' }}
+            >
+              {isPending && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+              {isPending ? 'Saving…' : 'Mark as complete'}
+            </button>
+          )}
+          {nextStep && (
+            <button
+              type="button"
+              onClick={() => { if (isCompleted) onSelectStep(nextStep.id); }}
+              disabled={!isCompleted}
+              title={!isCompleted ? 'Complete this step first' : undefined}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: isCompleted ? INK : '#E5E7EB', color: isCompleted ? '#FFFFFF' : MUTED, border: 'none', fontFamily: font.body, fontSize: 13, fontWeight: 500, cursor: isCompleted ? 'pointer' : 'not-allowed' }}
+            >
+              Next step →
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-/** Owned application page — pathway header, interactive step list, and step detail drawer. */
-export function ApplicationPageClient({
-  pathway,
-  steps,
-  profileContext,
-  documents,
-}: ApplicationPageClientProps) {
-  const firstActivStep = steps.find((s) => s.status !== 'complete') ?? null;
-  const [expandedStepId, setExpandedStepId] = useState<string | null>(
-    firstActivStep?.id ?? null
-  );
+// ── Main component ────────────────────────────────────────────────────────────
+
+/** Application page — floating left sidebar + white card content area. */
+export function ApplicationPageClient({ pathway, steps, profileContext, documents }: ApplicationPageClientProps) {
+  const [selectedId, setSelectedId] = useState<string>('overview');
   const [completedIds, setCompletedIds] = useState<Set<string>>(
     () => new Set(steps.filter((s) => s.status === 'complete').map((s) => s.id))
   );
-  const [drawerStep, setDrawerStep] = useState<EnrichedApplicationStep | null>(null);
 
-  const handleToggle = (stepId: string) => {
-    setExpandedStepId((prev) => (prev === stepId ? null : stepId));
+  const handleMarkComplete = (stepId: string) => setCompletedIds((prev) => new Set([...prev, stepId]));
+  const handleMarkIncomplete = (stepId: string) => {
+    setCompletedIds((prev) => { const next = new Set(prev); next.delete(stepId); return next; });
   };
 
-  const handleMarkComplete = (stepId: string) => {
-    setCompletedIds((prev) => new Set([...prev, stepId]));
-  };
+  const selectedStep = steps.find((s) => s.id === selectedId) ?? null;
+  const completedCount = completedIds.size;
+  const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
-    <>
-      <div style={{ maxWidth: 768, margin: '0 auto', padding: '32px 24px' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Pathway header card */}
-        <div style={{
-          background: '#FFFFFF',
-          border: `1px solid ${border}`,
-          borderRadius: 12,
-          padding: '24px 28px',
-          marginBottom: 24,
-        }}>
-          <MetaLabel>Your Pathway</MetaLabel>
-          <h1 style={{
-            fontFamily: font.display, fontSize: 28, fontWeight: 400,
-            color: ink, margin: '0 0 4px', lineHeight: 1.2,
-          }}>
-            {pathway.title}
-          </h1>
-          {pathway.officialName && (
-            <p style={{ fontFamily: font.body, fontSize: 13, color: muted, margin: '0 0 4px' }}>
-              {pathway.officialName}
-            </p>
-          )}
-          <hr style={{ border: 'none', borderTop: `1px solid ${border}`, margin: '16px 0' }} />
-          <div style={{ display: 'flex', gap: 32, marginBottom: pathway.description ? 16 : 0 }}>
+      {/* ─── Left sidebar — floating card (same as original) ─── */}
+      <div style={{ flexShrink: 0, padding: '16px 12px 16px 24px', display: 'flex', alignItems: 'stretch' }}>
+        <div style={{ width: 280, background: BG, borderRadius: 14, border: `1px solid ${BORDER_CARD}`, boxShadow: '0 4px 24px rgba(0,0,0,0.09), 0 1px 6px rgba(0,0,0,0.05)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+
+          {/* Pathway header */}
+          <div style={{ padding: '18px 16px 16px', borderBottom: `1px solid ${BORDER_INNER}` }}>
+            <p style={{ ...EYEBROW, marginBottom: 7 }}>Active pathway</p>
+            <p style={{ fontFamily: font.display, fontSize: 16, color: INK, margin: '0 0 2px', lineHeight: 1.25 }}>{pathway.title}</p>
+            {pathway.officialName && (
+              <p style={{ fontFamily: font.body, fontSize: 11, color: MUTED, margin: '0 0 12px', lineHeight: 1.4 }}>{pathway.officialName}</p>
+            )}
             <div>
-              <ColumnLabel>Processing Time</ColumnLabel>
-              <p style={{ fontFamily: font.body, fontSize: 14, color: ink, margin: 0 }}>
-                {pathway.processingTime}
-              </p>
-            </div>
-            <div>
-              <ColumnLabel>Total Steps</ColumnLabel>
-              <p style={{ fontFamily: font.body, fontSize: 14, color: ink, margin: 0 }}>
-                {pathway.totalSteps}
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <span style={{ fontFamily: font.body, fontSize: 10, color: MUTED }}>{completedCount} of {steps.length} complete</span>
+                {completedCount > 0 && (
+                  <span style={{ fontFamily: font.body, fontSize: 10, color: INK, fontWeight: 500 }}>{progressPct}%</span>
+                )}
+              </div>
+              <div style={{ height: 3, borderRadius: 9999, background: '#EBEBEB', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${progressPct}%`, background: INK, borderRadius: 9999, transition: 'width 400ms cubic-bezier(0.16,1,0.3,1)', minWidth: completedCount > 0 ? 6 : 0 }} />
+              </div>
             </div>
           </div>
-          {pathway.description && (
-            <p style={{
-              fontFamily: font.body, fontSize: 14, color: '#374151',
-              margin: '0 0 16px', lineHeight: 1.6,
-            }}>
-              {pathway.description}
-            </p>
-          )}
-          <div style={{ textAlign: 'right' }}>
-            <Link
-              href="/onboarding/matches"
-              style={{ fontFamily: font.body, fontSize: 13, color: accent, textDecoration: 'none' }}
+
+          {/* Nav list */}
+          <nav style={{ padding: '10px 8px', flex: 1 }}>
+            <button
+              type="button"
+              onClick={() => setSelectedId('overview')}
+              className={`app-sidebar-item${selectedId === 'overview' ? ' is-selected' : ''}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 10px', cursor: 'pointer', textAlign: 'left' }}
             >
-              Change pathway →
-            </Link>
-          </div>
-        </div>
+              <div className="item-icon" style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: selectedId === 'overview' ? '#E8E8E8' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Home size={12} color={selectedId === 'overview' ? INK : '#9CA3AF'} />
+              </div>
+              <span className="item-label" style={{ fontFamily: font.body, fontSize: 13, fontWeight: selectedId === 'overview' ? 500 : 400 }}>
+                Pathway overview
+              </span>
+            </button>
 
-        {/* Step list */}
-        <div style={{
-          background: '#FFFFFF',
-          border: `1px solid ${border}`,
-          borderRadius: 12,
-          padding: '24px 28px',
-        }}>
-          <MetaLabel>Your Roadmap</MetaLabel>
-          <p style={{ fontFamily: font.body, fontSize: 13, color: muted, margin: '0 0 20px' }}>
-            {pathway.totalSteps} steps to complete your application
-          </p>
-          <div>
-            {steps.map((step) => (
-              <StepRow
-                key={step.id}
-                step={step}
-                isExpanded={expandedStepId === step.id}
-                locallyCompleted={completedIds.has(step.id)}
-                pathwaySlug={pathway.slug}
-                documents={documents}
-                onToggle={() => handleToggle(step.id)}
-                onViewDetails={() => setDrawerStep(step)}
-                onMarkComplete={handleMarkComplete}
-              />
-            ))}
-          </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 4px 6px' }}>
+              <span style={{ fontFamily: font.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.10em', color: '#C8C8C8', textTransform: 'uppercase', flexShrink: 0 }}>Steps</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
+            </div>
+
+            {steps.map((step) => {
+              const isSelected = selectedId === step.id;
+              const effectiveStatus: StepStatus = completedIds.has(step.id) ? 'complete' : step.status;
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => setSelectedId(step.id)}
+                  className={`app-sidebar-item${isSelected ? ' is-selected' : ''}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <div className="item-icon" style={{ flexShrink: 0 }}>
+                    <SidebarStepCircle status={effectiveStatus} stepNumber={step.stepNumber} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p className="item-label" style={{ fontFamily: font.body, fontSize: 13, fontWeight: isSelected ? 500 : 400, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {step.label}
+                    </p>
+                    {step.estimatedDuration && (
+                      <p style={{ fontFamily: font.body, fontSize: 11, color: '#A0A0A0', margin: '1px 0 0' }}>{step.estimatedDuration}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </nav>
         </div>
       </div>
 
-      {drawerStep !== null && (
-        <StepDetailDrawer
-          step={drawerStep}
-          documents={documents}
-          pathwaySlug={pathway.slug}
-          applicationId={null}
-          profileContext={profileContext}
-          onClose={() => setDrawerStep(null)}
-        />
-      )}
-    </>
+      {/* ─── Right content area — white, fills remaining space ─── */}
+      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: BG }}>
+        {selectedId === 'overview' || selectedStep === null ? (
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <OverviewPanel pathway={pathway} />
+          </div>
+        ) : (
+          <StepDetailPanel
+            key={selectedStep.id}
+            step={selectedStep}
+            steps={steps}
+            documents={documents}
+            pathwaySlug={pathway.slug}
+            profileContext={profileContext}
+            isCompleted={completedIds.has(selectedStep.id)}
+            onMarkComplete={handleMarkComplete}
+            onMarkIncomplete={handleMarkIncomplete}
+            onSelectStep={(id) => setSelectedId(id)}
+          />
+        )}
+      </div>
+
+      <style>{`
+        .app-sidebar-item {
+          background: transparent;
+          border: 1.5px solid transparent;
+          border-radius: 8px;
+          transition: background 100ms ease, border-color 100ms ease;
+        }
+        .app-sidebar-item.is-selected {
+          background: rgba(0,0,0,0.04);
+          border-color: rgba(0,0,0,0.14);
+        }
+        .app-sidebar-item:not(.is-selected):hover {
+          background: rgba(0,0,0,0.03);
+          border-color: rgba(0,0,0,0.08);
+        }
+        .app-sidebar-item .item-label { color: #6B7280; transition: color 100ms ease; }
+        .app-sidebar-item.is-selected .item-label { color: #0A0A0A; }
+        .app-sidebar-item:not(.is-selected):hover .item-label { color: #374151; }
+        .app-sidebar-item .item-icon { transition: transform 150ms cubic-bezier(0.16,1,0.3,1); }
+        .app-sidebar-item:hover .item-icon { transform: scale(1.10); }
+        .app-sidebar-item:active .item-icon { transform: scale(1.0); }
+
+        /* Custom checkbox for tasks */
+        .task-cb {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border: 1.5px solid #D1D5DB;
+          border-radius: 4px;
+          cursor: pointer;
+          background: white;
+          flex-shrink: 0;
+          transition: background 120ms ease, border-color 120ms ease;
+        }
+        .task-cb-checked {
+          background: #0A0A0A;
+          border-color: #0A0A0A;
+          background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+          background-size: 100% 100%;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+        .task-cb:hover:not(.task-cb-checked) { border-color: #9CA3AF; }
+
+        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+      `}</style>
+    </div>
   );
 }

@@ -94,6 +94,45 @@ export type Database = {
           },
         ]
       }
+      application_step_completions: {
+        Row: {
+          application_id: string
+          completed_at: string
+          id: string
+          notes: string | null
+          step_id: string
+        }
+        Insert: {
+          application_id: string
+          completed_at?: string
+          id?: string
+          notes?: string | null
+          step_id: string
+        }
+        Update: {
+          application_id?: string
+          completed_at?: string
+          id?: string
+          notes?: string | null
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_step_completions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_step_completions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "pathway_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           created_at: string
@@ -260,6 +299,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      guest_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          onboarding_data: Json
+          pathway_results: Json | null
+          session_token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          onboarding_data?: Json
+          pathway_results?: Json | null
+          session_token?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          onboarding_data?: Json
+          pathway_results?: Json | null
+          session_token?: string
+        }
+        Relationships: []
       }
       immigration_chunks: {
         Row: {
@@ -583,6 +649,7 @@ export type Database = {
       pathway_steps: {
         Row: {
           description: string
+          document_requirement_id: string | null
           estimated_duration: string
           id: string
           is_optional: boolean
@@ -594,6 +661,7 @@ export type Database = {
         }
         Insert: {
           description: string
+          document_requirement_id?: string | null
           estimated_duration: string
           id?: string
           is_optional?: boolean
@@ -605,6 +673,7 @@ export type Database = {
         }
         Update: {
           description?: string
+          document_requirement_id?: string | null
           estimated_duration?: string
           id?: string
           is_optional?: boolean
@@ -615,6 +684,13 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pathway_steps_document_requirement_id_fkey"
+            columns: ["document_requirement_id"]
+            isOneToOne: false
+            referencedRelation: "document_requirements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pathway_steps_pathway_id_fkey"
             columns: ["pathway_id"]
@@ -641,6 +717,7 @@ export type Database = {
           official_name: string
           processing_time_max: string
           processing_time_min: string
+          program_type: string | null
           requires_degree: boolean
           requires_english_test: boolean
           slug: string
@@ -663,6 +740,7 @@ export type Database = {
           official_name: string
           processing_time_max: string
           processing_time_min: string
+          program_type?: string | null
           requires_degree?: boolean
           requires_english_test?: boolean
           slug: string
@@ -685,6 +763,7 @@ export type Database = {
           official_name?: string
           processing_time_max?: string
           processing_time_min?: string
+          program_type?: string | null
           requires_degree?: boolean
           requires_english_test?: boolean
           slug?: string
@@ -708,10 +787,68 @@ export type Database = {
           },
         ]
       }
+      posts: {
+        Row: {
+          ai_summary: string | null
+          author_id: string | null
+          body: string | null
+          cover_seed: string | null
+          created_at: string | null
+          excerpt: string | null
+          id: string
+          published_at: string | null
+          slug: string
+          source_name: string | null
+          source_url: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          author_id?: string | null
+          body?: string | null
+          cover_seed?: string | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug: string
+          source_name?: string | null
+          source_url?: string | null
+          status?: string
+          tags?: string[] | null
+          title: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          author_id?: string | null
+          body?: string | null
+          cover_seed?: string | null
+          created_at?: string | null
+          excerpt?: string | null
+          id?: string
+          published_at?: string | null
+          slug?: string
+          source_name?: string | null
+          source_url?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           annual_income: number | null
           auth_user_id: string
+          avatar_url: string | null
           canadian_education_years: number | null
           canadian_work_recent: boolean | null
           canadian_work_years: number | null
@@ -719,6 +856,7 @@ export type Database = {
           clb_reading: number | null
           clb_speaking: number | null
           clb_writing: number | null
+          country_of_residence: string | null
           created_at: string
           current_country: string | null
           date_of_birth: string | null
@@ -760,6 +898,8 @@ export type Database = {
           onboarding_status: string
           onboarding_step: string | null
           pathway_input_json: Json | null
+          phone: string | null
+          preferred_language: string
           profile_completeness_pct: number | null
           second_lang_listening: number | null
           second_lang_reading: number | null
@@ -773,6 +913,7 @@ export type Database = {
           spouse_clb_writing: number | null
           spouse_coming_to_canada: boolean | null
           spouse_education_level: string | null
+          subscription_status: string
           updated_at: string
           voice_profile_version: number | null
           voice_session_data: Json | null
@@ -781,6 +922,7 @@ export type Database = {
         Insert: {
           annual_income?: number | null
           auth_user_id: string
+          avatar_url?: string | null
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
           canadian_work_years?: number | null
@@ -788,6 +930,7 @@ export type Database = {
           clb_reading?: number | null
           clb_speaking?: number | null
           clb_writing?: number | null
+          country_of_residence?: string | null
           created_at?: string
           current_country?: string | null
           date_of_birth?: string | null
@@ -829,6 +972,8 @@ export type Database = {
           onboarding_status?: string
           onboarding_step?: string | null
           pathway_input_json?: Json | null
+          phone?: string | null
+          preferred_language?: string
           profile_completeness_pct?: number | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
@@ -842,6 +987,7 @@ export type Database = {
           spouse_clb_writing?: number | null
           spouse_coming_to_canada?: boolean | null
           spouse_education_level?: string | null
+          subscription_status?: string
           updated_at?: string
           voice_profile_version?: number | null
           voice_session_data?: Json | null
@@ -850,6 +996,7 @@ export type Database = {
         Update: {
           annual_income?: number | null
           auth_user_id?: string
+          avatar_url?: string | null
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
           canadian_work_years?: number | null
@@ -857,6 +1004,7 @@ export type Database = {
           clb_reading?: number | null
           clb_speaking?: number | null
           clb_writing?: number | null
+          country_of_residence?: string | null
           created_at?: string
           current_country?: string | null
           date_of_birth?: string | null
@@ -898,6 +1046,8 @@ export type Database = {
           onboarding_status?: string
           onboarding_step?: string | null
           pathway_input_json?: Json | null
+          phone?: string | null
+          preferred_language?: string
           profile_completeness_pct?: number | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
@@ -911,6 +1061,7 @@ export type Database = {
           spouse_clb_writing?: number | null
           spouse_coming_to_canada?: boolean | null
           spouse_education_level?: string | null
+          subscription_status?: string
           updated_at?: string
           voice_profile_version?: number | null
           voice_session_data?: Json | null

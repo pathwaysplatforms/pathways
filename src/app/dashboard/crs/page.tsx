@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getProfile } from '@/modules/auth/service';
 import type { PathwayInput } from '@/lib/pathway-input';
-import { DashboardShell } from '@/components/dashboard/DashboardShell';
 
 const CRS_MAX = 1200;
 const RECENT_CUTOFF = 480;
@@ -76,27 +76,10 @@ const EFFORT_COLORS: Record<EffortLevel, string> = {
   LOW: '#639922',
 };
 
-/** Builds initials (up to 2 chars) from a full name. */
-function deriveInitials(fullName: string | null): string {
-  if (!fullName) return '?';
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length === 1) return (parts[0]?.[0] ?? '?').toUpperCase();
-  return `${parts[0]?.[0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase();
-}
-
-/** Extracts the first name from a full name string. */
-function deriveFirstName(fullName: string | null): string {
-  if (!fullName) return 'there';
-  return fullName.split(' ')[0] ?? 'there';
-}
-
 /** CRS score explainer page — typographic hero with improvement levers and pool grid. */
 export default async function CrsPage() {
   const profile = await getProfile();
   if (!profile) redirect('/auth/login');
-
-  const avatarInitials = deriveInitials(profile.full_name);
-  const firstName = deriveFirstName(profile.full_name);
 
   const pathwayInput = profile.pathway_input_json as PathwayInput | null;
   const crsLow = pathwayInput?.crs_estimate.range_low ?? null;
@@ -129,12 +112,19 @@ export default async function CrsPage() {
   const poolCutoffPct = RECENT_CUTOFF / CRS_MAX;
 
   return (
-    <DashboardShell
-      avatarInitials={avatarInitials}
-      firstName={firstName}
-    >
-      <div className="flex-1 overflow-y-auto relative z-10">
-        <div className="max-w-5xl mx-auto px-6 py-20">
+    <div className="flex-1 overflow-y-auto relative z-10">
+      <div className="max-w-5xl mx-auto px-6 pb-20 pt-8">
+
+        {/* Back navigation */}
+        <div style={{ marginBottom: 32 }}>
+          <Link
+            href="/dashboard/profile"
+            className="text-pw-muted hover:text-pw-ink transition-colors"
+            style={{ fontFamily: 'var(--pw-font-body)', fontSize: '13px', textDecoration: 'none' }}
+          >
+            ← Back to Profile
+          </Link>
+        </div>
 
         {/* ── Section 1: Header ── */}
         <div className="mb-16">
@@ -652,8 +642,7 @@ export default async function CrsPage() {
           </p>
         </div>
 
-        </div>
       </div>
-    </DashboardShell>
+    </div>
   );
 }

@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user || user.email !== DEMO_EMAIL) {
+    const isDev = process.env.NODE_ENV === "development";
+    if (!user || (!isDev && user.email !== DEMO_EMAIL)) {
       return NextResponse.json(
         { error: { code: "FORBIDDEN", message: "Only available for the demo user" } },
         { status: 403 }
@@ -55,18 +56,55 @@ export async function GET(request: NextRequest) {
     }
 
     if (state === 1) {
-      await db.from("profiles").update({ onboarding_status: "in_progress" }).eq("id", profile.id);
+      await db.from("profiles").update({
+        onboarding_status: "in_progress",
+        onboarding_step: "not_started",
+        selected_pathway_slug: null,
+      }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
+      await db.from("user_documents").delete().eq("user_id", profile.id);
     } else if (state === 2) {
-      await db.from("profiles").update({ onboarding_status: "complete" }).eq("id", profile.id);
+      await db.from("profiles").update({
+        onboarding_status: "complete",
+        onboarding_step: "complete",
+        selected_pathway_slug: null,
+      }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
+      await db.from("user_documents").delete().eq("user_id", profile.id);
     } else {
-      const { data: pathway } = await db
+      // Prefer the canonical FSW Express Entry pathway (rich steps + seeded requirements).
+      // Fall back to any pathway that has at least one document requirement.
+      const { data: fsw } = await db
         .from("pathways")
-        .select("id")
+        .select("id, slug")
+        .eq("slug", "canada-express-entry-fsw")
         .eq("is_active", true)
-        .limit(1)
-        .single();
+        .maybeSingle();
+
+      let pathway = fsw as { id: string; slug: string } | null;
+
+      if (!pathway) {
+        const { data: fallbackRows } = await db
+          .from("document_requirements")
+          .select("pathway_id")
+          .limit(1);
+        const fallbackPathwayId = (fallbackRows as { pathway_id: string }[] | null)?.[0]?.pathway_id ?? null;
+        if (fallbackPathwayId) {
+          const { data: pw } = await db
+            .from("pathways")
+            .select("id, slug")
+            .eq("id", fallbackPathwayId)
+            .eq("is_active", true)
+            .maybeSingle();
+          pathway = pw as { id: string; slug: string } | null;
+        }
+      }
+
+      if (!pathway) {
+        const { data: anyPw } = await db
+          .from("pathways").select("id, slug").eq("is_active", true).limit(1).maybeSingle();
+        pathway = anyPw as { id: string; slug: string } | null;
+      }
 
       if (!pathway) {
         return NextResponse.json(
@@ -75,7 +113,11 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      await db.from("profiles").update({ onboarding_status: "complete" }).eq("id", profile.id);
+      await db.from("profiles").update({
+        onboarding_status: "complete",
+        onboarding_step: "complete",
+        selected_pathway_slug: pathway.slug,
+      }).eq("id", profile.id);
       await db.from("applications").delete().eq("profile_id", profile.id);
       await db.from("applications").insert({
         profile_id: profile.id,
@@ -83,10 +125,68 @@ export async function GET(request: NextRequest) {
         status: state === 4 ? "submitted" : "draft",
         submitted_at: state === 4 ? new Date().toISOString() : null,
       });
+
+      // Seed placeholder vault documents for the demo flow
+      await db.from("user_documents").delete().eq("user_id", profile.id);
+      const now = new Date();
+      const demoDocs = [
+        {
+          user_id: profile.id,
+          storage_path: `${profile.id}/demo-passport.pdf`,
+          file_name: "passport_scan.pdf",
+          display_name: "Passport",
+          file_size: 2340000,
+          mime_type: "application/pdf",
+          document_type: "passport",
+          uploaded_at: new Date(now.getTime() - 6 * 864e5).toISOString(),
+        },
+        {
+          user_id: profile.id,
+          storage_path: `${profile.id}/demo-ielts.pdf`,
+          file_name: "ielts_results_2026.pdf",
+          display_name: "IELTS Results",
+          file_size: 524000,
+          mime_type: "application/pdf",
+          document_type: "language_test",
+          uploaded_at: new Date(now.getTime() - 5 * 864e5).toISOString(),
+        },
+        {
+          user_id: profile.id,
+          storage_path: `${profile.id}/demo-bank-statement.pdf`,
+          file_name: "bank_statement_may_2026.pdf",
+          display_name: "Bank Statement",
+          file_size: 318000,
+          mime_type: "application/pdf",
+          document_type: "bank_statement",
+          uploaded_at: new Date(now.getTime() - 4 * 864e5).toISOString(),
+        },
+        {
+          user_id: profile.id,
+          storage_path: `${profile.id}/demo-transcript.pdf`,
+          file_name: "university_transcript.pdf",
+          display_name: "University Transcript",
+          file_size: 891000,
+          mime_type: "application/pdf",
+          document_type: "academic_transcript",
+          uploaded_at: new Date(now.getTime() - 3 * 864e5).toISOString(),
+        },
+        {
+          user_id: profile.id,
+          storage_path: `${profile.id}/demo-employment-letter.pdf`,
+          file_name: "employment_letter_acme.pdf",
+          display_name: "Employment Letter",
+          file_size: 158000,
+          mime_type: "application/pdf",
+          document_type: "employment_letter",
+          uploaded_at: new Date(now.getTime() - 2 * 864e5).toISOString(),
+        },
+      ];
+      await db.from("user_documents").insert(demoDocs);
     }
 
     logger.info({ action: "demo.set_state", state });
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const host = request.headers.get("host") ?? "localhost:3001";
+    return NextResponse.redirect(`http://${host}/dashboard`);
   } catch (error) {
     logger.error({ action: "demo.set_state_error", error: String(error) });
     return NextResponse.json(

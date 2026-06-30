@@ -70,13 +70,20 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // getUser() validates the JWT against the Supabase auth server — unlike getSession()
+  // which only reads cookies without cryptographic verification.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session) {
-    // Allow the public landing page through without authentication
-    if (pathname === "/") return response;
+  // Public routes accessible without authentication
+  const isPublicPath =
+    pathname === "/" ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/results");
+
+  if (!user) {
+    if (isPublicPath) return response;
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
@@ -90,7 +97,7 @@ export async function middleware(request: NextRequest) {
   const { data } = await adminDb
     .from("profiles")
     .select("onboarding_step, is_admin")
-    .eq("auth_user_id", session.user.id)
+    .eq("auth_user_id", user.id)
     .single();
 
   const profile = data as Pick<Profile, "onboarding_step" | "is_admin"> | null;
@@ -104,6 +111,11 @@ export async function middleware(request: NextRequest) {
   const isAdminPath = pathname.startsWith("/admin");
 
   if (!isApiPath && (isOnboardingPath || isDashboardPath)) {
+    // Authenticated users with complete onboarding visiting /onboarding/* go to dashboard
+    if (isOnboardingPath && !isOnboardingMatchesPath && onboardingStep === "complete") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
     // /onboarding/matches is only accessible when onboarding is complete
     if (isOnboardingMatchesPath && onboardingStep !== "complete") {
       const fallback = requiredRouteForStep(onboardingStep) ?? "/onboarding/voice";
@@ -112,8 +124,14 @@ export async function middleware(request: NextRequest) {
 
     const target = requiredRouteForStep(onboardingStep);
 
+    // /onboarding (root) and /onboarding/form are both choice-screen entry points reachable
+    // at any not-yet-started step — the pages handle their own routing internally.
+    const isOnboardingEntryPath =
+      pathname === "/onboarding" ||
+      (pathname === "/onboarding/form" && target === "/onboarding/voice");
+
     // If the user's step requires a specific route and they are not on it, redirect
-    if (target !== null && !pathname.startsWith(target)) {
+    if (target !== null && !pathname.startsWith(target) && !isOnboardingEntryPath) {
       return NextResponse.redirect(new URL(target, request.url));
     }
   }

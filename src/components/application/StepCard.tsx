@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { ApplicationStep } from '@/modules/pathways/types';
+import { completeStep } from '@/app/applications/actions';
 import { DocumentUploadStep } from './steps/DocumentUploadStep';
 import { InformationStep } from './steps/InformationStep';
 import { ExternalActionStep } from './steps/ExternalActionStep';
@@ -11,6 +12,7 @@ interface Props {
   step: ApplicationStep;
   stepNumber: number;
   totalSteps: number;
+  applicationId: string;
   onNext: () => void;
   onBack: () => void;
   canGoBack: boolean;
@@ -36,6 +38,7 @@ export function StepCard({
   step,
   stepNumber,
   totalSteps,
+  applicationId,
   onNext,
   onBack,
   canGoBack,
@@ -52,6 +55,14 @@ export function StepCard({
   const continueLabel = canGoNext
     ? (CONTINUE_LABELS[step.type] ?? 'Continue →')
     : 'Finish Application →';
+
+  const handleContinue = async () => {
+    if (!canContinue) return;
+    if (step.type === 'review') {
+      await completeStep(applicationId, step.id);
+    }
+    onNext();
+  };
 
   return (
     <div
@@ -98,12 +109,17 @@ export function StepCard({
 
       {/* Step type content */}
       {step.type === 'document_upload' && step.document && (
-        <DocumentUploadStep document={step.document} />
+        <DocumentUploadStep
+          document={step.document}
+          applicationId={applicationId}
+          stepId={step.id}
+        />
       )}
       {step.type === 'information' && <InformationStep step={step} />}
       {step.type === 'external_action' && (
         <ExternalActionStep
           step={step}
+          applicationId={applicationId}
           isConfirmed={isExternalConfirmed}
           onConfirm={setIsExternalConfirmed}
         />
@@ -126,7 +142,7 @@ export function StepCard({
           <span />
         )}
         <button
-          onClick={canContinue ? onNext : undefined}
+          onClick={canContinue ? handleContinue : undefined}
           disabled={!canContinue}
           className={`btn-primary ${!canContinue ? 'opacity-50 cursor-not-allowed' : ''}`}
           style={{ fontSize: '14px' }}

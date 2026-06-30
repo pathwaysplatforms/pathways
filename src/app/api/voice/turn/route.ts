@@ -6,6 +6,8 @@ import { TurnRequestSchema } from "@/modules/voice/types";
 import { PathwaysError, AuthError, ValidationError } from "@/lib/errors";
 import type { Logger } from "pino";
 
+export const maxDuration = 30;
+
 function handleError(error: unknown, log: Logger): Response {
   if (error instanceof PathwaysError) {
     log.error({ action: "api.voice.turn.error", code: error.code, message: error.message });

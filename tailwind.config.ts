@@ -20,11 +20,20 @@ const config: Config = {
       fontFamily: {
         sans:    ["Urbanist", "sans-serif"],
         display: ["Urbanist", "sans-serif"],
-        body:    ["DM Sans", "system-ui", "sans-serif"],
+        body:    ["var(--font-dm-sans)", "DM Sans", "system-ui", "sans-serif"],
       },
 
       // ─── Color Palette ────────────────────────────────────────────
       colors: {
+        // Website deep forest green palette (from specs/website-design-tokens.md)
+        forest: {
+          deep:    "#0D4A3A",
+          muted:   "#2A5C4E",
+          surface: "#1C3D32",
+          light:   "#E8F0EE",
+          tint:    "#F2F6F5",
+        },
+
         // Swiss Particle Brutalism palette
         pw: {
           bg:       "#FFFFFF",

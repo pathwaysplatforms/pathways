@@ -3,6 +3,8 @@
  * Session-only conversation: no persistence, no new tables.
  */
 
+export const maxDuration = 30;
+
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
