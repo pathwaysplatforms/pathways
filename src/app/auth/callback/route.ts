@@ -13,10 +13,12 @@ function mapAuthError(msg: string): string {
   return "generic";
 }
 
-/** Build a redirect response using the Host header so the port is always correct. */
+/** Build a redirect response, preserving the correct protocol for TLS environments. */
 function redirectTo(request: NextRequest, pathname: string, search = ""): NextResponse {
-  const host = request.headers.get("host") ?? "localhost:3001";
-  return NextResponse.redirect(`http://${host}${pathname}${search}`);
+  // request.nextUrl.origin preserves the protocol detected by Next.js / the CDN,
+  // avoiding http:// redirects behind a TLS-terminating load balancer.
+  const origin = request.nextUrl.origin;
+  return NextResponse.redirect(`${origin}${pathname}${search}`);
 }
 
 export async function GET(request: NextRequest) {

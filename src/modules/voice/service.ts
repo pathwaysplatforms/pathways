@@ -285,6 +285,9 @@ async function textToSpeech(text: string): Promise<string> {
     throw new ValidationError("ELEVENLABS_API_KEY environment variable is not set");
   }
 
+  // Cap at 600 chars — sufficient for all voice turn responses and bounds per-call cost.
+  const cappedText = text.slice(0, 600);
+
   const response = await fetch(`${ELEVENLABS_API_URL}/${voiceId}`, {
     method: "POST",
     headers: {
@@ -292,7 +295,7 @@ async function textToSpeech(text: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      text,
+      text: cappedText,
       model_id: "eleven_multilingual_v2",
       voice_settings: { stability: 0.5, similarity_boost: 0.75 },
     }),

@@ -1,11 +1,12 @@
 import type { NextRequest } from "next/server";
-import { z } from "zod";
 import { createRequestLogger } from "@/lib/logger";
 import { updateGuestOnboardingData } from "@/modules/guest/service";
 import { PathwaysError } from "@/lib/errors";
+import { VoiceExtractedProfileSchema } from "@/modules/voice/types";
+import { z } from "zod";
 
 const PatchSchema = z.object({
-  onboarding_data: z.record(z.unknown()),
+  onboarding_data: VoiceExtractedProfileSchema.omit({ requires_review: true }).partial(),
 });
 
 /** Merge onboarding field deltas into the guest session. */

@@ -1,21 +1,14 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
-import { Check, Loader2, Clock, Home, ExternalLink } from 'lucide-react';
+import { Clock, Home, ExternalLink, FileText, Mail, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { updateStepProgress } from '@/app/actions/progress';
-import {
-  SectionLabel,
-  SectionDivider,
-  ChecklistSection,
-  ProTipsSection,
-  DocumentsSection,
-  ResourcesSection,
-  EmailTemplatesSection,
-  CoverLetterSection,
-} from '@/components/dashboard/StepDetailDrawer';
+import { EmailTemplatesSection } from '@/components/dashboard/StepDetailDrawer';
 import { documentBelongsToStep } from '@/lib/step-document-map';
 import { getEmailTemplates } from '@/lib/email-templates';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
 import { ParticleBurst } from '@/components/fx/ParticleBurst';
 import type { EnrichedApplicationStep, DashboardDocument, ProfileContext } from '@/modules/dashboard/types';
@@ -34,26 +27,36 @@ export interface ApplicationPageClientProps {
   documents: DashboardDocument[];
 }
 
-const ink = '#0A0A0A';
-const muted = '#6B7280';
-const border = '#E5E5E5';
-const font = {
-  body: 'var(--pw-font-body)' as const,
-  display: 'var(--pw-font-display)' as const,
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+const INK = '#0A0A0A';
+const MUTED = '#6B7280';
+const BORDER_CARD = 'rgba(0,0,0,0.08)'; // matches profile page cards
+const BORDER_INNER = 'rgba(0,0,0,0.06)'; // inner dividers
+const BG = '#FFFFFF';
+const TEXT_TERTIARY = '#9CA3AF';
+const GREEN = '#16A34A';
+const GREEN_BG = '#F0FDF4';
+const ACCENT = '#1A56DB';
+const font = { body: 'var(--pw-font-body)' as const, display: 'var(--pw-font-display)' as const };
+
+const CARD: CSSProperties = { background: BG, border: `1px solid ${BORDER_CARD}`, borderRadius: 12 };
+
+const EYEBROW: CSSProperties = {
+  fontFamily: font.body, fontSize: 11, fontWeight: 500,
+  letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+  color: TEXT_TERTIARY, margin: 0,
 };
 
-// ── Step status circle (sidebar size) ─────────────────────────────────────────
+// ── Sidebar step circle ───────────────────────────────────────────────────────
 
 type StepStatus = 'complete' | 'current' | 'upcoming';
 
+/** Circular icon conveying step completion state in the sidebar. */
 function SidebarStepCircle({ status, stepNumber }: { status: StepStatus; stepNumber: number }) {
   if (status === 'complete') {
     return (
-      <div style={{
-        width: 20, height: 20, borderRadius: '50%',
-        background: ink, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
+      <div style={{ width: 20, height: 20, borderRadius: '50%', background: INK, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
           <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -62,101 +65,344 @@ function SidebarStepCircle({ status, stepNumber }: { status: StepStatus; stepNum
   }
   if (status === 'current') {
     return (
-      <div style={{
-        width: 20, height: 20, borderRadius: '50%',
-        border: `1.5px solid ${ink}`,
-        background: 'transparent', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: ink, fontFamily: font.body, fontSize: 10,
-      }}>
+      <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${INK}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: INK, fontFamily: font.body, fontSize: 10 }}>
         {stepNumber}
       </div>
     );
   }
   return (
-    <div style={{
-      width: 20, height: 20, borderRadius: '50%',
-      border: '1.5px solid #D1D5DB',
-      background: 'transparent', flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#9CA3AF', fontFamily: font.body, fontSize: 10,
-    }}>
+    <div style={{ width: 20, height: 20, borderRadius: '50%', border: '1.5px solid #D1D5DB', background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontFamily: font.body, fontSize: 10 }}>
       {stepNumber}
+    </div>
+  );
+}
+
+// ── Accordion checklist ───────────────────────────────────────────────────────
+
+interface AccordionChecklistProps {
+  stepId: string;
+  checklistItems: string[];
+  stepDocs: DashboardDocument[];
+  pathwaySlug: string;
+  stepNumber: number;
+  profileContext: ProfileContext | null;
+  resources: EnrichedApplicationStep['resources'];
+  onCheckedChange: (n: number) => void;
+}
+
+/**
+ * Accordion-style checklist card — each row expands inline to reveal its
+ * content and actions. DB tasks, documents, email drafts, and resources
+ * are all surfaced here as first-class checklist items.
+ */
+function AccordionChecklist({
+  stepId,
+  checklistItems,
+  stepDocs,
+  pathwaySlug,
+  stepNumber,
+  profileContext,
+  resources,
+  onCheckedChange,
+}: AccordionChecklistProps) {
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [hydrating, setHydrating] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCheckedChangeRef = useRef(onCheckedChange);
+  onCheckedChangeRef.current = onCheckedChange;
+
+  const templates = getEmailTemplates(pathwaySlug, stepNumber);
+  const hasDocuments = stepDocs.length > 0;
+  const hasEmail = templates.length > 0 && profileContext !== null;
+  const hasResources = (resources?.length ?? 0) > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data } = await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          .select('checked_items')
+          .eq('user_id', user.id)
+          .eq('step_id', stepId)
+          .maybeSingle() as unknown as { data: { checked_items: number[] } | null };
+        if (!cancelled && data && Array.isArray(data.checked_items)) {
+          const loaded = new Set<number>(data.checked_items);
+          setChecked(loaded);
+          onCheckedChangeRef.current(loaded.size);
+        }
+      } catch {
+        // Non-fatal
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [stepId]);
+
+  const persist = (next: Set<number>) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          .upsert(
+            { user_id: user.id, step_id: stepId, checked_items: [...next], updated_at: new Date().toISOString() } as never,
+            { onConflict: 'user_id,step_id' }
+          );
+      } catch {
+        // Silently fail
+      }
+    }, 600);
+  };
+
+  const toggleChecked = (i: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = new Set(checked);
+    next.has(i) ? next.delete(i) : next.add(i);
+    setChecked(next);
+    onCheckedChangeRef.current(next.size);
+    persist(next);
+  };
+
+  const toggleOpen = (key: string) => {
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const totalCheckable = checklistItems.length;
+  const doneCount = checked.size;
+
+  return (
+    <div style={CARD}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${BORDER_INNER}` }}>
+        <span style={{ fontFamily: font.body, fontSize: 13, fontWeight: 500, color: INK }}>
+          Tasks &amp; actions
+        </span>
+        {totalCheckable > 0 && (
+          <span style={{ fontFamily: font.body, fontSize: 12, color: MUTED }}>
+            {hydrating ? '–' : doneCount} of {totalCheckable} done
+          </span>
+        )}
+      </div>
+
+      {/* DB checklist items */}
+      {checklistItems.map((item, i) => {
+        const key = `task-${i}`;
+        const isOpen = openKeys.has(key);
+        const done = checked.has(i);
+        return (
+          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
+            {/* Row header */}
+            <button
+              type="button"
+              onClick={() => toggleOpen(key)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              {/* Custom checkbox */}
+              <span
+                role="checkbox"
+                aria-checked={done}
+                tabIndex={0}
+                onClick={(e) => toggleChecked(i, e)}
+                onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') toggleChecked(i, e as unknown as React.MouseEvent); }}
+                className={done ? 'task-cb task-cb-checked' : 'task-cb'}
+                style={{ flexShrink: 0 }}
+              />
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: done ? MUTED : INK, textDecoration: done ? 'line-through' : 'none', lineHeight: 1.5 }}>
+                {item}
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {/* Expanded content */}
+            {isOpen && (
+              <div style={{ padding: '0 20px 16px 52px' }}>
+                <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, lineHeight: 1.6, margin: 0 }}>
+                  {item}
+                </p>
+                <button
+                  type="button"
+                  onClick={(e) => toggleChecked(i, e)}
+                  style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: done ? GREEN_BG : BG, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: done ? GREEN : INK, cursor: 'pointer' }}
+                >
+                  {done ? '✓ Marked done' : 'Mark as done'}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Documents section item */}
+      {hasDocuments && (() => {
+        const key = 'documents';
+        const isOpen = openKeys.has(key);
+        return (
+          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
+            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileText size={10} color={MUTED} />
+              </div>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+                Documents needed
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({stepDocs.length})</span>
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '4px 20px 16px 52px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {stepDocs.map((doc) => (
+                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: `1px dashed ${BORDER_CARD}`, borderRadius: 8 }}>
+                    <FileText size={13} color={MUTED} style={{ flexShrink: 0 }} />
+                    <span style={{ fontFamily: font.body, fontSize: 13, color: MUTED, flex: 1, minWidth: 0 }}>{doc.name}</span>
+                    <button type="button" style={{ fontFamily: font.body, fontSize: 12, fontWeight: 500, color: ACCENT, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                      Upload
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Email drafts section item */}
+      {hasEmail && (() => {
+        const key = 'email';
+        const isOpen = openKeys.has(key);
+        return (
+          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
+            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Mail size={10} color={MUTED} />
+              </div>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+                Email drafts
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({templates.length})</span>
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {isOpen && profileContext && (
+              <div style={{ padding: '4px 20px 16px 52px' }}>
+                <EmailTemplatesSection pathwaySlug={pathwaySlug} stepNumber={stepNumber} profileContext={profileContext} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Official resources section item */}
+      {hasResources && resources && (() => {
+        const key = 'resources';
+        const isOpen = openKeys.has(key);
+        return (
+          <div key={key}>
+            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ExternalLink size={10} color={MUTED} />
+              </div>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+                Official resources
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({resources.length})</span>
+              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
+                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '4px 12px 12px 52px' }}>
+                {resources.map((r, i) => (
+                  <a
+                    key={i}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 6, textDecoration: 'none' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = '#F9FAFB'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}
+                  >
+                    <ExternalLink size={13} style={{ color: MUTED, flexShrink: 0 }} />
+                    <span style={{ fontFamily: font.body, fontSize: 13, color: INK, flex: 1, minWidth: 0 }}>{r.label}</span>
+                    <ExternalLink size={11} style={{ color: MUTED, flexShrink: 0, opacity: 0.4 }} />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Empty state */}
+      {checklistItems.length === 0 && !hasDocuments && !hasEmail && !hasResources && (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: 0 }}>
+            No tasks for this step.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Pathway overview panel ────────────────────────────────────────────────────
 
-interface OverviewPanelProps {
-  pathway: ApplicationPageClientProps['pathway'];
-}
-
-/** Renders the pathway summary — shown when "Pathway Overview" is selected. */
-function OverviewPanel({ pathway }: OverviewPanelProps) {
+/** Pathway overview — shown when no step is selected. */
+function OverviewPanel({ pathway }: { pathway: ApplicationPageClientProps['pathway'] }) {
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '36px 52px 36px 56px' }}>
-      <p style={{
-        fontFamily: font.body, fontSize: 10, fontWeight: 500,
-        letterSpacing: '0.12em', color: '#9CA3AF', textTransform: 'uppercase',
-        margin: '0 0 12px',
-      }}>
-        Your Pathway
-      </p>
-      <h1 style={{
-        fontFamily: font.display, fontSize: 28, fontWeight: 400,
-        color: ink, margin: '0 0 4px', lineHeight: 1.2,
-      }}>
-        {pathway.title}
-      </h1>
-      {pathway.officialName && (
-        <p style={{ fontFamily: font.body, fontSize: 13, color: muted, margin: '0 0 20px' }}>
-          {pathway.officialName}
-        </p>
-      )}
-      <hr style={{ border: 'none', borderTop: `1px solid ${border}`, margin: '0 0 20px' }} />
-      <div style={{ display: 'flex', gap: 40, marginBottom: pathway.description ? 20 : 0 }}>
-        <div>
-          <p style={{
-            fontFamily: font.body, fontSize: 10, fontWeight: 500,
-            letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase',
-            margin: '0 0 4px',
-          }}>
-            Processing Time
-          </p>
-          <p style={{ fontFamily: font.body, fontSize: 14, color: ink, margin: 0 }}>
-            {pathway.processingTime}
-          </p>
+    <div style={{ padding: '28px 32px' }}>
+      <div style={{ ...CARD, padding: '28px' }}>
+        <p style={{ ...EYEBROW, marginBottom: 12 }}>Your pathway</p>
+        <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 400, color: INK, margin: '0 0 4px', lineHeight: 1.2 }}>
+          {pathway.title}
+        </h1>
+        {pathway.officialName && (
+          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: '0 0 20px' }}>{pathway.officialName}</p>
+        )}
+        <hr style={{ border: 'none', borderTop: `1px solid ${BORDER_INNER}`, margin: '0 0 20px' }} />
+        <div style={{ display: 'flex', gap: 40, marginBottom: pathway.description ? 20 : 0 }}>
+          <div>
+            <p style={{ ...EYEBROW, marginBottom: 4 }}>Processing time</p>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: INK, margin: 0 }}>{pathway.processingTime}</p>
+          </div>
+          <div>
+            <p style={{ ...EYEBROW, marginBottom: 4 }}>Total steps</p>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: INK, margin: 0 }}>{pathway.totalSteps}</p>
+          </div>
         </div>
-        <div>
-          <p style={{
-            fontFamily: font.body, fontSize: 10, fontWeight: 500,
-            letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase',
-            margin: '0 0 4px',
-          }}>
-            Total Steps
+        {pathway.description && (
+          <p style={{ fontFamily: font.body, fontSize: 14, color: '#374151', margin: '0 0 28px', lineHeight: 1.7, maxWidth: 560 }}>
+            {pathway.description}
           </p>
-          <p style={{ fontFamily: font.body, fontSize: 14, color: ink, margin: 0 }}>
-            {pathway.totalSteps}
-          </p>
-        </div>
+        )}
+        <Link
+          href="/onboarding/matches"
+          style={{ fontFamily: font.body, fontSize: 13, color: INK, textDecoration: 'none', opacity: 0.7 }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.7'; }}
+        >
+          Change pathway →
+        </Link>
       </div>
-      {pathway.description && (
-        <p style={{
-          fontFamily: font.body, fontSize: 14, color: '#374151',
-          margin: '0 0 28px', lineHeight: 1.7, maxWidth: 560,
-        }}>
-          {pathway.description}
-        </p>
-      )}
-      <Link
-        href="/onboarding/matches"
-        style={{ fontFamily: font.body, fontSize: 13, color: ink, textDecoration: 'none', opacity: 0.7 }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.7'; }}
-      >
-        Change pathway →
-      </Link>
     </div>
   );
 }
@@ -165,37 +411,34 @@ function OverviewPanel({ pathway }: OverviewPanelProps) {
 
 interface StepDetailPanelProps {
   step: EnrichedApplicationStep;
+  steps: EnrichedApplicationStep[];
   documents: DashboardDocument[];
   pathwaySlug: string;
   profileContext: ProfileContext | null;
   isCompleted: boolean;
   onMarkComplete: (stepId: string) => void;
   onMarkIncomplete: (stepId: string) => void;
+  onSelectStep: (id: string | 'overview') => void;
 }
 
-/** Renders full step detail inline — header, all sections, sticky mark-complete footer. */
+/** Step detail — objective card, accordion task list, completion bar. */
 function StepDetailPanel({
   step,
+  steps,
   documents,
   pathwaySlug,
   profileContext,
   isCompleted,
   onMarkComplete,
   onMarkIncomplete,
+  onSelectStep,
 }: StepDetailPanelProps) {
   const [isPending, startTransition] = useTransition();
   const [justCompleted, setJustCompleted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [checkedCount, setCheckedCount] = useState(0);
 
-  const stepDocs = documents.filter((d) => documentBelongsToStep(d.name, step.stepNumber));
-  const hasDocuments   = stepDocs.length > 0;
-  const hasResources   = (step.resources?.length ?? 0) > 0;
-  const templates      = getEmailTemplates(pathwaySlug, step.stepNumber);
-  const hasTemplates   = templates.length > 0;
-  const showCoverLetter = step.stepNumber >= 3 && step.stepNumber <= 5;
-  const hasChecklist   = (step.checklistItems?.length ?? 0) > 0;
-  const hasProTips     = !!step.proTips;
-  const hasOfficialUrl = !!step.officialUrl;
+  const handleCheckedChange = useCallback((n: number) => { setCheckedCount(n); }, []);
 
   const handleMarkComplete = () => {
     setActionError(null);
@@ -223,241 +466,145 @@ function StepDetailPanel({
     });
   };
 
-  const statusStyles = {
-    upcoming: { bg: '#F3F4F6', color: muted,     label: 'Upcoming'    },
-    current:  { bg: '#F3F4F6', color: ink,       label: 'In Progress' },
-    complete: { bg: '#F0FDF4', color: '#16A34A', label: 'Complete'    },
-  } as const;
-  const ss = statusStyles[isCompleted ? 'complete' : step.status];
+  const stepDocs = documents.filter((d) => documentBelongsToStep(d.name, step.stepNumber));
+  const currentIdx = steps.findIndex((s) => s.id === step.id);
+  const nextStep = currentIdx >= 0 && currentIdx < steps.length - 1 ? steps[currentIdx + 1] : null;
+
+  const totalTasks = step.checklistItems?.length ?? 0;
+  const remaining = totalTasks > 0 ? totalTasks - checkedCount : 0;
+  const completionLabel = isCompleted
+    ? 'Step complete'
+    : totalTasks > 0
+      ? `${remaining} ${remaining === 1 ? 'task' : 'tasks'} remaining`
+      : 'Ready to mark complete';
+
+  const ss = isCompleted || step.status === 'complete'
+    ? { bg: GREEN_BG, color: GREEN, label: 'Complete' }
+    : step.status === 'current'
+      ? { bg: '#F3F4F6', color: INK, label: 'In progress' }
+      : { bg: '#F3F4F6', color: MUTED, label: 'Upcoming' };
+
+  const checklistItems = step.checklistItems ?? [];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '36px 52px 36px 56px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: BG, padding: '28px 32px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Step header */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 28, height: 28, borderRadius: '50%',
-              background: '#F3F4F6', color: muted,
-              fontFamily: font.body, fontSize: 12, fontWeight: 500, flexShrink: 0,
-            }}>
-              {step.stepNumber}
-            </span>
-            <h1 style={{
-              fontFamily: font.display, fontSize: 22, fontWeight: 400,
-              color: ink, margin: 0, lineHeight: 1.3,
-            }}>
-              {step.label}
-            </h1>
+          {/* Section 1 — Objective */}
+          <div style={CARD}>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={EYEBROW}>Step {step.stepNumber}</span>
+                  <span style={{ display: 'inline-block', padding: '2px 9px', borderRadius: 9999, background: ss.bg, color: ss.color, fontFamily: font.body, fontSize: 11, fontWeight: 500 }}>
+                    {ss.label}
+                  </span>
+                </div>
+                {step.estimatedDuration && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 9999, background: '#F3F4F6', fontFamily: font.body, fontSize: 12, color: MUTED }}>
+                    <Clock size={12} />
+                    {step.estimatedDuration}
+                  </span>
+                )}
+              </div>
+              <h1 style={{ fontFamily: font.display, fontSize: 20, fontWeight: 500, color: INK, margin: '0 0 12px', lineHeight: 1.3 }}>
+                {step.label}
+              </h1>
+              {step.description && (
+                <p style={{ fontFamily: font.body, fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.65 }}>
+                  {step.description}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Metadata badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{
-              display: 'inline-block', padding: '2px 10px', borderRadius: 9999,
-              background: ss.bg, color: ss.color,
-              fontFamily: font.body, fontSize: 11, fontWeight: 500,
-              letterSpacing: '0.05em', textTransform: 'uppercase',
-            }}>
-              {ss.label}
-            </span>
-            {step.estimatedDuration && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: font.body, fontSize: 12, color: muted }}>
-                <Clock size={12} />
-                {step.estimatedDuration}
-              </span>
-            )}
-            {(step.estimatedDaysMin != null || step.estimatedDaysMax != null) && (
-              <span style={{
-                display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
-                border: `1px solid ${border}`, background: '#FFFFFF',
-                fontFamily: font.body, fontSize: 11, color: muted,
-              }}>
-                Est.{' '}
-                {step.estimatedDaysMin != null && step.estimatedDaysMax != null
-                  ? `${step.estimatedDaysMin}–${step.estimatedDaysMax} days`
-                  : step.estimatedDaysMin != null
-                    ? `${step.estimatedDaysMin}+ days`
-                    : `up to ${step.estimatedDaysMax} days`}
-              </span>
-            )}
-            {step.feeCad != null && (
-              <span style={{
-                display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
-                border: `1px solid ${border}`, background: '#FFFFFF',
-                fontFamily: font.body, fontSize: 11, color: muted,
-              }}>
-                Est. fee: ${step.feeCad} CAD
-              </span>
-            )}
-            {step.formNumbers?.map((f) => (
-              <span key={f} style={{
-                display: 'inline-block', padding: '2px 8px', borderRadius: 9999,
-                border: `1px solid ${border}`, background: '#F9FAFB',
-                fontFamily: font.body, fontSize: 11, color: muted,
-              }}>
-                {f}
-              </span>
-            ))}
-          </div>
+          {/* Section 2 — Accordion tasks & actions */}
+          <AccordionChecklist
+            key={step.id}
+            stepId={step.id}
+            checklistItems={checklistItems}
+            stepDocs={stepDocs}
+            pathwaySlug={pathwaySlug}
+            stepNumber={step.stepNumber}
+            profileContext={profileContext}
+            resources={step.resources}
+            onCheckedChange={handleCheckedChange}
+          />
 
-          {step.description && (
-            <p style={{
-              fontFamily: font.body, fontSize: 14, color: '#374151',
-              margin: '14px 0 0', lineHeight: 1.65, maxWidth: 600,
-            }}>
-              {step.description}
-            </p>
+        </div>
+      </div>
+
+      {/* Completion bar */}
+      <div style={{ background: BG, borderTop: `1px solid ${BORDER_INNER}`, padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ position: 'relative', flexShrink: 0, width: 20, height: 20 }}>
+              {isCompleted && justCompleted ? (
+                <>
+                  <CheckmarkDraw size={20} color={GREEN} />
+                  <ParticleBurst count={10} size={48} />
+                </>
+              ) : (
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: isCompleted ? GREEN : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+                    <path d="M1 3.5L3.5 6L8 1" stroke={isCompleted ? 'white' : '#9CA3AF'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              )}
+            </div>
+            <span style={{ fontFamily: font.body, fontSize: 13, fontWeight: 500, color: isCompleted ? GREEN : INK }}>
+              {completionLabel}
+            </span>
+          </div>
+          {actionError && (
+            <p style={{ fontFamily: font.body, fontSize: 12, color: '#DC2626', margin: '4px 0 0' }}>{actionError}</p>
           )}
         </div>
 
-        <hr style={{ border: 'none', borderTop: `1px solid ${border}`, margin: '0 0 4px' }} />
-
-        {hasChecklist && step.checklistItems && (
-          <div style={{ paddingTop: 20, paddingBottom: 16 }}>
-            <SectionLabel>Checklist</SectionLabel>
-            <ChecklistSection stepId={step.id} items={step.checklistItems} />
-            <SectionDivider />
-          </div>
-        )}
-
-        {hasProTips && step.proTips && (
-          <div style={{ paddingTop: 20, paddingBottom: 16 }}>
-            <SectionLabel>Pro Tip</SectionLabel>
-            <ProTipsSection tip={step.proTips} />
-            <SectionDivider />
-          </div>
-        )}
-
-        {hasOfficialUrl && step.officialUrl && (
-          <div style={{ paddingTop: 20, paddingBottom: 16 }}>
-            <a
-              href={step.officialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '8px 16px', borderRadius: 9999,
-                border: `1px solid ${border}`, background: '#FFFFFF',
-                fontFamily: font.body, fontSize: 13, color: ink,
-                textDecoration: 'none', fontWeight: 500,
-              }}
-            >
-              <ExternalLink size={13} />
-              Official source →
-            </a>
-            <SectionDivider />
-          </div>
-        )}
-
-        {hasDocuments && (
-          <div style={{ paddingTop: 20, paddingBottom: 16 }}>
-            <SectionLabel>Documents Needed</SectionLabel>
-            <DocumentsSection stepDocs={stepDocs} />
-            <SectionDivider />
-          </div>
-        )}
-
-        {hasResources && step.resources && (
-          <div style={{ paddingTop: 20, paddingBottom: 16 }}>
-            <SectionLabel>Official Resources</SectionLabel>
-            <ResourcesSection resources={step.resources} />
-            <SectionDivider />
-          </div>
-        )}
-
-        {hasTemplates && profileContext && (
-          <div style={{ paddingTop: 20, paddingBottom: 16 }}>
-            <SectionLabel>Email Templates</SectionLabel>
-            <EmailTemplatesSection
-              pathwaySlug={pathwaySlug}
-              stepNumber={step.stepNumber}
-              profileContext={profileContext}
-            />
-            <SectionDivider />
-          </div>
-        )}
-
-        {showCoverLetter && (
-          <div style={{ paddingTop: 20, paddingBottom: 24 }}>
-            <SectionLabel>Cover Letter</SectionLabel>
-            <CoverLetterSection step={step} pathwaySlug={pathwaySlug} />
-          </div>
-        )}
-      </div>
-
-      {/* Sticky footer — mark complete / incomplete */}
-      <div style={{
-        padding: '12px 52px 12px 56px',
-        borderTop: `1px solid ${border}`,
-        flexShrink: 0,
-        background: '#FFFFFF',
-      }}>
-        {actionError && (
-          <p style={{ fontFamily: font.body, fontSize: 12, color: '#DC2626', marginBottom: 8 }}>
-            {actionError}
-          </p>
-        )}
-        {isCompleted ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              position: 'relative', flex: 1,
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 16px', borderRadius: 9999,
-              background: '#F0FDF4', color: '#16A34A',
-              fontFamily: font.body, fontSize: 13, fontWeight: 500,
-            }}>
-              <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                {justCompleted ? (
-                  <>
-                    <CheckmarkDraw size={14} color="#0D0D0D" />
-                    <ParticleBurst count={12} size={64} />
-                  </>
-                ) : (
-                  <Check size={14} />
-                )}
-              </span>
-              Completed
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => onSelectStep('overview')}
+            style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: BG, fontFamily: font.body, fontSize: 13, fontWeight: 500, color: INK, cursor: 'pointer' }}
+          >
+            ← Back to overview
+          </button>
+          {isCompleted ? (
             <button
               type="button"
               onClick={handleMarkIncomplete}
               disabled={isPending}
-              className="app-incomplete-btn"
-              style={{
-                flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center',
-                padding: '8px 16px', borderRadius: 9999,
-                border: `1px solid ${border}`, background: '#FFFFFF',
-                fontFamily: font.body, fontSize: 12, fontWeight: 500,
-                color: muted, cursor: isPending ? 'not-allowed' : 'pointer',
-              }}
+              style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: BG, fontFamily: font.body, fontSize: 13, fontWeight: 500, color: MUTED, cursor: isPending ? 'not-allowed' : 'pointer' }}
             >
               Mark incomplete
             </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleMarkComplete}
-            disabled={isPending}
-            className="app-complete-btn"
-            style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              padding: '10px 24px', borderRadius: 9999,
-              background: isPending ? '#E5E7EB' : ink,
-              color: isPending ? muted : '#FFFFFF',
-              fontFamily: font.body, fontSize: 13, fontWeight: 500,
-              border: 'none', cursor: isPending ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-            {isPending ? 'Saving…' : 'Mark as complete →'}
-          </button>
-        )}
+          ) : (
+            <button
+              type="button"
+              onClick={handleMarkComplete}
+              disabled={isPending}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: isPending ? '#E5E7EB' : INK, color: isPending ? MUTED : '#FFFFFF', border: 'none', fontFamily: font.body, fontSize: 13, fontWeight: 500, cursor: isPending ? 'not-allowed' : 'pointer' }}
+            >
+              {isPending && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+              {isPending ? 'Saving…' : 'Mark as complete'}
+            </button>
+          )}
+          {nextStep && (
+            <button
+              type="button"
+              onClick={() => { if (isCompleted) onSelectStep(nextStep.id); }}
+              disabled={!isCompleted}
+              title={!isCompleted ? 'Complete this step first' : undefined}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: isCompleted ? INK : '#E5E7EB', color: isCompleted ? '#FFFFFF' : MUTED, border: 'none', fontFamily: font.body, fontSize: 13, fontWeight: 500, cursor: isCompleted ? 'pointer' : 'not-allowed' }}
+            >
+              Next step →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -465,193 +612,90 @@ function StepDetailPanel({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-/** Two-column application page: left step checklist + right inline detail panel. */
-export function ApplicationPageClient({
-  pathway,
-  steps,
-  profileContext,
-  documents,
-}: ApplicationPageClientProps) {
+/** Application page — floating left sidebar + white card content area. */
+export function ApplicationPageClient({ pathway, steps, profileContext, documents }: ApplicationPageClientProps) {
   const [selectedId, setSelectedId] = useState<string>('overview');
   const [completedIds, setCompletedIds] = useState<Set<string>>(
     () => new Set(steps.filter((s) => s.status === 'complete').map((s) => s.id))
   );
 
-  const handleMarkComplete = (stepId: string) => {
-    setCompletedIds((prev) => new Set([...prev, stepId]));
-  };
-
+  const handleMarkComplete = (stepId: string) => setCompletedIds((prev) => new Set([...prev, stepId]));
   const handleMarkIncomplete = (stepId: string) => {
-    setCompletedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(stepId);
-      return next;
-    });
+    setCompletedIds((prev) => { const next = new Set(prev); next.delete(stepId); return next; });
   };
 
   const selectedStep = steps.find((s) => s.id === selectedId) ?? null;
-
   const completedCount = completedIds.size;
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-      {/* ─── Left sidebar — floating card ─── */}
+      {/* ─── Left sidebar — floating card (same as original) ─── */}
       <div style={{ flexShrink: 0, padding: '16px 12px 16px 24px', display: 'flex', alignItems: 'stretch' }}>
-        <div style={{
-          width: 310,
-          background: '#FFFFFF',
-          borderRadius: 14,
-          border: '1px solid rgba(0,0,0,0.08)',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.09), 0 1px 6px rgba(0,0,0,0.05)',
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
+        <div style={{ width: 280, background: BG, borderRadius: 14, border: `1px solid ${BORDER_CARD}`, boxShadow: '0 4px 24px rgba(0,0,0,0.09), 0 1px 6px rgba(0,0,0,0.05)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
-          {/* ── Pathway header ── */}
-          <div style={{ padding: '18px 16px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-            <p style={{
-              fontFamily: font.body, fontSize: 9, fontWeight: 600,
-              letterSpacing: '0.12em', color: '#B0B0B0', textTransform: 'uppercase',
-              margin: '0 0 7px',
-            }}>
-              Active Pathway
-            </p>
-            <p style={{
-              fontFamily: font.display, fontSize: 16,
-              color: ink, margin: '0 0 2px', lineHeight: 1.25,
-            }}>
-              {pathway.title}
-            </p>
+          {/* Pathway header */}
+          <div style={{ padding: '18px 16px 16px', borderBottom: `1px solid ${BORDER_INNER}` }}>
+            <p style={{ ...EYEBROW, marginBottom: 7 }}>Active pathway</p>
+            <p style={{ fontFamily: font.display, fontSize: 16, color: INK, margin: '0 0 2px', lineHeight: 1.25 }}>{pathway.title}</p>
             {pathway.officialName && (
-              <p style={{ fontFamily: font.body, fontSize: 11, color: muted, margin: '0 0 12px', lineHeight: 1.4 }}>
-                {pathway.officialName}
-              </p>
+              <p style={{ fontFamily: font.body, fontSize: 11, color: MUTED, margin: '0 0 12px', lineHeight: 1.4 }}>{pathway.officialName}</p>
             )}
-            {/* Info chips */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center',
-                padding: '2px 8px', borderRadius: 9999,
-                background: '#F3F4F6', border: '1px solid rgba(0,0,0,0.07)',
-                fontFamily: font.body, fontSize: 10, color: muted,
-              }}>
-                {pathway.processingTime}
-              </span>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center',
-                padding: '2px 8px', borderRadius: 9999,
-                background: '#F3F4F6', border: '1px solid rgba(0,0,0,0.07)',
-                fontFamily: font.body, fontSize: 10, color: muted,
-              }}>
-                {pathway.totalSteps} steps
-              </span>
-            </div>
-            {/* Progress bar */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                <span style={{ fontFamily: font.body, fontSize: 10, color: muted }}>
-                  {completedCount} of {steps.length} complete
-                </span>
+                <span style={{ fontFamily: font.body, fontSize: 10, color: MUTED }}>{completedCount} of {steps.length} complete</span>
                 {completedCount > 0 && (
-                  <span style={{ fontFamily: font.body, fontSize: 10, color: ink, fontWeight: 500 }}>
-                    {progressPct}%
-                  </span>
+                  <span style={{ fontFamily: font.body, fontSize: 10, color: INK, fontWeight: 500 }}>{progressPct}%</span>
                 )}
               </div>
               <div style={{ height: 3, borderRadius: 9999, background: '#EBEBEB', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${progressPct}%`,
-                  background: ink,
-                  borderRadius: 9999,
-                  transition: 'width 400ms cubic-bezier(0.16,1,0.3,1)',
-                  minWidth: completedCount > 0 ? 6 : 0,
-                }} />
+                <div style={{ height: '100%', width: `${progressPct}%`, background: INK, borderRadius: 9999, transition: 'width 400ms cubic-bezier(0.16,1,0.3,1)', minWidth: completedCount > 0 ? 6 : 0 }} />
               </div>
             </div>
           </div>
 
-          {/* ── Nav list ── */}
-          <nav style={{ padding: '10px 8px 10px', flex: 1 }}>
-
-            {/* Overview — home button, visually distinct */}
+          {/* Nav list */}
+          <nav style={{ padding: '10px 8px', flex: 1 }}>
             <button
               type="button"
               onClick={() => setSelectedId('overview')}
               className={`app-sidebar-item${selectedId === 'overview' ? ' is-selected' : ''}`}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 9,
-                width: '100%', padding: '9px 10px',
-                cursor: 'pointer', textAlign: 'left',
-              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 10px', cursor: 'pointer', textAlign: 'left' }}
             >
-              <div
-                className="item-icon"
-                style={{
-                  width: 24, height: 24, borderRadius: 7, flexShrink: 0,
-                  background: selectedId === 'overview' ? '#E8E8E8' : '#F3F4F6',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'background 150ms ease',
-                }}
-              >
-                <Home size={12} color={selectedId === 'overview' ? ink : '#9CA3AF'} />
+              <div className="item-icon" style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: selectedId === 'overview' ? '#E8E8E8' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Home size={12} color={selectedId === 'overview' ? INK : '#9CA3AF'} />
               </div>
-              <span className="item-label" style={{
-                fontFamily: font.body, fontSize: 13,
-                fontWeight: selectedId === 'overview' ? 500 : 400,
-              }}>
-                Pathway Overview
+              <span className="item-label" style={{ fontFamily: font.body, fontSize: 13, fontWeight: selectedId === 'overview' ? 500 : 400 }}>
+                Pathway overview
               </span>
             </button>
 
-            {/* Steps section divider */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 4px 6px' }}>
-              <span style={{
-                fontFamily: font.body, fontSize: 9, fontWeight: 600,
-                letterSpacing: '0.10em', color: '#C8C8C8', textTransform: 'uppercase',
-                flexShrink: 0,
-              }}>
-                Steps
-              </span>
+              <span style={{ fontFamily: font.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.10em', color: '#C8C8C8', textTransform: 'uppercase', flexShrink: 0 }}>Steps</span>
               <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
             </div>
 
-            {/* Step items */}
             {steps.map((step) => {
               const isSelected = selectedId === step.id;
               const effectiveStatus: StepStatus = completedIds.has(step.id) ? 'complete' : step.status;
-
               return (
                 <button
                   key={step.id}
                   type="button"
                   onClick={() => setSelectedId(step.id)}
                   className={`app-sidebar-item${isSelected ? ' is-selected' : ''}`}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 9,
-                    width: '100%', padding: '8px 10px',
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="item-icon" style={{ flexShrink: 0 }}>
                     <SidebarStepCircle status={effectiveStatus} stepNumber={step.stepNumber} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="item-label" style={{
-                      fontFamily: font.body, fontSize: 13,
-                      fontWeight: isSelected ? 500 : 400,
-                      margin: 0,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
+                    <p className="item-label" style={{ fontFamily: font.body, fontSize: 13, fontWeight: isSelected ? 500 : 400, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {step.label}
                     </p>
                     {step.estimatedDuration && (
-                      <p style={{ fontFamily: font.body, fontSize: 11, color: '#A0A0A0', margin: '1px 0 0' }}>
-                        {step.estimatedDuration}
-                      </p>
+                      <p style={{ fontFamily: font.body, fontSize: 11, color: '#A0A0A0', margin: '1px 0 0' }}>{step.estimatedDuration}</p>
                     )}
                   </div>
                 </button>
@@ -661,26 +705,29 @@ export function ApplicationPageClient({
         </div>
       </div>
 
-      {/* ─── Right content panel ─── */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
+      {/* ─── Right content area — white, fills remaining space ─── */}
+      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: BG }}>
         {selectedId === 'overview' || selectedStep === null ? (
-          <OverviewPanel pathway={pathway} />
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <OverviewPanel pathway={pathway} />
+          </div>
         ) : (
           <StepDetailPanel
             key={selectedStep.id}
             step={selectedStep}
+            steps={steps}
             documents={documents}
             pathwaySlug={pathway.slug}
             profileContext={profileContext}
             isCompleted={completedIds.has(selectedStep.id)}
             onMarkComplete={handleMarkComplete}
             onMarkIncomplete={handleMarkIncomplete}
+            onSelectStep={(id) => setSelectedId(id)}
           />
         )}
       </div>
 
       <style>{`
-        /* ── Sidebar nav items — clean B&W outline style ── */
         .app-sidebar-item {
           background: transparent;
           border: 1.5px solid transparent;
@@ -695,51 +742,38 @@ export function ApplicationPageClient({
           background: rgba(0,0,0,0.03);
           border-color: rgba(0,0,0,0.08);
         }
-        .app-sidebar-item:active {
-          background: rgba(0,0,0,0.07);
+        .app-sidebar-item .item-label { color: #6B7280; transition: color 100ms ease; }
+        .app-sidebar-item.is-selected .item-label { color: #0A0A0A; }
+        .app-sidebar-item:not(.is-selected):hover .item-label { color: #374151; }
+        .app-sidebar-item .item-icon { transition: transform 150ms cubic-bezier(0.16,1,0.3,1); }
+        .app-sidebar-item:hover .item-icon { transform: scale(1.10); }
+        .app-sidebar-item:active .item-icon { transform: scale(1.0); }
+
+        /* Custom checkbox for tasks */
+        .task-cb {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border: 1.5px solid #D1D5DB;
+          border-radius: 4px;
+          cursor: pointer;
+          background: white;
+          flex-shrink: 0;
+          transition: background 120ms ease, border-color 120ms ease;
         }
-        /* Item label color */
-        .app-sidebar-item .item-label {
-          color: #6B7280;
-          transition: color 100ms ease;
+        .task-cb-checked {
+          background: #0A0A0A;
+          border-color: #0A0A0A;
+          background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+          background-size: 100% 100%;
+          background-position: center;
+          background-repeat: no-repeat;
         }
-        .app-sidebar-item.is-selected .item-label {
-          color: #0A0A0A;
-        }
-        .app-sidebar-item:not(.is-selected):hover .item-label {
-          color: #374151;
-        }
-        /* Icon micro-pop */
-        .app-sidebar-item .item-icon {
-          transition: transform 150ms cubic-bezier(0.16,1,0.3,1);
-        }
-        .app-sidebar-item:hover .item-icon {
-          transform: scale(1.10);
-        }
-        .app-sidebar-item:active .item-icon {
-          transform: scale(1.0);
-        }
-        /* ── Mark complete button ── */
-        .app-complete-btn {
-          transition: opacity 120ms ease, transform 120ms ease;
-        }
-        .app-complete-btn:hover:not(:disabled) {
-          opacity: 0.86;
-          transform: translateY(-1px);
-        }
-        .app-complete-btn:active:not(:disabled) {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        /* ── Mark incomplete button ── */
-        .app-incomplete-btn {
-          transition: color 120ms ease, border-color 120ms ease;
-        }
-        .app-incomplete-btn:hover:not(:disabled) {
-          color: #374151 !important;
-          border-color: #9CA3AF !important;
-        }
-        @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
+        .task-cb:hover:not(.task-cb-checked) { border-color: #9CA3AF; }
+
+        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
       `}</style>
     </div>
   );

@@ -20,7 +20,7 @@ export const CreateGuestSessionSchema = z.object({});
 
 /** Zod schema for updating a guest session's onboarding data. */
 export const UpdateGuestSessionSchema = z.object({
-  onboarding_data: z.record(z.unknown()).optional(),
+  onboarding_data: z.record(z.unknown()).optional(), // internal merge shape; API layer uses stricter schema
   pathway_results: z.record(z.unknown()).optional(),
 });
 

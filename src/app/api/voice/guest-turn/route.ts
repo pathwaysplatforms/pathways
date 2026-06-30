@@ -1,10 +1,12 @@
 import type { NextRequest } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createRequestLogger } from "@/lib/logger";
 import { streamConversationTurnGuest } from "@/modules/voice/service";
 import { TurnRequestSchema } from "@/modules/voice/types";
 import { PathwaysError, ValidationError } from "@/lib/errors";
 import type { PartialExtractedProfile } from "@/modules/voice/types";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const GuestTurnSchema = TurnRequestSchema.extend({
   currentPartial: z.record(z.unknown()).optional(),
@@ -25,10 +27,25 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const parsed = GuestTurnSchema.safeParse(body);
   if (!parsed.success) {
-    throw new ValidationError("Invalid request body");
+    return Response.json({ error: { code: "VALIDATION_ERROR", message: "Invalid request body." } }, { status: 422 });
   }
 
-  const { transcript, history, currentPartial } = parsed.data;
+  const { sessionId, transcript, history, currentPartial } = parsed.data;
+
+  // Verify the session exists and has not expired before invoking any AI calls.
+  const db = createSupabaseAdminClient() as unknown as SupabaseClient;
+  const { data: sessionRow } = await db
+    .from("guest_sessions")
+    .select("id")
+    .eq("session_token", sessionId)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (!sessionRow) {
+    log.warn({ action: "api.voice.guest-turn.invalid_session", sessionId });
+    return Response.json({ error: { code: "UNAUTHORIZED", message: "Invalid or expired session." } }, { status: 401 });
+  }
+
   const partial = (currentPartial ?? {}) as PartialExtractedProfile;
 
   const encoder = new TextEncoder();

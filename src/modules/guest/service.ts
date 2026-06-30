@@ -4,6 +4,12 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { DatabaseError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { GuestSession, GuestOnboardingData } from "./types";
 import type { PathwayMatchResult } from "@/types/pathways";
+import { VoiceExtractedProfileSchema } from "@/modules/voice/types";
+
+/** Allowlist of profile columns that guest onboarding data may write to. */
+const PROFILE_FIELD_ALLOWLIST = new Set(
+  Object.keys(VoiceExtractedProfileSchema.omit({ requires_review: true }).shape)
+);
 
 /** Create a new guest session row and return it. */
 export async function createGuestSession(log: Logger): Promise<GuestSession> {
@@ -121,12 +127,18 @@ export async function migrateGuestSession(
   }
 
   const profileId = (profile as { id: string }).id;
-  const fields = session.onboarding_data as Record<string, unknown>;
+  const raw = session.onboarding_data as Record<string, unknown>;
 
-  if (Object.keys(fields).length > 0) {
+  // Only write fields on the explicit allowlist — prevents a poisoned guest session
+  // from writing arbitrary columns such as is_admin or subscription_status.
+  const safeFields = Object.fromEntries(
+    Object.entries(raw).filter(([k]) => PROFILE_FIELD_ALLOWLIST.has(k))
+  );
+
+  if (Object.keys(safeFields).length > 0) {
     const { error: updateError } = await db
       .from("profiles")
-      .update(fields)
+      .update(safeFields)
       .eq("id", profileId);
 
     if (updateError) {

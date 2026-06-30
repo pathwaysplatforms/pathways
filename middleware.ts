@@ -70,9 +70,11 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // getUser() validates the JWT against the Supabase auth server — unlike getSession()
+  // which only reads cookies without cryptographic verification.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Public routes accessible without authentication
   const isPublicPath =
@@ -80,7 +82,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/results");
 
-  if (!session) {
+  if (!user) {
     if (isPublicPath) return response;
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
@@ -95,7 +97,7 @@ export async function middleware(request: NextRequest) {
   const { data } = await adminDb
     .from("profiles")
     .select("onboarding_step, is_admin")
-    .eq("auth_user_id", session.user.id)
+    .eq("auth_user_id", user.id)
     .single();
 
   const profile = data as Pick<Profile, "onboarding_step" | "is_admin"> | null;
