@@ -56,3 +56,4 @@ Thumbs.db
 .turbo
 tsconfig.tsbuildinfo
 tsconfig.tsbuildinfo
+.env.development.local.bak
