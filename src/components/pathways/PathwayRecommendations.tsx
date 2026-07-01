@@ -1016,16 +1016,24 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+interface PathwayRecommendationsProps {
+  /** Set to false to defer the initial GET until the component becomes active. Defaults to true for backwards compatibility. */
+  isActive?: boolean;
+}
+
 /** Fetches and renders the top AI-matched immigration pathways for the current user. */
-export function PathwayRecommendations() {
+export function PathwayRecommendations({ isActive = true }: PathwayRecommendationsProps) {
   const [viewState, setViewState] = useState<ViewState>("loading");
   const [result, setResult] = useState<PathwayMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [resultsKey, setResultsKey] = useState(0);
+  const hasFetchedRef = useRef(false);
 
-  // On mount: GET for cached result; no automatic POST
+  // Fire once on first activation, not on plane mount.
   useEffect(() => {
+    if (!isActive || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     let cancelled = false;
 
     async function checkCache() {
@@ -1052,8 +1060,9 @@ export function PathwayRecommendations() {
     void checkCache();
     return () => {
       cancelled = true;
+      hasFetchedRef.current = false;
     };
-  }, []);
+  }, [isActive]);
 
   // Advance step indicators while analyzing
   useEffect(() => {

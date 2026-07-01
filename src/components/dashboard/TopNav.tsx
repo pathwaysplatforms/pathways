@@ -1,24 +1,38 @@
 'use client';
 
-import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Route, Files, User, ChevronDown, Settings, LogOut, type LucideIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  LayoutDashboard,
+  Route,
+  Files,
+  Map,
+  TrendingUp,
+  User,
+  Settings,
+  ChevronDown,
+  LogOut,
+  type LucideIcon,
+} from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import type { SubscriptionStatus } from '@/modules/account/types';
 
 interface TopNavProps {
   avatarInitials: string;
   firstName: string;
-  applicationId?: string | null;
   subscriptionStatus?: SubscriptionStatus;
+  /** The active plane index (0–4), or -1 when not in the plane. Defaults to -1. */
+  activeIndex?: number;
+  /** Called when a plane nav item is clicked. */
+  onNavigate?: (index: number) => void;
+  /** Called when Profile or Settings is selected from the avatar dropdown. */
+  onOpenModal?: () => void;
 }
 
 interface NavItemDef {
   label: string;
   icon: LucideIcon;
-  href: string;
-  disabled: boolean;
+  index: number;
 }
 
 const TIER_LABELS: Record<SubscriptionStatus, string> = {
@@ -27,15 +41,28 @@ const TIER_LABELS: Record<SubscriptionStatus, string> = {
   paid: 'Pro',
 };
 
+const navItems: NavItemDef[] = [
+  { label: 'Dashboard',     icon: LayoutDashboard, index: 0 },
+  { label: 'Application',   icon: Route,           index: 1 },
+  { label: 'Documents',     icon: Files,           index: 2 },
+  { label: 'Pathways',      icon: Map,             index: 3 },
+  { label: 'Draws Tracker', icon: TrendingUp,      index: 4 },
+];
+
 /** Horizontal top navigation bar — white, hairline border, Swiss typography. */
-export function TopNav({ avatarInitials, firstName, applicationId, subscriptionStatus = 'free' }: TopNavProps) {
-  const pathname = usePathname();
+export function TopNav({
+  avatarInitials,
+  firstName,
+  subscriptionStatus = 'free',
+  activeIndex = -1,
+  onNavigate = () => {},
+  onOpenModal = () => {},
+}: TopNavProps) {
   const router = useRouter();
   const [tabsReady, setTabsReady] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,12 +70,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
     return () => clearTimeout(t);
   }, []);
 
-  // Clear pending state the moment the real pathname catches up
-  useEffect(() => {
-    setPendingHref(null);
-  }, [pathname]);
-
-  // Close dropdown on outside click
+  // Close dropdown on outside click.
   useEffect(() => {
     if (!dropdownOpen) return;
     function handleClick(e: MouseEvent) {
@@ -60,7 +82,7 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
     return () => document.removeEventListener('mousedown', handleClick);
   }, [dropdownOpen]);
 
-  // Close dropdown on Escape
+  // Close dropdown on Escape.
   useEffect(() => {
     if (!dropdownOpen) return;
     function handleKey(e: KeyboardEvent) {
@@ -78,17 +100,14 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
     router.push('/auth/login');
   }
 
-  const navItems: NavItemDef[] = [
-    { label: 'Dashboard',   icon: LayoutDashboard, href: '/dashboard',               disabled: false },
-    { label: 'Application', icon: Route,            href: '/dashboard/application',   disabled: false },
-    { label: 'Documents',   icon: Files,            href: '/dashboard/documents',     disabled: false },
-    { label: 'Profile',     icon: User,             href: '/dashboard/profile',       disabled: false },
-    { label: 'Settings',    icon: Settings,         href: '/dashboard/account',       disabled: false },
-  ];
+  function handleModalOpen() {
+    setDropdownOpen(false);
+    onOpenModal();
+  }
 
   return (
     <nav
-      className="h-16 flex items-center px-8 flex-shrink-0 bg-white border-b border-black/[0.08]"
+      className="pw-topnav-glass h-16 flex items-center px-8 flex-shrink-0"
       aria-label="Main navigation"
     >
       {/* Wordmark */}
@@ -102,31 +121,11 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
         <span className="w-1.5 h-1.5 rounded-full bg-pw-accent flex-shrink-0" aria-hidden="true" />
       </div>
 
-      {/* Nav links */}
+      {/* Nav buttons */}
       <div className="flex items-center h-full">
-        {navItems.map(({ label, icon: Icon, href, disabled }) => {
-          // Optimistic: treat clicked tab as active before navigation settles
-          const isActive = pendingHref != null
-            ? pendingHref === href
-            : !disabled && (pathname === href || (href !== '#' && href !== '/dashboard' && pathname.startsWith(href)));
-
-          if (disabled) {
-            return (
-              <span
-                key={label}
-                className="flex items-center gap-2 px-4 h-full cursor-not-allowed select-none"
-                style={{
-                  fontSize: 14,
-                  fontWeight: 400,
-                  fontFamily: 'var(--pw-font-body)',
-                  color: 'rgba(0,0,0,0.2)',
-                }}
-              >
-                <Icon size={14} />
-                {label}
-              </span>
-            );
-          }
+        {navItems.map(({ label, icon: Icon, index }) => {
+          const isActive = activeIndex === index;
+          const isHovered = hoveredIndex === index;
 
           const tabClass = [
             'pw-nav-tab',
@@ -136,32 +135,33 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
           ].filter(Boolean).join(' ');
 
           return (
-            <Link
+            <button
               key={label}
-              href={href}
-              prefetch
+              type="button"
               className={tabClass}
-              onClick={() => setPendingHref(href)}
-              onMouseEnter={() => { setHoveredLabel(label); router.prefetch(href); }}
-              onMouseLeave={() => setHoveredLabel(null)}
+              onClick={() => onNavigate(index)}
+              onMouseEnter={() => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
               style={{
                 fontSize: 14,
                 fontWeight: 400,
                 fontFamily: 'var(--pw-font-body)',
-                color: (isActive || hoveredLabel === label) ? 'var(--pw-ink)' : 'var(--pw-muted)',
+                color: (isActive || isHovered) ? 'var(--pw-ink)' : 'var(--pw-muted)',
                 transition: 'color 90ms ease',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
               <Icon size={14} />
               {label}
-            </Link>
+            </button>
           );
         })}
       </div>
 
       {/* Account area */}
       <div ref={dropdownRef} className="flex-1 flex justify-end items-center" style={{ position: 'relative' }}>
-        {/* Avatar button */}
         <button
           type="button"
           onClick={() => setDropdownOpen((v) => !v)}
@@ -218,26 +218,55 @@ export function TopNav({ avatarInitials, firstName, applicationId, subscriptionS
               </p>
             </div>
 
-            <Link
-              href="/dashboard/account"
+            <button
+              type="button"
               role="menuitem"
-              onClick={() => setDropdownOpen(false)}
+              onClick={handleModalOpen}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
+                width: '100%',
                 padding: '10px 14px',
                 fontSize: 14,
                 fontFamily: 'var(--pw-font-body)',
                 color: 'var(--pw-ink)',
-                textDecoration: 'none',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+            >
+              <User size={14} color="var(--pw-muted)" />
+              Profile
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleModalOpen}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+                padding: '10px 14px',
+                fontSize: 14,
+                fontFamily: 'var(--pw-font-body)',
+                color: 'var(--pw-ink)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
               }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
             >
               <Settings size={14} color="var(--pw-muted)" />
               Account settings
-            </Link>
+            </button>
 
             <button
               type="button"

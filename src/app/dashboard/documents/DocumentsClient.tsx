@@ -12,11 +12,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import { DOCUMENT_TYPE_OPTIONS, DOCUMENT_TYPE_LABEL, MAX_FILES_PER_USER } from '@/modules/vault/types';
-import type { VaultFile, DocumentRequirement } from '@/modules/vault/types';
+import type { VaultFile } from '@/modules/vault/types';
 
 interface DocumentsClientProps {
   initialFiles: VaultFile[];
-  requirements: DocumentRequirement[];
 }
 
 function formatBytes(bytes: number): string {
@@ -26,6 +25,14 @@ function formatBytes(bytes: number): string {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function formatRelativeDate(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7) return `${diff} days ago`;
+  return new Date(iso).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 }
 
 /** Icon element for a file based on its MIME type. */
@@ -47,7 +54,75 @@ function iconBg(mimeType: string): string {
   return 'var(--color-bg-subtle)';
 }
 
-// ── Combobox ────────────────────────────────────────────────────────────────────
+function docTypeBadge(mimeType: string): string {
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType === 'image/png') return 'PNG';
+  if (mimeType === 'image/jpeg') return 'JPG';
+  return 'FILE';
+}
+
+// ── Grouping ─────────────────────────────────────────────────────────────────────
+
+type VaultGroup = 'Identity' | 'Language' | 'Financial' | 'Work' | 'Other';
+
+const GROUP_ORDER: readonly VaultGroup[] = ['Identity', 'Language', 'Financial', 'Work', 'Other'];
+
+const TYPE_TO_GROUP: Partial<Record<string, VaultGroup>> = {
+  // Identity
+  passport:               'Identity',
+  identity_document:      'Identity',
+  birth_certificate:      'Identity',
+  photo:                  'Identity',
+  marriage_certificate:   'Identity',
+  police_certificate:     'Identity',
+  residency_proof:        'Identity',
+  separation_declaration: 'Identity',
+  statutory_declaration:  'Identity',
+  // Language
+  language_test:         'Language',
+  english_language_test: 'Language',
+  // Financial
+  bank_statement: 'Financial',
+  financial_form: 'Financial',
+  fee_receipt:    'Financial',
+  undertaking:    'Financial',
+  // Work
+  employment_letter:          'Work',
+  employment_reference:       'Work',
+  job_offer_letter:           'Work',
+  cv:                         'Work',
+  certificate_of_sponsorship: 'Work',
+  nomination_letter:          'Work',
+  provincial_nomination_letter: 'Work',
+  endorsement_letter:         'Work',
+  letter_of_support:          'Work',
+  evidence_portfolio:         'Work',
+  credential_certificate:     'Work',
+  settlement_plan:            'Work',
+  authorization_letter:       'Work',
+  authorization_form:         'Work',
+  representative_form:        'Work',
+};
+
+function getGroup(documentType: string | null): VaultGroup {
+  if (!documentType) return 'Other';
+  return TYPE_TO_GROUP[documentType] ?? 'Other';
+}
+
+function buildGroups(files: VaultFile[]): { group: VaultGroup; items: VaultFile[] }[] {
+  const map = new Map<VaultGroup, VaultFile[]>();
+  for (const f of files) {
+    const g = getGroup(f.documentType);
+    const arr = map.get(g) ?? [];
+    arr.push(f);
+    map.set(g, arr);
+  }
+  return GROUP_ORDER
+    .filter(g => map.has(g))
+    .map(g => ({ group: g, items: map.get(g) ?? [] }));
+}
+
+// ── Combobox ─────────────────────────────────────────────────────────────────────
 
 interface ComboboxProps {
   fileId: string;
@@ -195,7 +270,7 @@ function DocTypeCombobox({ fileId, value, disabled, onChange }: ComboboxProps) {
   );
 }
 
-// ── Expanded card overlay ───────────────────────────────────────────────────────
+// ── Expanded card overlay ─────────────────────────────────────────────────────────
 
 interface ExpandedCardProps {
   file: VaultFile;
@@ -237,7 +312,6 @@ function ExpandedCard({
 }: ExpandedCardProps) {
   const isRenaming = renamingId === file.id;
 
-  // Close on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -448,7 +522,7 @@ function ExpandedCard({
   );
 }
 
-// ── Document stack (teaser) ─────────────────────────────────────────────────────
+// ── Document stack (teaser) ───────────────────────────────────────────────────────
 
 interface DocumentStackProps {
   files: VaultFile[];
@@ -457,12 +531,10 @@ interface DocumentStackProps {
 
 const VAULT_STACK_MAX = 3;
 
-// Positional CSS classes — each bakes translate + skewY(-8deg) into one transform declaration
-// so the skew is never clobbered by Tailwind translate utilities (both write `transform`).
 const STACK_POSITIONS: string[] = [
-  'dc-vault-back',   // back
-  'dc-vault-mid',    // middle
-  'dc-vault-front',  // front
+  'dc-vault-back',
+  'dc-vault-mid',
+  'dc-vault-front',
 ];
 
 interface VaultCardProps {
@@ -488,14 +560,12 @@ function VaultCard({ file, positionClass, isFront, onClick }: VaultCardProps) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
       aria-label={`Open ${file.displayName ?? file.fileName}`}
     >
-      {/* Right-edge fade */}
       <span
         aria-hidden
         className="pointer-events-none absolute -right-px top-[-5%] h-[110%] w-32"
         style={{ background: 'linear-gradient(to left, var(--color-bg-base) 10%, transparent)' }}
       />
 
-      {/* Icon + filename */}
       <div className="flex items-center gap-2.5 overflow-hidden">
         <span
           className="inline-flex size-7 flex-shrink-0 items-center justify-center rounded-icon"
@@ -515,14 +585,12 @@ function VaultCard({ file, positionClass, isFront, onClick }: VaultCardProps) {
         </p>
       </div>
 
-      {/* Document type label */}
       <p className="truncate text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
         {file.documentType
           ? (DOCUMENT_TYPE_LABEL[file.documentType] ?? file.documentType)
           : 'Not labelled yet'}
       </p>
 
-      {/* Meta row + open affordance */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
           {formatBytes(file.fileSize)} · {formatDate(file.uploadedAt)}
@@ -544,8 +612,6 @@ function VaultCard({ file, positionClass, isFront, onClick }: VaultCardProps) {
 function DocumentStack({ files, onExpand }: DocumentStackProps) {
   const visible = files.slice(0, VAULT_STACK_MAX);
   const count = visible.length;
-
-  // Render back cards first so the front card layers on top via CSS stacking order.
   const renderOrder = [...visible].reverse();
 
   return (
@@ -567,31 +633,62 @@ function DocumentStack({ files, onExpand }: DocumentStackProps) {
   );
 }
 
-// ── Document icon card ──────────────────────────────────────────────────────────
+// ── Image thumbnail ───────────────────────────────────────────────────────────────
+
+/** Fetches a signed URL and renders a native img preview for image vault files. */
+function ImageThumbnail({ fileId }: { fileId: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/vault/signed-url/${fileId}`)
+      .then(r => r.json())
+      .then(data => {
+        const json = data as { url?: string };
+        if (!cancelled && json.url) setSrc(json.url);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [fileId]);
+
+  if (!src) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ImageIcon className="size-6" style={{ color: 'var(--color-text-tertiary)', opacity: 0.35 }} />
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+    />
+  );
+}
+
+// ── Document icon card ────────────────────────────────────────────────────────────
 
 interface DocumentGridCardProps {
   file: VaultFile;
   onExpand: (file: VaultFile) => void;
 }
 
-function docTypeColor(mimeType: string): string {
-  if (mimeType === 'application/pdf') return '#DC2626';
-  if (mimeType.startsWith('image/')) return '#7C3AED';
-  return '#4B5563';
-}
-
-function docTypeBadge(mimeType: string): string {
-  if (mimeType === 'application/pdf') return 'PDF';
-  if (mimeType === 'image/png') return 'PNG';
-  if (mimeType === 'image/jpeg') return 'JPG';
-  return 'FILE';
-}
-
-/** Google Drive–style document card — large thumbnail preview with footer strip. */
+/** Vault grid card — image preview or neutral file-type icon, no skeleton lines or colour banners. */
 function DocumentIconCard({ file, onExpand }: DocumentGridCardProps) {
   const [hovered, setHovered] = useState(false);
+  const isImage = file.mimeType.startsWith('image/');
   const displayName = file.displayName ?? file.fileName;
-  const typeColor = docTypeColor(file.mimeType);
   const badge = docTypeBadge(file.mimeType);
   const nameWithoutExt = displayName.replace(/\.[^.]+$/, '');
   const label = nameWithoutExt.length > 22 ? nameWithoutExt.slice(0, 20) + '…' : nameWithoutExt;
@@ -604,140 +701,191 @@ function DocumentIconCard({ file, onExpand }: DocumentGridCardProps) {
       onMouseLeave={() => setHovered(false)}
       aria-label={`Open ${displayName}`}
       style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-        border: hovered ? '1.5px solid #C8C9CC' : '1.5px solid #dddfe4',
-        background: '#ffffff',
-        cursor: 'pointer', borderRadius: 8, width: '100%',
-        transition: 'border-color 100ms ease, box-shadow 100ms ease',
-        boxShadow: hovered
-          ? '0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)'
-          : '0 1px 3px rgba(0,0,0,0.06)',
-        textAlign: 'left', fontFamily: 'var(--pw-font-body)', overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        border: hovered ? '1.5px solid var(--color-border)' : '1.5px solid var(--color-border-light)',
+        background: 'var(--color-bg-surface)',
+        cursor: 'pointer',
+        borderRadius: 8,
+        width: '100%',
+        transition: 'border-color 150ms cubic-bezier(0.16,1,0.3,1), box-shadow 150ms cubic-bezier(0.16,1,0.3,1)',
+        boxShadow: hovered ? 'var(--shadow-card)' : '0 1px 2px rgba(0,0,0,0.04)',
+        textAlign: 'left',
+        fontFamily: 'var(--pw-font-body)',
+        overflow: 'hidden',
       }}
     >
-      {/* Thumbnail area */}
-      <div style={{
-        position: 'relative', background: '#F8F9FA',
-        height: 160, overflow: 'hidden', flexShrink: 0,
-      }}>
-        {/* Folded corner */}
-        <div style={{
-          position: 'absolute', top: 0, right: 0,
-          width: 22, height: 22,
-          background: '#ECEEF1',
-          borderBottomLeftRadius: 5,
-          borderLeft: '1.5px solid #dddfe4',
-          borderBottom: '1.5px solid #dddfe4',
-        }} />
-        {/* Simulated document text lines */}
-        <div style={{ padding: '18px 16px 0' }}>
-          {[72, 88, 60, 80, 65, 78, 55, 82, 68, 74, 58, 86, 63].map((w, i) => (
-            <div key={i} style={{
-              height: 3, width: `${w}%`, marginBottom: 5,
-              background: i % 4 === 0 ? '#D1D5DB' : '#E5E7EB',
-              borderRadius: 9999,
-            }} />
-          ))}
-        </div>
-        {/* Type badge strip at bottom of thumbnail */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 22,
-          background: typeColor,
-          display: 'flex', alignItems: 'center', paddingLeft: 10,
-        }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.07em', fontFamily: 'var(--pw-font-body)' }}>
-            {badge}
-          </span>
-        </div>
+      {/* Thumbnail */}
+      <div
+        style={{
+          position: 'relative',
+          height: 140,
+          overflow: 'hidden',
+          flexShrink: 0,
+          background: 'var(--color-bg-subtle)',
+        }}
+      >
+        {isImage ? (
+          <ImageThumbnail fileId={file.id} />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FileText
+              className="size-10"
+              style={{ color: 'var(--color-text-tertiary)', opacity: 0.4 }}
+            />
+          </div>
+        )}
+
+        {/* Neutral file-type tag */}
+        <span
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            padding: '2px 7px',
+            borderRadius: 9999,
+            background: 'rgba(26,86,219,0.10)',
+            color: 'var(--pw-accent)',
+            fontSize: 9,
+            fontWeight: 500,
+            letterSpacing: '0.07em',
+            fontFamily: 'var(--pw-font-body)',
+          }}
+        >
+          {badge}
+        </span>
       </div>
 
       {/* Footer */}
-      <div style={{
-        padding: '10px 12px 11px',
-        borderTop: '1px solid #ECEEF1',
-        background: '#fff',
-      }}>
-        <p style={{
-          fontSize: 12, color: '#111827', fontFamily: 'var(--pw-font-body)',
-          lineHeight: 1.35, margin: 0, fontWeight: 500,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+      <div
+        style={{
+          padding: '10px 12px 11px',
+          borderTop: '1px solid var(--color-border-light)',
+          background: 'var(--color-bg-surface)',
+        }}
+      >
+        <p
+          style={{
+            fontSize: 12,
+            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--pw-font-body)',
+            lineHeight: 1.35,
+            margin: 0,
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
           {label}
         </p>
-        {file.documentType && (
-          <p style={{
-            fontSize: 10, color: '#9CA3AF', fontFamily: 'var(--pw-font-body)',
-            lineHeight: 1.3, margin: '2px 0 0',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {DOCUMENT_TYPE_LABEL[file.documentType] ?? file.documentType}
-          </p>
-        )}
+        <p
+          style={{
+            fontSize: 10,
+            color: 'var(--color-text-tertiary)',
+            fontFamily: 'var(--pw-font-body)',
+            lineHeight: 1.3,
+            margin: '2px 0 0',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatRelativeDate(file.uploadedAt)} · {formatBytes(file.fileSize)}
+        </p>
       </div>
     </button>
   );
 }
 
-// ── Placeholder card data ───────────────────────────────────────────────────────
+// ── Ghost placeholder cards ───────────────────────────────────────────────────────
 
-interface PlaceholderData {
-  label: string;
-  badge: string;
-  typeColor: string;
-  lineWidths: number[];
-}
-
-const PLACEHOLDER_CARDS: PlaceholderData[] = [
-  { label: 'Passport', badge: 'PDF', typeColor: '#DC2626', lineWidths: [72, 88, 60, 80, 65, 78, 55, 82, 68, 74, 58, 86, 63] },
-  { label: 'IELTS Results', badge: 'PDF', typeColor: '#DC2626', lineWidths: [80, 65, 90, 70, 55, 82, 60, 76, 88, 62, 72, 58, 84] },
-  { label: 'Bank Statement', badge: 'PDF', typeColor: '#DC2626', lineWidths: [60, 75, 88, 62, 78, 55, 70, 84, 66, 80, 58, 74, 68] },
-  { label: 'University Transcript', badge: 'PDF', typeColor: '#DC2626', lineWidths: [85, 60, 75, 90, 68, 72, 58, 80, 64, 88, 70, 56, 78] },
-  { label: 'Employment Letter', badge: 'PDF', typeColor: '#DC2626', lineWidths: [70, 82, 58, 76, 88, 64, 74, 60, 86, 68, 78, 54, 80] },
-  { label: 'Photo ID', badge: 'JPG', typeColor: '#7C3AED', lineWidths: [78, 62, 84, 66, 72, 58, 80, 70, 88, 64, 76, 60, 82] },
+const PLACEHOLDER_CARDS: readonly { label: string; badge: string }[] = [
+  { label: 'Passport',             badge: 'PDF' },
+  { label: 'IELTS Results',        badge: 'PDF' },
+  { label: 'Bank Statement',       badge: 'PDF' },
+  { label: 'University Transcript', badge: 'PDF' },
+  { label: 'Employment Letter',    badge: 'PDF' },
+  { label: 'Photo ID',             badge: 'JPG' },
 ];
 
 /** Ghost placeholder card matching DocumentIconCard — shown when vault is empty. */
-function PlaceholderDocumentCard({ label, badge, typeColor, lineWidths }: PlaceholderData) {
+function PlaceholderDocumentCard({ label, badge }: { label: string; badge: string }) {
   return (
     <div
       aria-hidden
       style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'stretch',
-        border: '1.5px solid #dddfe4', background: '#ffffff',
-        borderRadius: 8, width: '100%', overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-        opacity: 0.38, pointerEvents: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        border: '1.5px solid var(--color-border-light)',
+        background: 'var(--color-bg-surface)',
+        borderRadius: 8,
+        width: '100%',
+        overflow: 'hidden',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        opacity: 0.35,
+        pointerEvents: 'none',
       }}
     >
-      <div style={{ position: 'relative', background: '#F8F9FA', height: 160, overflow: 'hidden' }}>
-        <div style={{
-          position: 'absolute', top: 0, right: 0, width: 22, height: 22,
-          background: '#ECEEF1', borderBottomLeftRadius: 5,
-          borderLeft: '1.5px solid #dddfe4', borderBottom: '1.5px solid #dddfe4',
-        }} />
-        <div style={{ padding: '18px 16px 0' }}>
-          {lineWidths.map((w, i) => (
-            <div key={i} style={{
-              height: 3, width: `${w}%`, marginBottom: 5,
-              background: i % 4 === 0 ? '#D1D5DB' : '#E5E7EB', borderRadius: 9999,
-            }} />
-          ))}
-        </div>
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 22,
-          background: typeColor, display: 'flex', alignItems: 'center', paddingLeft: 10,
-        }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.07em', fontFamily: 'var(--pw-font-body)' }}>
-            {badge}
-          </span>
-        </div>
+      <div
+        style={{
+          position: 'relative',
+          height: 140,
+          background: 'var(--color-bg-subtle)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <FileText
+          className="size-10"
+          style={{ color: 'var(--color-text-tertiary)', opacity: 0.3 }}
+        />
+        <span
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            padding: '2px 7px',
+            borderRadius: 9999,
+            background: 'rgba(26,86,219,0.08)',
+            color: 'var(--pw-accent)',
+            fontSize: 9,
+            fontWeight: 500,
+            letterSpacing: '0.07em',
+            fontFamily: 'var(--pw-font-body)',
+          }}
+        >
+          {badge}
+        </span>
       </div>
-      <div style={{ padding: '10px 12px 11px', borderTop: '1px solid #ECEEF1', background: '#fff' }}>
-        <p style={{
-          fontSize: 12, color: '#111827', fontFamily: 'var(--pw-font-body)',
-          lineHeight: 1.35, margin: 0, fontWeight: 500,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+      <div
+        style={{
+          padding: '10px 12px 11px',
+          borderTop: '1px solid var(--color-border-light)',
+          background: 'var(--color-bg-surface)',
+        }}
+      >
+        <p
+          style={{
+            fontSize: 12,
+            color: 'var(--color-text-primary)',
+            fontFamily: 'var(--pw-font-body)',
+            lineHeight: 1.35,
+            margin: 0,
+            fontWeight: 500,
+          }}
+        >
           {label}
         </p>
       </div>
@@ -745,115 +893,10 @@ function PlaceholderDocumentCard({ label, badge, typeColor, lineWidths }: Placeh
   );
 }
 
-// ── Requirements panel ──────────────────────────────────────────────────────────
-
-interface RequirementsPanelProps {
-  requirements: DocumentRequirement[];
-  files: VaultFile[];
-}
-
-/** Sidebar checklist of pathway document requirements vs uploaded and labelled vault files. */
-function RequirementsPanel({ requirements, files }: RequirementsPanelProps) {
-  const uploadedTypes = new Set(
-    files.map((f) => f.documentType).filter((t): t is string => t !== null)
-  );
-
-  const mandatory = requirements.filter((r) => r.isMandatory);
-  const optional = requirements.filter((r) => !r.isMandatory);
-  const satisfiedCount = mandatory.filter((r) => uploadedTypes.has(r.documentType)).length;
-
-  return (
-    <div>
-      <p className="pw-eyebrow mb-2">Required documents</p>
-
-      {requirements.length === 0 ? (
-        <p className="mt-3 text-sm" style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--pw-font-body)' }}>
-          Select a pathway to see your document checklist.
-        </p>
-      ) : (
-        <>
-          <p
-            className="mb-4 text-sm"
-            style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--pw-font-body)' }}
-          >
-            {satisfiedCount} of {mandatory.length} required uploaded
-          </p>
-
-          <div className="flex flex-col">
-            {mandatory.map((req, i) => {
-              const done = uploadedTypes.has(req.documentType);
-              return (
-                <div
-                  key={req.id}
-                  className="flex items-center gap-2.5 py-2.5"
-                  style={i > 0 ? { borderTop: '1px solid var(--color-border-light)' } : undefined}
-                >
-                  <span
-                    className="inline-flex size-4 flex-shrink-0 items-center justify-center rounded-full"
-                    style={{
-                      background: done ? 'var(--pw-success)' : 'var(--color-bg-muted)',
-                      fontSize: 9,
-                      color: done ? '#fff' : 'var(--color-text-tertiary)',
-                    }}
-                  >
-                    {done ? '✓' : ''}
-                  </span>
-                  <p
-                    className="text-xs leading-snug"
-                    style={{
-                      color: done ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)',
-                      fontFamily: 'var(--pw-font-body)',
-                    }}
-                  >
-                    {req.name}
-                  </p>
-                </div>
-              );
-            })}
-
-            {optional.length > 0 && (
-              <>
-                <p className="pw-eyebrow mt-5 mb-1">Optional</p>
-                {optional.map((req, i) => {
-                  const done = uploadedTypes.has(req.documentType);
-                  return (
-                    <div
-                      key={req.id}
-                      className="flex items-center gap-2.5 py-2.5"
-                      style={i > 0 ? { borderTop: '1px solid var(--color-border-light)' } : undefined}
-                    >
-                      <span
-                        className="inline-flex size-4 flex-shrink-0 items-center justify-center rounded-full"
-                        style={{
-                          background: done ? 'var(--pw-success)' : 'var(--color-bg-muted)',
-                          fontSize: 9,
-                          color: done ? '#fff' : 'var(--color-text-tertiary)',
-                        }}
-                      >
-                        {done ? '✓' : ''}
-                      </span>
-                      <p
-                        className="text-xs leading-snug"
-                        style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--pw-font-body)' }}
-                      >
-                        {req.name}
-                      </p>
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Main component ──────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────────
 
 /** General-purpose file vault — upload, label, rename, view, download, and manage immigration documents. */
-export function DocumentsClient({ initialFiles, requirements }: DocumentsClientProps) {
+export function DocumentsClient({ initialFiles }: DocumentsClientProps) {
   const [files, setFiles] = useState<VaultFile[]>(initialFiles);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -867,7 +910,6 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
   const [isExiting, setIsExiting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Lock body scroll when overlay is open
   useEffect(() => {
     document.body.style.overflow = expandedFile ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -1028,19 +1070,33 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
   );
 
   const atLimit = files.length >= MAX_FILES_PER_USER;
+  const groups = buildGroups(files);
 
   return (
-    <div className="flex flex-1 overflow-hidden relative z-10">
+    <div className="relative z-10 flex flex-1 overflow-hidden">
 
-      {/* ── Main scrollable content ── */}
+      {/* Scrollable column */}
       <div className="flex-1 overflow-y-auto p-[28px]">
+        <div className="mx-auto w-full max-w-3xl">
 
-        {/* Header + error + dropzone */}
-        <div className="mx-auto max-w-3xl">
-          <div className="pw-entry mb-6 flex items-baseline justify-between">
-            <p className="pw-eyebrow">Documents</p>
-            <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-              {files.length} / {MAX_FILES_PER_USER} files
+          {/* Header */}
+          <div className="pw-entry mb-6">
+            <p
+              className="text-xl"
+              style={{
+                fontFamily: 'var(--pw-font-display)',
+                color: 'var(--color-text-primary)',
+                fontWeight: 500,
+                marginBottom: 4,
+              }}
+            >
+              Documents
+            </p>
+            <p
+              className="text-sm"
+              style={{ fontFamily: 'var(--pw-font-body)', color: 'var(--color-text-secondary)' }}
+            >
+              Everything you upload lives here, organized for you.
             </p>
           </div>
 
@@ -1058,6 +1114,7 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
             </div>
           )}
 
+          {/* Dropzone */}
           {!atLimit && (
             <div
               className={`doc-upload-zone pw-entry mb-10 ${isDragging ? 'dragging' : ''}`}
@@ -1071,9 +1128,9 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
                 <div className="flex items-center justify-center gap-3">
                   <span
                     className="inline-flex size-8 items-center justify-center rounded-icon"
-                    style={{ background: 'var(--color-accent-50)' }}
+                    style={{ background: 'rgba(26,86,219,0.06)' }}
                   >
-                    <Upload className="size-4 animate-bounce" style={{ color: 'var(--color-accent-500)' }} />
+                    <Upload className="size-4 animate-bounce" style={{ color: 'var(--pw-accent)' }} />
                   </span>
                   <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading…</p>
                 </div>
@@ -1081,17 +1138,35 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
                 <div className="flex items-center justify-center gap-3">
                   <span
                     className="inline-flex size-8 flex-shrink-0 items-center justify-center rounded-icon"
-                    style={{ background: isDragging ? 'var(--color-accent-100)' : 'var(--color-bg-subtle)' }}
+                    style={{
+                      background: isDragging ? 'rgba(26,86,219,0.10)' : 'var(--color-bg-subtle)',
+                    }}
                   >
                     <Upload
                       className="size-4"
-                      style={{ color: isDragging ? 'var(--color-accent-600)' : 'var(--color-text-tertiary)' }}
+                      style={{ color: isDragging ? 'var(--pw-accent)' : 'var(--color-text-tertiary)' }}
                     />
                   </span>
                   <div>
+                    <p
+                      className="text-xs"
+                      style={{
+                        fontFamily: 'var(--pw-font-body)',
+                        color: 'var(--color-text-tertiary)',
+                        marginBottom: 2,
+                      }}
+                    >
+                      Add a document to your vault
+                    </p>
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                       Drop a file or{' '}
-                      <span style={{ color: 'var(--color-accent-600)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                      <span
+                        style={{
+                          color: 'var(--pw-accent)',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: 2,
+                        }}
+                      >
                         browse
                       </span>
                     </p>
@@ -1121,46 +1196,40 @@ export function DocumentsClient({ initialFiles, requirements }: DocumentsClientP
                 fontFamily: 'var(--pw-font-body)',
               }}
             >
-              Vault is full ({MAX_FILES_PER_USER} files). Delete a file to upload a new one.
+              Your vault is full — delete a file to make room.
             </div>
           )}
-        </div>
 
-        {/* Document grid — always visible, placeholder cards when empty */}
-        <div className="mx-auto max-w-3xl">
+          {/* Document grid */}
           <div className="pw-entry">
-            <p className="pw-eyebrow mb-4">
-              {files.length === 0 ? 'All documents (0)' : `All documents (${files.length})`}
-            </p>
-            <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
-            >
-              {files.length > 0
-                ? files.map((file) => (
-                    <DocumentIconCard
-                      key={file.id}
-                      file={file}
-                      onExpand={openExpanded}
-                    />
-                  ))
-                : PLACEHOLDER_CARDS.map((card) => (
-                    <PlaceholderDocumentCard key={card.label} {...card} />
-                  ))
-              }
-            </div>
+            {files.length === 0 ? (
+              <div
+                className="grid gap-3"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+              >
+                {PLACEHOLDER_CARDS.map(card => (
+                  <PlaceholderDocumentCard key={card.label} label={card.label} badge={card.badge} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-8">
+                {groups.map(({ group, items }) => (
+                  <div key={group}>
+                    <p className="pw-eyebrow mb-3">{group}</p>
+                    <div
+                      className="grid gap-3"
+                      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+                    >
+                      {items.map(file => (
+                        <DocumentIconCard key={file.id} file={file} onExpand={openExpanded} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
 
-      </div>
-
-      {/* ── Requirements sidebar — full height, pinned right ── */}
-      <div
-        className="w-72 flex-shrink-0 overflow-y-auto"
-        style={{ borderLeft: '1px solid var(--color-border-light)' }}
-      >
-        <div style={{ padding: '28px 20px' }}>
-          <RequirementsPanel requirements={requirements} files={files} />
         </div>
       </div>
 

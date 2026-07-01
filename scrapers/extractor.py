@@ -547,11 +547,36 @@ def run_extraction(
         )
         pathway_id: str = pathway_row.data["id"]
 
-        # Upsert pathway_steps
+        # Upsert pathway_steps. There is no unique constraint on
+        # (pathway_id, step_number), so this is a delete+insert — but enrichment
+        # fields written by the enricher must survive the regeneration, otherwise
+        # every extraction wipes last_enriched_at and the enricher re-pays a
+        # Claude call for every step. Carry them over matched by step_number.
         if result.steps:
+            _ENRICHMENT_COLS = (
+                "official_url",
+                "form_numbers",
+                "fee_cad",
+                "estimated_days_min",
+                "estimated_days_max",
+                "checklist_items",
+                "pro_tips",
+                "last_enriched_at",
+            )
+            existing_steps = (
+                sb.table("pathway_steps")
+                .select("step_number, " + ", ".join(_ENRICHMENT_COLS))
+                .eq("pathway_id", pathway_id)
+                .execute()
+            )
+            enrichment_by_number: dict[int, dict] = {
+                row["step_number"]: row for row in (existing_steps.data or [])
+            }
+
             sb.table("pathway_steps").delete().eq("pathway_id", pathway_id).execute()
-            steps_rows = [
-                {
+            steps_rows = []
+            for step in result.steps:
+                row = {
                     "pathway_id": pathway_id,
                     "step_number": step.step_number,
                     "title": step.title,
@@ -559,8 +584,10 @@ def run_extraction(
                     "estimated_duration": step.estimated_duration or "Unknown",
                     "is_optional": step.is_optional,
                 }
-                for step in result.steps
-            ]
+                prev = enrichment_by_number.get(step.step_number)
+                if prev:
+                    row.update({col: prev[col] for col in _ENRICHMENT_COLS})
+                steps_rows.append(row)
             sb.table("pathway_steps").insert(steps_rows).execute()
             logger.info(f"  ✓ Inserted {len(steps_rows)} steps for {slug}")
         else:

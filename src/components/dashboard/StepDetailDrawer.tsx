@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { ExternalLink, FileText, Shield, Clock, X, Copy, Check, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { updateStepProgress } from '@/app/actions/progress';
@@ -10,6 +11,7 @@ import { documentBelongsToStep } from '@/lib/step-document-map';
 import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
 import { ParticleBurst } from '@/components/fx/ParticleBurst';
 import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, StepResource } from '@/modules/dashboard/types';
+import { registerChecklistFlush } from '@/lib/checklist-flush-registry';
 
 const ink = '#0A0A0A';
 const muted = '#6B7280';
@@ -81,6 +83,34 @@ export function ChecklistSection({ stepId, items }: { stepId: string; items: str
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [hydrating, setHydrating] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Proxy refs — stable registration, always calls latest flush logic.
+  const checkedRef = useRef<Set<number>>(new Set());
+  checkedRef.current = checked;
+  const flushFnRef = useRef<() => void>(() => {});
+  flushFnRef.current = () => {
+    if (debounceRef.current === null) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = null;
+    void (async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await (supabase as ReturnType<typeof createSupabaseBrowserClient>)
+          .from('step_checklist_progress' as never)
+          .upsert(
+            { user_id: user.id, step_id: stepId, checked_items: [...checkedRef.current], updated_at: new Date().toISOString() } as never,
+            { onConflict: 'user_id,step_id' },
+          );
+      } catch { /* silently fail */ }
+    })();
+  };
+
+  useEffect(() => {
+    const fn = () => flushFnRef.current();
+    return registerChecklistFlush(fn);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -463,8 +493,12 @@ export function StepDetailDrawer({
   profileContext,
   onClose,
 }: StepDetailDrawerProps) {
+  const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Portal target (document.body) is only available on the client after mount.
+  useEffect(() => setMounted(true), []);
   const [markedComplete, setMarkedComplete] = useState(step.status === 'complete');
   const [justCompleted, setJustCompleted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -550,7 +584,9 @@ export function StepDetailDrawer({
   const hasProTips    = !!step.proTips;
   const hasOfficialUrl = !!step.officialUrl;
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <>
       {/* Backdrop — dims + blurs everything behind the modal */}
       <div
@@ -560,7 +596,7 @@ export function StepDetailDrawer({
           background: 'rgba(0,0,0,0.40)',
           backdropFilter: 'blur(4px)',
           WebkitBackdropFilter: 'blur(4px)',
-          zIndex: 39,
+          zIndex: 299,
           opacity: visible ? 1 : 0,
           transition: 'opacity 300ms cubic-bezier(0.16,1,0.3,1)',
         }}
@@ -582,7 +618,7 @@ export function StepDetailDrawer({
           border: `1px solid ${border}`,
           borderRadius: 20,
           boxShadow: 'var(--shadow-card-lg)',
-          zIndex: 40,
+          zIndex: 300,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -848,6 +884,7 @@ export function StepDetailDrawer({
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
         @keyframes pw-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
       `}</style>
-    </>
+    </>,
+    document.body,
   );
 }

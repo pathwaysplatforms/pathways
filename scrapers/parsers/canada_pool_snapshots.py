@@ -1,14 +1,14 @@
 """Parser for IRCC Express Entry pool snapshots.
 
 Handles two source formats:
-  1. CKAN CSV resources (structured, preferred)
+  1. IRCC rounds JSON (primary) — each round carries the CRS pool distribution
+     as of `drawDistributionAsOn` in fields dd1–dd18
   2. HTML results page tables (fallback)
 
 Both produce dicts compatible with the ee_pool_snapshots schema:
   snapshot_date, total_candidates, by_program (JSONB), crs_distribution (JSONB), source_url
 """
-import csv
-import io
+import json
 import re
 from datetime import date, datetime
 from typing import Optional
@@ -18,42 +18,72 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Non-overlapping CRS bands in the rounds JSON. dd3 (451-500) and dd9 (401-450)
+# are subtotals of the five bands that follow each of them, and dd18 is the
+# grand total — verified against live data: dd3 = Σ(dd4..dd8),
+# dd9 = Σ(dd10..dd14), dd18 = dd1+dd2+dd3+dd9+dd15+dd16+dd17.
+_DD_BANDS: list[tuple[str, str]] = [
+    ("dd1", "601-1200"),
+    ("dd2", "501-600"),
+    ("dd4", "491-500"),
+    ("dd5", "481-490"),
+    ("dd6", "471-480"),
+    ("dd7", "461-470"),
+    ("dd8", "451-460"),
+    ("dd10", "441-450"),
+    ("dd11", "431-440"),
+    ("dd12", "421-430"),
+    ("dd13", "411-420"),
+    ("dd14", "401-410"),
+    ("dd15", "351-400"),
+    ("dd16", "301-350"),
+    ("dd17", "0-300"),
+]
 
-def parse_ckan_csv(csv_text: str, source_url: str, cfg: dict) -> list[dict]:
-    """Parse a CKAN CSV file containing EE pool CRS distribution data.
 
-    Accepts both long format (one row per score band per date) and wide format
-    (one row per date, score bands as columns).
-
-    Long format columns (case-insensitive):
-      date/snapshot_date, score_band/crs_band, candidates/count/profiles
-
-    Wide format: first column is date, remaining columns are score-band labels.
+def parse_rounds_json(json_text: str, source_url: str, cfg: dict) -> list[dict]:
+    """Derive pool snapshots from the CRS distribution embedded in the IRCC
+    rounds JSON. Multiple rounds can share one distribution date; the rounds
+    list is newest-first, so the first occurrence of each date wins.
+    Rounds without distribution data (dd18 missing or 0 — pre-2019) are skipped.
     """
-    reader = csv.DictReader(io.StringIO(csv_text))
-    if not reader.fieldnames:
-        logger.warning(f"Empty CSV from {source_url}")
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Rounds JSON parse error for pool snapshots: {exc}")
         return []
 
-    fieldnames = [f.strip() for f in reader.fieldnames]
+    by_date: dict[str, dict] = {}
 
-    # Detect format by inspecting column names
-    date_col = _find_col(fieldnames, ["date", "snapshot_date", "snapshotdate", "period"])
-    band_col = _find_col(fieldnames, ["score_band", "crs_band", "band", "scoreband"])
-    count_col = _find_col(fieldnames, ["candidates", "count", "profiles", "total", "number"])
+    for rd in data.get("rounds", []):
+        total = _to_int(rd.get("dd18", ""))
+        if total <= 0:
+            continue
 
-    rows = list(reader)
-    if not rows:
-        return []
+        snap_date = _parse_date(str(rd.get("drawDistributionAsOn", "")).strip())
+        if not snap_date:
+            continue
 
-    if date_col and band_col and count_col:
-        return _parse_long_format(rows, date_col, band_col, count_col, source_url, cfg)
+        date_key = snap_date.isoformat()
+        if date_key in by_date:
+            continue
 
-    if date_col:
-        return _parse_wide_format(rows, fieldnames, date_col, source_url, cfg)
+        crs_dist = {
+            label: _to_int(rd.get(field, ""))
+            for field, label in _DD_BANDS
+        }
 
-    logger.warning(f"Could not detect CSV format for {source_url} — columns: {fieldnames}")
-    return []
+        by_date[date_key] = {
+            "snapshot_date": date_key,
+            "total_candidates": total,
+            "by_program": None,
+            "crs_distribution": crs_dist,
+            "source_url": source_url,
+        }
+
+    snapshots = [by_date[k] for k in sorted(by_date)]
+    logger.info(f"Pool snapshots: {len(snapshots)} distinct distribution dates in rounds JSON")
+    return snapshots
 
 
 def parse_html(html: str, source_url: str, cfg: dict) -> list[dict]:
@@ -73,92 +103,6 @@ def parse_html(html: str, source_url: str, cfg: dict) -> list[dict]:
         by_date[s["snapshot_date"]] = s
 
     return list(by_date.values())
-
-
-# ─── Long-format CSV ────────────────────────────────────────────────────────
-
-def _parse_long_format(
-    rows: list[dict],
-    date_col: str,
-    band_col: str,
-    count_col: str,
-    source_url: str,
-    cfg: dict,
-) -> list[dict]:
-    """Group long-format rows by date into one snapshot record per date."""
-    grouped: dict[str, dict[str, int]] = {}
-    totals: dict[str, int] = {}
-
-    for row in rows:
-        raw_date = row.get(date_col, "").strip()
-        snap_date = _parse_date(raw_date)
-        if not snap_date:
-            continue
-
-        date_key = snap_date.isoformat()
-        band = _normalise_band(row.get(band_col, "").strip())
-        raw_count = row.get(count_col, "").strip().replace(",", "")
-        if not raw_count.isdigit():
-            continue
-        count = int(raw_count)
-
-        grouped.setdefault(date_key, {})[band] = count
-        totals[date_key] = totals.get(date_key, 0) + count
-
-    return [
-        {
-            "snapshot_date": dt,
-            "total_candidates": totals.get(dt),
-            "by_program": None,
-            "crs_distribution": grouped[dt],
-            "source_url": source_url,
-        }
-        for dt in sorted(grouped)
-    ]
-
-
-# ─── Wide-format CSV ────────────────────────────────────────────────────────
-
-def _parse_wide_format(
-    rows: list[dict],
-    fieldnames: list[str],
-    date_col: str,
-    source_url: str,
-    cfg: dict,
-) -> list[dict]:
-    """Parse wide-format CSV where columns are score bands."""
-    band_cols = [f for f in fieldnames if f != date_col and _looks_like_band(f)]
-    if not band_cols:
-        logger.warning(f"Wide CSV has no identifiable score-band columns in {source_url}")
-        return []
-
-    snapshots: list[dict] = []
-    for row in rows:
-        raw_date = row.get(date_col, "").strip()
-        snap_date = _parse_date(raw_date)
-        if not snap_date:
-            continue
-
-        crs_dist: dict[str, int] = {}
-        total = 0
-        for col in band_cols:
-            raw = row.get(col, "").strip().replace(",", "")
-            if raw.isdigit():
-                crs_dist[_normalise_band(col)] = int(raw)
-                total += int(raw)
-
-        if not crs_dist:
-            continue
-
-        snapshots.append({
-            "snapshot_date": snap_date.isoformat(),
-            "total_candidates": total or None,
-            "by_program": None,
-            "crs_distribution": crs_dist,
-            "source_url": source_url,
-        })
-
-    return snapshots
 
 
 # ─── HTML table parser ───────────────────────────────────────────────────────
@@ -222,14 +166,10 @@ def _parse_html_table(table: Tag, source_url: str, cfg: dict) -> list[dict]:
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
-def _find_col(fieldnames: list[str], candidates: list[str]) -> Optional[str]:
-    """Return the first fieldname that contains any of the candidate substrings."""
-    fl = [f.lower() for f in fieldnames]
-    for candidate in candidates:
-        for i, f in enumerate(fl):
-            if candidate in f:
-                return fieldnames[i]
-    return None
+def _to_int(text: str) -> int:
+    """Parse an IRCC count string like '20,012' to int; non-numeric → 0."""
+    cleaned = str(text).replace(",", "").strip()
+    return int(cleaned) if cleaned.isdigit() else 0
 
 
 def _looks_like_band(text: str) -> bool:

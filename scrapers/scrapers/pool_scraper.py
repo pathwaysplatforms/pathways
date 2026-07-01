@@ -1,10 +1,11 @@
 """Scraper for Express Entry pool snapshots.
 
 Sources (in order):
-  1. CKAN open data API — downloads all CSV resources for the EE CRS dataset
+  1. IRCC rounds JSON — the same document the draws scraper uses carries the
+     CRS pool distribution per round (dd1–dd18 + drawDistributionAsOn)
   2. HTML results page — fallback HTML table scrape
 
-Inserts into ee_pool_snapshots on conflict (snapshot_date) → do nothing,
+Inserts into ee_pool_snapshots on conflict (snapshot_date) → update,
 so re-runs are idempotent.
 """
 import importlib
@@ -46,7 +47,7 @@ class PoolScraper(BaseScraper):
         return total_inserted
 
     def _process_source(self, cfg: dict) -> int:
-        """Dispatch to CKAN or HTML fetch depending on config keys present."""
+        """Dispatch to rounds-JSON or HTML fetch depending on config keys present."""
         try:
             parser_module = importlib.import_module(f"parsers.{cfg['parser']}")
         except ImportError as e:
@@ -55,115 +56,67 @@ class PoolScraper(BaseScraper):
 
         snapshots: list[dict] = []
 
-        if "ckan_api_url" in cfg:
-            snapshots = self._fetch_ckan(cfg, parser_module)
+        if "json_url" in cfg:
+            snapshots = self._fetch_rounds_json(cfg, parser_module)
         elif "url" in cfg:
             snapshots = self._fetch_html(cfg, parser_module)
 
         if not snapshots:
-            logger.warning(f"No pool snapshots parsed from {cfg.get('url') or cfg.get('ckan_api_url')}")
+            logger.warning(f"No pool snapshots parsed from {cfg.get('url') or cfg.get('json_url')}")
             return 0
 
         return self._upsert_snapshots(snapshots, cfg)
 
-    # ─── CKAN path ───────────────────────────────────────────────────────────
+    # ─── Rounds-JSON path ────────────────────────────────────────────────────
 
-    def _fetch_ckan(self, cfg: dict, parser_module: object) -> list[dict]:
-        """Hit the CKAN package_show API, then download and parse each CSV resource."""
-        import json
-        from curl_cffi.requests import get as cffi_get
-
-        api_url = f"{cfg['ckan_api_url']}?id={cfg['ckan_dataset_id']}"
-        logger.info(f"Fetching CKAN metadata: {api_url}")
-
-        try:
-            resp = cffi_get(api_url, impersonate="chrome136", timeout=30)
-        except Exception as e:
-            logger.error(f"CKAN API request failed: {e}")
+    def _fetch_rounds_json(self, cfg: dict, parser_module: object) -> list[dict]:
+        """Fetch the IRCC rounds JSON and derive pool snapshots from its dd fields."""
+        url = cfg["json_url"]
+        json_text = self._fetch_text(url)
+        if not json_text:
             return []
 
-        if resp.status_code != 200:
-            logger.error(f"CKAN API returned HTTP {resp.status_code}")
-            return []
-
-        try:
-            package = json.loads(resp.text)
-        except json.JSONDecodeError as e:
-            logger.error(f"CKAN API response is not valid JSON: {e}")
-            return []
-
-        if not package.get("success"):
-            logger.warning(f"CKAN API success=false: {package.get('error')}")
-            return []
-
-        resources = package.get("result", {}).get("resources", [])
-        csv_resources = [r for r in resources if r.get("format", "").upper() == "CSV"]
-
-        if not csv_resources:
-            logger.warning(f"No CSV resources found in CKAN dataset {cfg['ckan_dataset_id']}")
-            return []
-
-        logger.info(f"Found {len(csv_resources)} CSV resource(s) in CKAN dataset")
-        all_snapshots: list[dict] = []
-
-        for resource in csv_resources:
-            url = resource.get("url", "")
-            if not url:
-                continue
-            logger.info(f"  Downloading CSV: {url}")
-            csv_text = self._download_csv(url)
-            if not csv_text:
-                continue
-
-            parsed = parser_module.parse_ckan_csv(csv_text, url, cfg)  # type: ignore[attr-defined]
-            logger.info(f"  Parsed {len(parsed)} snapshots from {url}")
-            all_snapshots.extend(parsed)
-
-        return all_snapshots
-
-    def _download_csv(self, url: str) -> Optional[str]:
-        """Download a CSV file via curl_cffi and return its text content."""
-        from curl_cffi.requests import get as cffi_get
-
-        try:
-            resp = cffi_get(url, impersonate="chrome136", timeout=60)
-        except Exception as e:
-            logger.error(f"CSV download failed for {url}: {e}")
-            return None
-
-        if resp.status_code != 200:
-            logger.error(f"HTTP {resp.status_code} downloading CSV {url}")
-            return None
-
-        return resp.text
+        parsed = parser_module.parse_rounds_json(json_text, url, cfg)  # type: ignore[attr-defined]
+        logger.info(f"Parsed {len(parsed)} snapshots from rounds JSON: {url}")
+        return parsed
 
     # ─── HTML path ───────────────────────────────────────────────────────────
 
     def _fetch_html(self, cfg: dict, parser_module: object) -> list[dict]:
         """Fetch raw HTML and delegate to parser."""
+        url = cfg["url"]
+        html = self._fetch_text(url)
+        if not html:
+            return []
+
+        parsed = parser_module.parse_html(html, url, cfg)  # type: ignore[attr-defined]
+        logger.info(f"Parsed {len(parsed)} snapshots from HTML: {url}")
+        return parsed
+
+    # ─── Shared fetch ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _fetch_text(url: str) -> Optional[str]:
+        """Fetch a URL via curl_cffi with Chrome TLS impersonation; return body text."""
         from curl_cffi.requests import get as cffi_get
 
-        url = cfg["url"]
-        logger.info(f"Fetching HTML pool data: {url}")
-
+        logger.info(f"Fetching pool data: {url}")
         try:
-            resp = cffi_get(url, impersonate="chrome136", timeout=30)
+            resp = cffi_get(url, impersonate="chrome136", timeout=60)
         except Exception as e:
-            logger.error(f"HTML fetch failed for {url}: {e}")
-            return []
+            logger.error(f"Fetch failed for {url}: {e}")
+            return None
 
         if resp.status_code != 200:
             logger.error(f"HTTP {resp.status_code} fetching {url}")
-            return []
+            return None
 
-        parsed = parser_module.parse_html(resp.text, url, cfg)  # type: ignore[attr-defined]
-        logger.info(f"Parsed {len(parsed)} snapshots from HTML: {url}")
-        return parsed
+        return resp.text
 
     # ─── DB upsert ───────────────────────────────────────────────────────────
 
     def _upsert_snapshots(self, snapshots: list[dict], cfg: dict) -> int:
-        """Upsert snapshots into ee_pool_snapshots, skipping existing dates."""
+        """Batch-upsert snapshots into ee_pool_snapshots, skipping existing dates."""
         # Fetch existing snapshot dates to classify inserts vs skips
         existing_dates: set[str] = set()
         try:
@@ -172,22 +125,24 @@ class PoolScraper(BaseScraper):
         except Exception as e:
             logger.warning(f"Could not pre-fetch existing snapshot dates: {e}")
 
-        inserted = 0
-        skipped = 0
+        new_snapshots = [s for s in snapshots if s["snapshot_date"] not in existing_dates]
+        skipped = len(snapshots) - len(new_snapshots)
 
-        for snap in snapshots:
-            if snap["snapshot_date"] in existing_dates:
-                skipped += 1
-                continue
+        inserted = 0
+        batch_size = 500
+        for i in range(0, len(new_snapshots), batch_size):
+            batch = new_snapshots[i : i + batch_size]
             try:
                 self.supabase.table("ee_pool_snapshots").upsert(
-                    snap,
+                    batch,
                     on_conflict="snapshot_date",
                 ).execute()
-                inserted += 1
-                existing_dates.add(snap["snapshot_date"])
+                inserted += len(batch)
             except Exception as e:
-                logger.error(f"Failed to upsert snapshot {snap.get('snapshot_date')}: {e}")
+                logger.error(
+                    f"Failed to upsert snapshot batch {i // batch_size + 1} "
+                    f"({len(batch)} rows): {e}"
+                )
 
         logger.info(f"Pool snapshots — inserted={inserted} skipped={skipped}")
         return inserted

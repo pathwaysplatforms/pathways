@@ -61,12 +61,18 @@ class PathwayScraper(BaseScraper):
 
         if not dry_run:
             logger.info("Running pathway extraction pass...")
-            extraction_summary = run_extraction(country="canada")
-            logger.info(
-                f"Extraction complete: processed={extraction_summary['processed']}, "
-                f"skipped={extraction_summary['skipped']}, "
-                f"failed={extraction_summary['failed']}"
-            )
+            try:
+                extraction_summary = run_extraction(country="canada")
+            except Exception as e:
+                # The scrape/embed work above is already committed — an extraction
+                # failure (e.g. missing ANTHROPIC_API_KEY) must not fail the run.
+                logger.error(f"Extraction pass failed: {type(e).__name__}: {e}")
+            else:
+                logger.info(
+                    f"Extraction complete: processed={extraction_summary['processed']}, "
+                    f"skipped={extraction_summary['skipped']}, "
+                    f"failed={extraction_summary['failed']}"
+                )
 
     def _process_pathway(
         self,
@@ -151,7 +157,7 @@ class PathwayScraper(BaseScraper):
                         "reason": f"Supabase query error: {type(e).__name__}: {e}",
                     }
                 )
-                raise
+                continue
 
             if existing.data and existing.data[0]["content_hash"] == content_hash:
                 logger.info(f"No change detected for {url} — skipping re-embedding")
@@ -181,7 +187,7 @@ class PathwayScraper(BaseScraper):
                         "reason": f"Source upsert error: {type(e).__name__}: {e}",
                     }
                 )
-                raise
+                continue
 
             try:
                 embedded_chunks = embed_chunks(chunks)
@@ -216,7 +222,7 @@ class PathwayScraper(BaseScraper):
                         "reason": f"Chunk upsert error: {type(e).__name__}: {e}",
                     }
                 )
-                raise
+                continue
 
             logger.info(f"Upserted {len(embedded_chunks)} chunks for {url}")
             stats["succeeded"] += 1

@@ -4,8 +4,6 @@ import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Clock, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
-import { GreetingHeader } from './GreetingHeader';
 import { StepDetailDrawer } from './StepDetailDrawer';
 import {
   DocumentsSection,
@@ -18,6 +16,7 @@ import {
 import { documentBelongsToStep } from '@/lib/step-document-map';
 import { getEmailTemplates } from '@/lib/email-templates';
 import { updateStepProgress } from '@/app/actions/progress';
+import { useScrollFade } from '@/hooks/useScrollFade';
 import { DashboardDataProvider } from '@/contexts/DashboardDataContext';
 import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
 import { ParticleBurst } from '@/components/fx/ParticleBurst';
@@ -38,9 +37,6 @@ const C = {
   fontBody:   'var(--pw-font-body)',
   fontUi:     'var(--pw-font-ui)',
 } as const;
-
-// Profile completeness below this value triggers the accuracy warning.
-const COMPLETENESS_WARNING_THRESHOLD = 75;
 
 // ── Stepper dot ──────────────────────────────────────────────────────────────
 
@@ -90,6 +86,7 @@ interface StepperProps {
  * Pathway title is pinned at the top; the step list scrolls internally at xl.
  */
 function PathwayStepper({ steps, pathwayTitle, processingTime, onStepClick }: StepperProps) {
+  const { ref: scrollRef, faded } = useScrollFade();
   if (steps.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -107,7 +104,7 @@ function PathwayStepper({ steps, pathwayTitle, processingTime, onStepClick }: St
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+    <div className="pw-scroll-fade" data-faded={faded} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Fixed pathway header */}
       {pathwayTitle && (
         <div style={{ flexShrink: 0, marginBottom: 20 }}>
@@ -133,7 +130,7 @@ function PathwayStepper({ steps, pathwayTitle, processingTime, onStepClick }: St
       )}
 
       {/* Scrollable step list */}
-      <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+      <div ref={scrollRef} className="pw-scroll" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1;
           const isCurrent = step.status === 'current';
@@ -211,173 +208,6 @@ function PathwayStepper({ steps, pathwayTitle, processingTime, onStepClick }: St
   );
 }
 
-// ── Combined CRS + profile widget ────────────────────────────────────────────
-
-interface CrsProfileWidgetProps {
-  crsValue: string;
-  completeness: number;
-}
-
-/**
- * Single right-column card: large CRS score linking to /dashboard/crs,
- * plus a conditional completeness state (warning vs quiet link).
- * Amber warning tokens match the existing usage in dashboard/crs/page.tsx.
- */
-function CrsProfileWidget({ crsValue, completeness }: CrsProfileWidgetProps) {
-  const clamped = Math.max(0, Math.min(100, completeness));
-  const isLowCompleteness = completeness < COMPLETENESS_WARNING_THRESHOLD;
-  const barColor = clamped === 100 ? '#16A34A' : C.accent;
-
-  return (
-    <div style={{
-      background: '#FFFFFF',
-      borderRadius: 16,
-      boxShadow: 'var(--shadow-card-md)',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* CRS score — links to full breakdown page */}
-      <Link
-        href="/dashboard/crs"
-        style={{
-          display: 'block',
-          textDecoration: 'none',
-          padding: '16px 16px 14px',
-          borderBottom: '1px solid rgba(0,0,0,0.06)',
-        }}
-      >
-        <p style={{
-          fontFamily: C.fontUi, fontSize: 10, fontWeight: 600,
-          letterSpacing: '0.10em', textTransform: 'uppercase',
-          color: C.muted, marginBottom: 2,
-        }}>
-          CRS Score
-        </p>
-        <p style={{
-          fontFamily: C.fontDisplay, fontSize: 40, fontWeight: 400,
-          letterSpacing: '-0.02em', lineHeight: 1, color: C.ink,
-        }}>
-          {Number.isFinite(Number(crsValue)) ? (
-            <AnimatedNumber value={Number(crsValue)} durationMs={800} startInView={false} />
-          ) : (
-            crsValue
-          )}
-        </p>
-        <p style={{ fontFamily: C.fontBody, fontSize: 11, color: C.muted, marginTop: 6 }}>
-          View full breakdown →
-        </p>
-      </Link>
-
-      {/* Profile completeness */}
-      <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {isLowCompleteness ? (
-          <div style={{
-            background: '#FFFBEB',
-            border: '1px solid rgba(239, 159, 39, 0.40)',
-            borderRadius: 10,
-            padding: '10px 12px',
-          }}>
-            <p style={{
-              fontFamily: C.fontBody, fontSize: 12,
-              color: '#78350F', lineHeight: 1.5, marginBottom: 8,
-            }}>
-              Profile is {clamped}% complete — this estimate may not be accurate yet.
-            </p>
-            <Link
-              href="/dashboard/profile"
-              style={{
-                display: 'inline-flex', alignItems: 'center',
-                padding: '6px 14px', borderRadius: 9999,
-                background: C.ink, color: '#FFFFFF',
-                fontFamily: C.fontUi, fontSize: 12, fontWeight: 500,
-                textDecoration: 'none',
-              }}
-            >
-              Complete your profile →
-            </Link>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <p style={{
-              fontFamily: C.fontUi, fontSize: 10, fontWeight: 600,
-              letterSpacing: '0.10em', textTransform: 'uppercase', color: C.muted,
-            }}>
-              Profile {clamped}% complete
-            </p>
-            <Link href="/dashboard/profile" style={{
-              fontFamily: C.fontBody, fontSize: 12, color: C.accent, textDecoration: 'none',
-            }}>
-              View →
-            </Link>
-          </div>
-        )}
-
-        {/* Progress bar */}
-        <div
-          role="progressbar"
-          aria-valuenow={clamped}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`Profile ${clamped}% complete`}
-          style={{ height: 3, background: 'rgba(0,0,0,0.10)', borderRadius: 9999 }}
-        >
-          <div style={{
-            height: '100%', width: `${clamped}%`,
-            background: barColor, borderRadius: 9999,
-            transition: 'width 600ms cubic-bezier(0.16,1,0.3,1)',
-          }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Compact tablet widget chips (md only) ────────────────────────────────────
-
-/** Compact CRS + completeness shown beneath the stepper on 768–1279px screens. */
-function TabletWidgets({ crsValue, completeness }: { crsValue: string; completeness: number }) {
-  const clamped = Math.max(0, Math.min(100, completeness));
-  return (
-    <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-      <Link href="/dashboard/crs" style={{ textDecoration: 'none', flex: 1 }}>
-        <div style={{
-          background: '#FFFFFF', borderRadius: 12, padding: '8px 12px',
-          boxShadow: 'var(--shadow-card-md)',
-        }}>
-          <p style={{
-            fontFamily: C.fontUi, fontSize: 9, fontWeight: 600,
-            letterSpacing: '0.10em', textTransform: 'uppercase',
-            color: C.muted, marginBottom: 1,
-          }}>
-            CRS
-          </p>
-          <p style={{ fontFamily: C.fontDisplay, fontSize: 22, fontWeight: 400, lineHeight: 1, color: C.ink }}>
-            {crsValue}
-          </p>
-        </div>
-      </Link>
-      <Link href="/dashboard/profile" style={{ textDecoration: 'none', flex: 1 }}>
-        <div style={{
-          background: '#FFFFFF', borderRadius: 12, padding: '8px 12px',
-          boxShadow: 'var(--shadow-card-md)',
-        }}>
-          <p style={{
-            fontFamily: C.fontUi, fontSize: 9, fontWeight: 600,
-            letterSpacing: '0.10em', textTransform: 'uppercase',
-            color: C.muted, marginBottom: 1,
-          }}>
-            Profile
-          </p>
-          <p style={{ fontFamily: C.fontDisplay, fontSize: 22, fontWeight: 400, lineHeight: 1, color: C.ink }}>
-            {clamped}%
-          </p>
-        </div>
-      </Link>
-    </div>
-  );
-}
-
 // ── Empty center card ────────────────────────────────────────────────────────
 
 interface EmptyStepCardProps {
@@ -446,6 +276,7 @@ function CurrentStepCard({
   applicationId,
 }: CurrentStepCardProps) {
   const router = useRouter();
+  const { ref: scrollRef, faded } = useScrollFade();
   const [markedComplete, setMarkedComplete] = useState(step?.status === 'complete');
   const [justCompleted, setJustCompleted] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -532,7 +363,7 @@ function CurrentStepCard({
     >
       {/* Header — fixed */}
       <div style={{
-        padding: '20px 24px 16px',
+        padding: '24px 24px 16px',
         borderBottom: '1px solid rgba(0,0,0,0.06)',
         flexShrink: 0,
       }}>
@@ -582,8 +413,10 @@ function CurrentStepCard({
       </div>
 
       {/* Content — scrollable at xl */}
+      <div className="pw-scroll-fade xl:flex-1 xl:min-h-0 flex flex-col" data-faded={faded}>
       <div
-        className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto"
+        ref={scrollRef}
+        className="pw-scroll xl:flex-1 xl:min-h-0 xl:overflow-y-auto"
         style={{ padding: '0 24px' }}
       >
         {hasDocuments && (
@@ -628,6 +461,7 @@ function CurrentStepCard({
             </p>
           </div>
         )}
+      </div>
       </div>
 
       {/* Footer — fixed */}
@@ -694,7 +528,7 @@ interface DashboardHomeLayoutProps {
   data: DashboardData;
 }
 
-/** Stepper-anchored 3-column layout. Fills its parent flex container at xl. */
+/** Stepper-anchored 2-column layout. Fills its parent flex container at xl. */
 export function DashboardHomeLayout({ data }: DashboardHomeLayoutProps) {
   const [selectedStep, setSelectedStep] = useState<EnrichedApplicationStep | null>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -720,7 +554,6 @@ export function DashboardHomeLayout({ data }: DashboardHomeLayoutProps) {
       ? `${data.processingTimeMin}–${data.processingTimeMax}`
       : null);
 
-  const crsValue = data.crsScore !== null ? String(data.crsScore) : '—';
   const entryVis = isVisible ? ' is-visible' : '';
 
   const handleDrawerClose = () => {
@@ -732,35 +565,27 @@ export function DashboardHomeLayout({ data }: DashboardHomeLayoutProps) {
     <DashboardDataProvider data={data}>
       {/*
         Flex-fill wrapper: takes all available height from page.tsx's flex column.
-        On xl, this makes the greeting + 3-column row share the viewport height.
+        On xl, the 2-column row fills the viewport height.
       */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Greeting — fixed height, never scrolls */}
-        <div style={{ marginBottom: 24, flexShrink: 0 }}>
-          <GreetingHeader firstName={data.firstName} isVisible={isVisible} />
-        </div>
-
-        {/* 3-column content row
+        {/* 2-column content row
             xl: fills remaining height, overflow hidden (each column scrolls internally)
             md: natural height, row direction, page scrolls
             mobile: natural height, stacked, page scrolls
         */}
         <div
           className={`pw-entry flex flex-col md:flex-row items-start xl:flex-1 xl:min-h-0 xl:overflow-hidden xl:items-stretch${entryVis}`}
-          style={{ gap: 20, transitionDelay: '120ms' }}
+          style={{ gap: 32, transitionDelay: '120ms' }}
         >
-          {/* Left: stepper card + tablet chips */}
-          <div
-            className="w-full md:w-2/5 xl:w-60 md:flex-shrink-0 flex flex-col xl:overflow-hidden"
-            style={{ gap: 20 }}
-          >
+          {/* Left: stepper card (~25% at xl) */}
+          <div className="w-full md:w-2/5 xl:w-1/4 md:flex-shrink-0 flex flex-col xl:overflow-hidden">
             {/* Stepper card — flex-fills the column at xl */}
             <div
               className="xl:flex-1 xl:min-h-0 xl:flex xl:flex-col xl:overflow-hidden"
               style={{
                 background: '#FFFFFF',
                 borderRadius: 16,
-                padding: '20px',
+                padding: '24px',
                 boxShadow: 'var(--shadow-card-md)',
               }}
             >
@@ -771,14 +596,9 @@ export function DashboardHomeLayout({ data }: DashboardHomeLayoutProps) {
                 onStepClick={setSelectedStep}
               />
             </div>
-
-            {/* Tablet compact chips — hidden at xl (xl widget replaces them) */}
-            <div className="hidden md:flex xl:hidden" style={{ gap: 10 }}>
-              <TabletWidgets crsValue={crsValue} completeness={data.profileCompleteness} />
-            </div>
           </div>
 
-          {/* Center: current step inline card */}
+          {/* Center: current step inline card (flex-1, ~75% at xl) */}
           <div className="flex-1 min-w-0 w-full xl:flex xl:flex-col xl:min-h-0 xl:overflow-hidden">
             <CurrentStepCard
               step={currentStep}
@@ -788,14 +608,6 @@ export function DashboardHomeLayout({ data }: DashboardHomeLayoutProps) {
               state={data.state}
               applicationId={data.applicationId}
             />
-          </div>
-
-          {/* Right: combined CRS + profile widget (xl only) */}
-          <div
-            className="hidden xl:flex xl:flex-col xl:flex-shrink-0"
-            style={{ width: 240 }}
-          >
-            <CrsProfileWidget crsValue={crsValue} completeness={data.profileCompleteness} />
           </div>
         </div>
       </div>

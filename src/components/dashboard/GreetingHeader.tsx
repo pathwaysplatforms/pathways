@@ -73,7 +73,7 @@ export function GreetingHeader({ firstName, isVisible = false }: GreetingHeaderP
           fontWeight: 400,
           color: 'var(--pw-ink)',
           lineHeight: 1.1,
-          marginTop: 4,
+          marginTop: 8,
           transitionDelay: '60ms',
         }}
       >

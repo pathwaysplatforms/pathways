@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** Redirects /pathways to the pathway results page. */
+/** Redirects /pathways to the dashboard pathways plane view. */
 export default function PathwaysPage() {
-  redirect('/pathways/results');
+  redirect('/dashboard/pathways');
 }

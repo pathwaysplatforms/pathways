@@ -38,7 +38,6 @@ export function ApplicationLayout({ application, avatarInitials, firstName }: Pr
       <TopNav
         avatarInitials={avatarInitials}
         firstName={firstName}
-        applicationId={application.id}
       />
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-8">

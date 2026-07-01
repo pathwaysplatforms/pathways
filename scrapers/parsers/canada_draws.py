@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import date, datetime
 from typing import Optional
@@ -71,7 +72,27 @@ def parse(html: str, cfg: dict) -> list[dict]:
     return draws
 
 
-# ─── JSON endpoint parser (primary path) ─────────────────────────────────────
+# ─── Direct rounds-JSON parser (primary path) ────────────────────────────────
+
+def parse_rounds_json(json_text: str, cfg: dict) -> list[dict]:
+    """Parse the IRCC EE rounds JSON document (fetched directly by the scraper)
+    into draw records. This is the primary path — no HTML involved.
+    """
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Rounds JSON parse error: {exc}")
+        return []
+
+    rounds = data.get("rounds", [])
+    draws = _rounds_to_draws(rounds, cfg)
+    logger.info(
+        f"Canada draws: {len(draws)} draws parsed from {len(rounds)} rounds in JSON document"
+    )
+    return draws
+
+
+# ─── JSON endpoint discovery via HTML (fallback path) ────────────────────────
 
 def _parse_json_endpoint(html: str, cfg: dict) -> list[dict]:
     """Extract the IRCC WET JSON endpoint URL from a data-wb-json attribute,
@@ -127,6 +148,13 @@ def _parse_json_endpoint(html: str, cfg: dict) -> list[dict]:
     rounds = data.get("rounds", [])
     logger.info(f"Canada draws: {len(rounds)} rounds found in JSON endpoint — parsing")
 
+    draws = _rounds_to_draws(rounds, cfg)
+    logger.info(f"Canada draws: {len(draws)} draws parsed from JSON endpoint")
+    return draws
+
+
+def _rounds_to_draws(rounds: list[dict], cfg: dict) -> list[dict]:
+    """Convert IRCC rounds-JSON objects into immigration_draws records."""
     draws: list[dict] = []
     for r in rounds:
         draw_number = _parse_int(r.get("drawNumber", ""))
@@ -168,7 +196,6 @@ def _parse_json_endpoint(html: str, cfg: dict) -> list[dict]:
             },
         })
 
-    logger.info(f"Canada draws: {len(draws)} draws parsed from JSON endpoint")
     return draws
 
 

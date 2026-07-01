@@ -617,7 +617,12 @@ pathways:
       country: canada
 
 draws:
-  canada_express_entry_latest:
+  canada_express_entry:
+    # Primary: direct fetch of the IRCC WET rounds JSON (stable URL, full history,
+    # both the latest-rounds and ministerial-instructions pages render from it).
+    # Fallback: the rounds-invitations HTML page, from which the parser can
+    # re-discover the JSON endpoint or scrape the table/bullet layout.
+    json_url: https://www.canada.ca/content/dam/ircc/documents/json/ee_rounds_123_en.json
     url: https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations.html
     use_browser: false
     content_type: html
@@ -625,19 +630,11 @@ draws:
     program: express_entry
     parser: canada_draws
 
-  canada_express_entry_history:
-    url: https://www.canada.ca/en/immigration-refugees-citizenship/corporate/mandate/policies-operational-instructions-agreements/ministerial-instructions/express-entry-rounds.html
-    use_browser: false
-    content_type: html
-    country: canada
-    program: express_entry
-    parser: canada_draws
-
 pool_snapshots:
-  canada_ee_pool_ckan:
-    # IRCC open data — CRS score distribution (CKAN package)
-    ckan_api_url: https://open.canada.ca/data/api/3/action/package_show
-    ckan_dataset_id: 011516e8-53e4-44f3-a5d4-c0c4c5ba3c0a
+  canada_ee_pool_rounds_json:
+    # Primary: the same IRCC rounds JSON carries the CRS pool distribution per
+    # round (dd1–dd18 + drawDistributionAsOn) — no separate dataset needed.
+    json_url: https://www.canada.ca/content/dam/ircc/documents/json/ee_rounds_123_en.json
     country: canada
     program: express_entry
     parser: canada_pool_snapshots

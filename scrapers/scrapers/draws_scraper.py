@@ -75,23 +75,38 @@ class DrawsScraper(BaseScraper):
 
         Returns (inserted, skipped, unknown_type_labels).
         """
-        content_type = cfg.get("content_type", "markdown")
-        if content_type == "html":
-            content = self._fetch_raw_html(cfg["url"])
-        else:
-            content = self.fetch_markdown(cfg["url"])
-
-        if not content:
-            logger.warning(f"Empty content for {cfg['url']} — skipping")
-            return 0, 0, []
-
         try:
             parser_module = importlib.import_module(f"parsers.{cfg['parser']}")
         except ImportError as e:
             logger.error(f"Parser not found: parsers.{cfg['parser']} — {e}")
             return 0, 0, []
 
-        draws = parser_module.parse(content, cfg)
+        draws: list[dict] = []
+
+        # Primary path: fetch the rounds JSON directly (no HTML round-trip)
+        json_url = cfg.get("json_url")
+        if json_url and hasattr(parser_module, "parse_rounds_json"):
+            json_text = self._fetch_raw_html(json_url)
+            if json_text:
+                draws = parser_module.parse_rounds_json(json_text, cfg)
+            if not draws:
+                logger.warning(
+                    f"Direct JSON fetch yielded 0 draws from {json_url} — "
+                    "falling back to HTML page"
+                )
+
+        if not draws:
+            content_type = cfg.get("content_type", "markdown")
+            if content_type == "html":
+                content = self._fetch_raw_html(cfg["url"])
+            else:
+                content = self.fetch_markdown(cfg["url"])
+
+            if not content:
+                logger.warning(f"Empty content for {cfg['url']} — skipping")
+                return 0, 0, []
+
+            draws = parser_module.parse(content, cfg)
 
         if not draws:
             logger.warning(
@@ -115,9 +130,9 @@ class DrawsScraper(BaseScraper):
         except Exception as e:
             logger.warning(f"Could not pre-fetch existing draws: {e} — skipping dedup check")
 
-        inserted = 0
         skipped = 0
         unknown_types: list[str] = []
+        new_draws: list[dict] = []
 
         for draw in draws:
             key: tuple[str, Optional[int]] = (draw["draw_date"], draw.get("round_number"))
@@ -134,20 +149,28 @@ class DrawsScraper(BaseScraper):
                     skipped += 1
                     continue
 
+            new_draws.append(draw)
+            existing_keys.add(key)
+
+            raw_data = draw.get("raw_data", {})
+            if raw_data.get("_unknown_type"):
+                unknown_types.append(raw_data.get("raw_type", draw["draw_type"]))
+
+        inserted = 0
+        batch_size = 500
+        for i in range(0, len(new_draws), batch_size):
+            batch = new_draws[i : i + batch_size]
             try:
                 self.supabase.table("immigration_draws").upsert(
-                    draw,
+                    batch,
                     on_conflict="country,program,draw_date,round_number",
                 ).execute()
-                inserted += 1
-                existing_keys.add(key)
-
-                raw_data = draw.get("raw_data", {})
-                if raw_data.get("_unknown_type"):
-                    unknown_types.append(raw_data.get("raw_type", draw["draw_type"]))
-
+                inserted += len(batch)
             except Exception as e:
-                logger.error(f"Failed to upsert draw {draw}: {e}")
+                logger.error(
+                    f"Failed to upsert draws batch {i // batch_size + 1} "
+                    f"({len(batch)} rows): {e}"
+                )
 
         logger.info(
             f"  [{cfg['program']}] inserted={inserted} skipped={skipped} "
