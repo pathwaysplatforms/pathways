@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeCrsEstimate } from "@/lib/crs-estimate";
+import { computeCrsEstimate, computeClbPlusOneDelta, CRS_FACTOR_CAPS } from "@/lib/crs-estimate";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 
 const BASE_PROFILE: Partial<VoiceExtractedProfile> = {
@@ -230,5 +230,64 @@ describe("computeCrsEstimate", () => {
       expect(result?.low).toBe(Math.max(0, result!.score - result!.margin));
       expect(result?.high).toBe(Math.min(1200, result!.score + result!.margin));
     });
+  });
+});
+
+describe("CRS_FACTOR_CAPS", () => {
+  it("matches the estimator's per-factor maxima", () => {
+    // A maxed profile should hit every core-factor cap exactly.
+    const maxed = computeCrsEstimate({
+      date_of_birth: new Date(Date.now() - 30 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      education_level: "phd",
+      clb_speaking: 10, clb_listening: 10, clb_reading: 10, clb_writing: 10,
+      canadian_work_years: 3,
+      foreign_work_years: 4,
+      foreign_work_recent: true,
+      requires_review: [],
+    });
+    expect(maxed?.breakdown.age).toBe(CRS_FACTOR_CAPS.age);
+    expect(maxed?.breakdown.education).toBe(CRS_FACTOR_CAPS.education);
+    expect(maxed?.breakdown.language).toBe(CRS_FACTOR_CAPS.language);
+    expect(maxed?.breakdown.experience).toBe(CRS_FACTOR_CAPS.experience);
+    expect(maxed?.breakdown.transferability).toBe(CRS_FACTOR_CAPS.transferability);
+  });
+});
+
+describe("computeClbPlusOneDelta", () => {
+  it("returns the real score gain from a one-level CLB bump", () => {
+    const profile: Partial<VoiceExtractedProfile> = {
+      ...BASE_PROFILE,
+      clb_speaking: 8, clb_listening: 8, clb_reading: 8, clb_writing: 8,
+    };
+    const current = computeCrsEstimate(profile);
+    const boosted = computeCrsEstimate({
+      ...profile,
+      clb_speaking: 9, clb_listening: 9, clb_reading: 9, clb_writing: 9,
+    });
+    expect(computeClbPlusOneDelta(profile)).toBe(boosted!.score - current!.score);
+  });
+
+  it("returns null when the profile has no CLB data", () => {
+    expect(
+      computeClbPlusOneDelta({
+        date_of_birth: "1990-06-15",
+        education_level: "bachelors",
+        language_proficiency_self: "fluent",
+        requires_review: [],
+      })
+    ).toBeNull();
+  });
+
+  it("returns null when already at the CLB 10 points ceiling (no gain to report)", () => {
+    expect(
+      computeClbPlusOneDelta({
+        ...BASE_PROFILE,
+        clb_speaking: 10, clb_listening: 10, clb_reading: 10, clb_writing: 10,
+      })
+    ).toBeNull();
+  });
+
+  it("returns null when the estimate itself is not computable", () => {
+    expect(computeClbPlusOneDelta({ clb_speaking: 8 })).toBeNull();
   });
 });

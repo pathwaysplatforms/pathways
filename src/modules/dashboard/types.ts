@@ -1,4 +1,5 @@
 import type { Tables } from '@/types/database';
+import type { CrsBreakdown } from '@/lib/crs-estimate';
 
 export type DashboardState =
   | 'onboarding_incomplete'
@@ -55,6 +56,10 @@ export interface EnrichedApplicationStep extends ApplicationStep {
   estimatedDaysMin?: number | null;
   estimatedDaysMax?: number | null;
   formNumbers?: string[] | null;
+  commonMistakes?: string[] | null;
+  whatHappensNext?: string | null;
+  validityPeriod?: string | null;
+  applicantPortal?: string | null;
 }
 
 /** Minimal profile fields passed to client components for template resolution. */
@@ -108,7 +113,7 @@ export interface DashboardData {
   pathwayOfficialName: string | null;
   processingTimeMin: string | null;
   processingTimeMax: string | null;
-  applicationSteps: ApplicationStep[];
+  applicationSteps: EnrichedApplicationStep[];
   documents: DashboardDocument[];
 
   completedStepsCount: number;
@@ -122,6 +127,10 @@ export interface DashboardData {
   crsRangeLow: number | null;
   crsRangeHigh: number | null;
   crsConfidence: string | null;
+  /** Per-factor CRS breakdown recomputed live from profile columns (null when too few fields to estimate). */
+  crsBreakdown: CrsBreakdown | null;
+  /** Real CRS delta from raising each provided CLB ability by one level (null when not computable). */
+  crsClbPlusOneDelta: number | null;
 
   selectedPathwaySlug: string | null;
   selectedPathwayTitle: string | null;

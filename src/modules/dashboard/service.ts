@@ -2,11 +2,12 @@ import type { Logger } from 'pino';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DatabaseError, NotFoundError } from '@/lib/errors';
+import { computeCrsEstimate, computeClbPlusOneDelta } from '@/lib/crs-estimate';
+import { profileRowToCrsInput } from '@/lib/crs-input';
 import type { Tables } from '@/types/database';
 import type {
   DashboardData,
   DashboardState,
-  ApplicationStep,
   EnrichedApplicationStep,
   LatestDraw,
   StepResource,
@@ -101,48 +102,80 @@ function deriveOnboardingSteps(profile: Tables<'profiles'>): OnboardingStep[] {
   });
 }
 
-/** Derives application steps with statuses from pathway_steps and document completion ratio. */
+/** Raw pathway_steps row including all enrichment columns. */
+interface EnrichedStepRow {
+  id: string;
+  step_number: number;
+  title: string;
+  description: string;
+  estimated_duration: string;
+  resources: StepResource[] | null;
+  checklist_items: string[] | null;
+  pro_tips: string | null;
+  official_url: string | null;
+  fee_cad: number | null;
+  estimated_days_min: number | null;
+  estimated_days_max: number | null;
+  form_numbers: string[] | null;
+  common_mistakes: string[] | null;
+  what_happens_next: string | null;
+  validity_period: string | null;
+  applicant_portal: string | null;
+}
+
+/** Maps a raw enriched pathway_steps row into an EnrichedApplicationStep with the given status. */
+function mapEnrichedStep(
+  s: EnrichedStepRow,
+  status: EnrichedApplicationStep['status']
+): EnrichedApplicationStep {
+  return {
+    id: s.id,
+    stepNumber: s.step_number,
+    label: s.title,
+    description: s.description,
+    estimatedDuration: s.estimated_duration,
+    status,
+    resources: Array.isArray(s.resources) ? s.resources : [],
+    checklistItems: Array.isArray(s.checklist_items) && s.checklist_items.length > 0 ? s.checklist_items : null,
+    proTips: s.pro_tips ?? null,
+    officialUrl: s.official_url ?? null,
+    feeCad: s.fee_cad ?? null,
+    estimatedDaysMin: s.estimated_days_min ?? null,
+    estimatedDaysMax: s.estimated_days_max ?? null,
+    formNumbers: Array.isArray(s.form_numbers) && s.form_numbers.length > 0 ? s.form_numbers : null,
+    commonMistakes: Array.isArray(s.common_mistakes) && s.common_mistakes.length > 0 ? s.common_mistakes : null,
+    whatHappensNext: s.what_happens_next ?? null,
+    validityPeriod: s.validity_period ?? null,
+    applicantPortal: s.applicant_portal ?? null,
+  };
+}
+
+/**
+ * Derives application steps with statuses from persisted pathway_progress.
+ * A step is complete when the whole application is submitted, or when its
+ * pathway_progress row is 'complete'. The first non-complete step becomes
+ * 'current'; the rest are 'upcoming'. This matches the pathway_progress model
+ * written by updateStepProgress so the "mark complete" action advances focus.
+ */
 function deriveApplicationSteps(
-  pathwaySteps: Tables<'pathway_steps'>[],
-  documents: DocumentWithRequirement[],
+  pathwaySteps: EnrichedStepRow[],
+  progressMap: Map<string, string>,
   allSubmitted: boolean
-): ApplicationStep[] {
+): EnrichedApplicationStep[] {
   if (pathwaySteps.length === 0) return [];
 
-  const mandatoryDocs = documents.filter((d) => d.requirement?.is_mandatory === true);
-  const doneDocs = mandatoryDocs.filter(
-    (d) => d.status === 'uploaded' || d.status === 'verified'
-  );
-
-  let completedStepCount: number;
-
-  if (allSubmitted) {
-    completedStepCount = pathwaySteps.length;
-  } else if (mandatoryDocs.length === 0) {
-    completedStepCount = 0;
-  } else {
-    const ratio = doneDocs.length / mandatoryDocs.length;
-    completedStepCount = Math.floor(ratio * pathwaySteps.length);
-  }
-
-  return pathwaySteps.map((step, index): ApplicationStep => {
-    let status: 'complete' | 'current' | 'upcoming';
-    if (index < completedStepCount) {
+  let foundCurrent = false;
+  return pathwaySteps.map((step): EnrichedApplicationStep => {
+    let status: EnrichedApplicationStep['status'];
+    if (allSubmitted || progressMap.get(step.id) === 'complete') {
       status = 'complete';
-    } else if (index === completedStepCount) {
+    } else if (!foundCurrent) {
       status = 'current';
+      foundCurrent = true;
     } else {
       status = 'upcoming';
     }
-
-    return {
-      id: step.id,
-      stepNumber: step.step_number,
-      label: step.title,
-      description: step.description,
-      estimatedDuration: step.estimated_duration,
-      status,
-    };
+    return mapEnrichedStep(step, status);
   });
 }
 
@@ -260,6 +293,14 @@ export async function getDashboardData(
     }
   }
 
+  // Live per-factor breakdown and language counterfactual, recomputed from the
+  // profile columns already fetched. Persisted crs_estimate shapes A/B carry no
+  // breakdown, so mission-control levers derive from this instead.
+  const crsInput = profileRowToCrsInput(profile);
+  const liveCrsEstimate = computeCrsEstimate(crsInput);
+  const crsBreakdown = liveCrsEstimate?.breakdown ?? null;
+  const crsClbPlusOneDelta = computeClbPlusOneDelta(crsInput);
+
   // Step 2: fetch application joined with pathway
   const { data: applicationData, error: applicationError } = await db
     .from('applications')
@@ -285,12 +326,14 @@ export async function getDashboardData(
   const state = deriveDashboardState(profile, appWithPathway);
 
   // Step 3: fetch secondary data in parallel based on state
-  let pathwaySteps: Tables<'pathway_steps'>[] = [];
+  let pathwaySteps: EnrichedStepRow[] = [];
   let rawDocuments: DocumentWithRequirement[] = [];
   let recommendedPathways: RecommendedPathway[] = [];
+  let applicationProgressMap = new Map<string, string>();
 
   if (appWithPathway) {
-    const [stepsResult, docsResult] = await Promise.all([
+    const appPathwaySlug = appWithPathway.pathway?.slug ?? null;
+    const [stepsResult, docsResult, progressResult] = await Promise.all([
       db
         .from('pathway_steps')
         .select('*')
@@ -307,6 +350,15 @@ export async function getDashboardData(
           )
         `)
         .eq('application_id', appWithPathway.id),
+      // Step status is driven by pathway_progress (the model updateStepProgress writes),
+      // so the "mark complete" action advances the current step on the dashboard too.
+      appPathwaySlug
+        ? db
+            .from('pathway_progress')
+            .select('step_id, status')
+            .eq('profile_id', profile.id)
+            .eq('pathway_slug', appPathwaySlug)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (stepsResult.error) {
@@ -316,9 +368,11 @@ export async function getDashboardData(
       throw new DatabaseError('Failed to fetch documents', { applicationId: appWithPathway.id }, docsResult.error);
     }
 
-    pathwaySteps = (stepsResult.data ?? []) as Tables<'pathway_steps'>[];
+    pathwaySteps = (stepsResult.data ?? []) as EnrichedStepRow[];
     // Untyped client infers requirement as any[] despite being a FK object — cast via unknown.
     rawDocuments = (docsResult.data ?? []) as unknown as DocumentWithRequirement[];
+    const progressRows = (progressResult.data ?? []) as { step_id: string; status: string }[];
+    applicationProgressMap = new Map(progressRows.map((r) => [r.step_id, r.status]));
   } else if (profile.onboarding_status === 'complete') {
     const { data: pathwaysData, error: pathwaysError } = await db
       .from('pathways')
@@ -350,7 +404,7 @@ export async function getDashboardData(
     }));
 
   const isSubmitted = state === 'application_submitted';
-  const applicationSteps = deriveApplicationSteps(pathwaySteps, rawDocuments, isSubmitted);
+  const applicationSteps = deriveApplicationSteps(pathwaySteps, applicationProgressMap, isSubmitted);
 
   const mandatoryDocs = documents.filter((d) => d.isMandatory);
   const completedDocumentsCount = mandatoryDocs.filter(
@@ -366,7 +420,7 @@ export async function getDashboardData(
   let selectedPathwayTitle: string | null = null;
   let selectedPathwayProcessingTime: string | null = null;
   let selectedPathwayDescription: string | null = null;
-  let selectedPathwaySteps: ApplicationStep[] = [];
+  let selectedPathwaySteps: EnrichedApplicationStep[] = [];
 
   const rawSlug = (profile as Record<string, unknown>).selected_pathway_slug;
   if (typeof rawSlug === 'string' && rawSlug.length > 0 && !appWithPathway) {
@@ -392,25 +446,11 @@ export async function getDashboardData(
 
       const { data: slugStepsData } = await db
         .from('pathway_steps')
-        .select('id, step_number, title, description, estimated_duration, resources, checklist_items, pro_tips, official_url, fee_cad, estimated_days_min, estimated_days_max, form_numbers')
+        .select('id, step_number, title, description, estimated_duration, resources, checklist_items, pro_tips, official_url, fee_cad, estimated_days_min, estimated_days_max, form_numbers, common_mistakes, what_happens_next, validity_period, applicant_portal')
         .eq('pathway_id', sp.id)
         .order('step_number', { ascending: true });
 
-      const rawSteps = (slugStepsData ?? []) as {
-        id: string;
-        step_number: number;
-        title: string;
-        description: string;
-        estimated_duration: string;
-        resources: StepResource[] | null;
-        checklist_items: string[] | null;
-        pro_tips: string | null;
-        official_url: string | null;
-        fee_cad: number | null;
-        estimated_days_min: number | null;
-        estimated_days_max: number | null;
-        form_numbers: string[] | null;
-      }[];
+      const rawSteps = (slugStepsData ?? []) as EnrichedStepRow[];
 
       // Fetch step progress for selected pathway (step_id needed to map back)
       const { data: progressRows } = await db
@@ -421,41 +461,10 @@ export async function getDashboardData(
 
       const progressData = (progressRows ?? []) as { step_id: string; status: string }[];
       const progressMap = new Map(progressData.map((r) => [r.step_id, r.status]));
-      const completedFromProgress = progressData.filter((r) => r.status === 'complete').length;
 
-      completedStepsCount = completedFromProgress;
-      totalStepsCount = rawSteps.length;
-
-      // Apply per-step statuses: completed steps stay complete; the first non-complete
-      // step becomes current; the rest are upcoming.
-      let foundCurrentStep = false;
-      selectedPathwaySteps = rawSteps.map((s): EnrichedApplicationStep => {
-        let status: 'complete' | 'current' | 'upcoming';
-        if (progressMap.get(s.id) === 'complete') {
-          status = 'complete';
-        } else if (!foundCurrentStep) {
-          status = 'current';
-          foundCurrentStep = true;
-        } else {
-          status = 'upcoming';
-        }
-        return {
-          id: s.id,
-          stepNumber: s.step_number,
-          label: s.title,
-          description: s.description,
-          estimatedDuration: s.estimated_duration,
-          status,
-          resources: Array.isArray(s.resources) ? s.resources : [],
-          checklistItems: Array.isArray(s.checklist_items) && s.checklist_items.length > 0 ? s.checklist_items : null,
-          proTips: s.pro_tips ?? null,
-          officialUrl: s.official_url ?? null,
-          feeCad: s.fee_cad ?? null,
-          estimatedDaysMin: s.estimated_days_min ?? null,
-          estimatedDaysMax: s.estimated_days_max ?? null,
-          formNumbers: Array.isArray(s.form_numbers) && s.form_numbers.length > 0 ? s.form_numbers : null,
-        };
-      });
+      selectedPathwaySteps = deriveApplicationSteps(rawSteps, progressMap, false);
+      completedStepsCount = selectedPathwaySteps.filter((s) => s.status === 'complete').length;
+      totalStepsCount = selectedPathwaySteps.length;
     }
   }
 
@@ -537,6 +546,8 @@ export async function getDashboardData(
     crsRangeLow,
     crsRangeHigh,
     crsConfidence,
+    crsBreakdown,
+    crsClbPlusOneDelta,
     selectedPathwaySlug,
     selectedPathwayTitle,
     selectedPathwayProcessingTime,

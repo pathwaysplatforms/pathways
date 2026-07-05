@@ -228,3 +228,48 @@ export function computeCrsEstimate(profile: Partial<VoiceExtractedProfile>): Crs
     cutoffReason,
   };
 }
+
+/**
+ * Maximum points each core CRS factor can contribute in this estimator,
+ * mirroring the lookup tables above (language = 34 per ability × 4).
+ * Used to rank improvement levers by remaining headroom.
+ */
+export const CRS_FACTOR_CAPS = {
+  age: 100,
+  education: 150,
+  language: 136,
+  experience: 70,
+  transferability: 100,
+} as const;
+
+/**
+ * Real CRS delta from raising every provided CLB ability by one level (capped
+ * at CLB 10, where per-ability points max out). Returns null when the profile
+ * has no CLB data, no computable estimate, or the bump yields no gain —
+ * callers must then present the language lever qualitatively, never invent a number.
+ */
+export function computeClbPlusOneDelta(profile: Partial<VoiceExtractedProfile>): number | null {
+  const hasClb = [
+    profile.clb_speaking, profile.clb_listening,
+    profile.clb_reading, profile.clb_writing,
+  ].some((v) => v != null);
+  if (!hasClb) return null;
+
+  const current = computeCrsEstimate(profile);
+  if (current === null) return null;
+
+  const bump = (v: number | null | undefined): number | null | undefined =>
+    v != null ? Math.min(v + 1, 10) : v;
+
+  const boosted = computeCrsEstimate({
+    ...profile,
+    clb_speaking: bump(profile.clb_speaking),
+    clb_listening: bump(profile.clb_listening),
+    clb_reading: bump(profile.clb_reading),
+    clb_writing: bump(profile.clb_writing),
+  });
+  if (boosted === null) return null;
+
+  const delta = boosted.score - current.score;
+  return delta > 0 ? delta : null;
+}

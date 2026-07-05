@@ -110,6 +110,7 @@ interface MockSetup {
   stepsResult?: QueryResult;
   docsResult?: QueryResult;
   pathwaysResult?: QueryResult;
+  progressResult?: QueryResult;
 }
 
 function setupClient(setup: MockSetup) {
@@ -119,6 +120,7 @@ function setupClient(setup: MockSetup) {
     stepsResult = { data: [], error: null },
     docsResult = { data: [], error: null },
     pathwaysResult = { data: [], error: null },
+    progressResult = { data: [], error: null },
   } = setup;
 
   const fromFn = vi.fn().mockImplementation((table: string) => {
@@ -127,6 +129,7 @@ function setupClient(setup: MockSetup) {
     if (table === 'pathway_steps') return makeChain(stepsResult);
     if (table === 'application_documents') return makeChain(docsResult);
     if (table === 'pathways') return makeChain(pathwaysResult);
+    if (table === 'pathway_progress') return makeChain(progressResult);
     return makeChain({ data: null, error: null });
   });
 
@@ -196,6 +199,52 @@ describe('getDashboardData', () => {
     expect(result.applicationSteps[0].status).toBe('current');
     expect(result.applicationSteps[1].status).toBe('upcoming');
     expect(result.applicationPathwaySlug).toBe('skilled-worker');
+  });
+
+  it('advances the current step when a pathway_progress row marks step 1 complete', async () => {
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: { data: makeApplication(), error: null },
+      stepsResult: { data: [makeStep(1), makeStep(2)], error: null },
+      docsResult: { data: [], error: null },
+      progressResult: { data: [{ step_id: 'step-1', status: 'complete' }], error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+
+    expect(result.applicationSteps[0].status).toBe('complete');
+    expect(result.applicationSteps[1].status).toBe('current');
+    expect(result.completedStepsCount).toBe(1);
+  });
+
+  it('carries enrichment columns into application steps', async () => {
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: { data: makeApplication(), error: null },
+      stepsResult: {
+        data: [makeStep(1, {
+          checklist_items: ['Gather passport', 'Book test'],
+          pro_tips: 'Apply early.',
+          fee_cad: 850,
+          common_mistakes: ['Wrong photo size'],
+          what_happens_next: 'IRCC reviews your submission.',
+          validity_period: 'ITA valid for 60 days',
+          applicant_portal: 'https://www.canada.ca/account.html',
+        })],
+        error: null,
+      },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    const step = result.applicationSteps[0];
+
+    expect(step.checklistItems).toEqual(['Gather passport', 'Book test']);
+    expect(step.proTips).toBe('Apply early.');
+    expect(step.feeCad).toBe(850);
+    expect(step.commonMistakes).toEqual(['Wrong photo size']);
+    expect(step.whatHappensNext).toBe('IRCC reviews your submission.');
+    expect(step.validityPeriod).toBe('ITA valid for 60 days');
+    expect(step.applicantPortal).toBe('https://www.canada.ca/account.html');
   });
 
   it('returns application_submitted when submitted_at is set', async () => {
@@ -415,5 +464,39 @@ describe('getDashboardData', () => {
     expect(result.crsScore).toBeNull();
     expect(result.crsRangeLow).toBeNull();
     expect(result.crsRangeHigh).toBeNull();
+  });
+
+  it('computes a live CRS breakdown and CLB counterfactual delta from profile columns', async () => {
+    setupClient({
+      profileResult: {
+        data: makeProfile({
+          date_of_birth: '1994-01-01',
+          education_level: 'bachelors',
+          clb_speaking: 8,
+          clb_listening: 8,
+          clb_reading: 8,
+          clb_writing: 8,
+          canadian_work_years: 2,
+        }),
+        error: null,
+      },
+      applicationResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.crsBreakdown).not.toBeNull();
+    expect(result.crsBreakdown?.education).toBe(120);
+    expect(result.crsClbPlusOneDelta).toBeGreaterThan(0);
+  });
+
+  it('returns null breakdown and delta when profile columns are too sparse to estimate', async () => {
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.crsBreakdown).toBeNull();
+    expect(result.crsClbPlusOneDelta).toBeNull();
   });
 });
