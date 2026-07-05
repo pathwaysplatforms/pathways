@@ -249,12 +249,56 @@ describe('deriveMissionControl — actions', () => {
     expect(actions[0]?.description).toContain('2 profile details are missing');
   });
 
-  it('inserts the top lever as an action only when below the cutoff', () => {
+  it('inserts the top lever as an action when below the cutoff, never when above', () => {
     const below = deriveMissionControl(makeExecutingData({ crsScore: 490 })).actions;
     expect(below.some((a) => a.id === 'lever-provincial-nomination')).toBe(true);
 
     const above = deriveMissionControl(makeExecutingData({ crsScore: 530 })).actions;
     expect(above.some((a) => a.id.startsWith('lever-'))).toBe(false);
+  });
+
+  it('surfaces the top lever as the next best action when the program has no live cutoff', () => {
+    const actions = deriveMissionControl(
+      makeExecutingData({
+        latestDraw: null,
+        applicationSteps: [makeStep(1, 'complete'), makeStep(2, 'current')],
+      })
+    ).actions;
+    expect(actions[0]?.id).toBe('lever-provincial-nomination');
+    expect(actions[0]?.deltaLabel).toBe('+600 pts');
+    const stepIndex = actions.findIndex((a) => a.id === 'current-step');
+    expect(stepIndex).toBeGreaterThan(0);
+  });
+
+  it('ranks the roadmap step below the lever whenever the candidate is below the cutoff', () => {
+    const actions = deriveMissionControl(
+      makeExecutingData({
+        crsScore: 490,
+        applicationSteps: [makeStep(1, 'current')],
+      })
+    ).actions;
+    const leverIndex = actions.findIndex((a) => a.id.startsWith('lever-'));
+    const stepIndex = actions.findIndex((a) => a.id === 'current-step');
+    expect(leverIndex).toBeGreaterThanOrEqual(0);
+    expect(stepIndex).toBeGreaterThan(leverIndex);
+  });
+
+  it('never emits an upload action even on the no-live-cutoff lever path', () => {
+    const actions = deriveMissionControl(
+      makeExecutingData({
+        latestDraw: null,
+        applicationSteps: [makeStep(1, 'current')],
+        documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending' }],
+        recommendations: [
+          { id: 'eca', label: 'Get your ECA', description: 'Foreign credentials recognised in Canada.', impactLabel: '' },
+        ],
+      })
+    ).actions;
+    expect(actions.length).toBeGreaterThan(0);
+    for (const action of actions) {
+      expect(action.label.toLowerCase()).not.toContain('upload');
+      expect(action.description.toLowerCase()).not.toContain('upload');
+    }
   });
 
   it('links the current roadmap step to the Application tab', () => {

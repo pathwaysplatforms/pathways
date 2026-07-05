@@ -75,8 +75,9 @@ export interface MissionControlModel {
 /**
  * Blocking × impact rank constants for the executing-state action queue.
  * Higher = surfaced first. Profile gaps block estimate/match quality (3×3);
- * a below-cutoff CRS lever blocks the invitation itself (3×2); the current
- * roadmap step advances the application (id 5); an unstarted ECA is a
+ * a CRS lever blocks the invitation itself whenever the candidate is below
+ * the live cutoff — or has no live cutoff at all (3×2); the current roadmap
+ * step advances the application (id 5); an unstarted ECA is a
  * long-lead-time real-world dependency (2×2).
  */
 const ACTION_RANK = {
@@ -202,8 +203,12 @@ function deriveActions(
     });
   }
 
+  // Below the live cutoff, the top lever is what unblocks the invitation.
+  // With no live cutoff (a stale or missing draw), the candidate cannot be
+  // presumed invitable either, so the lever still outranks roadmap steps —
+  // never fall through to "next step" as if the score were fine.
   const topLever = levers[0];
-  if (crsGap !== null && crsGap < 0 && topLever !== undefined) {
+  if ((crsGap === null || crsGap < 0) && topLever !== undefined) {
     ranked.push({
       id: `lever-${topLever.id}`,
       label: topLever.label,
