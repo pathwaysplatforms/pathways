@@ -12,7 +12,8 @@ import {
   NocTeerCategorySchema,
 } from '@/modules/voice/types';
 import { computeCrsEstimate, type CrsEstimate } from '@/lib/crs-estimate';
-import type { VoiceExtractedProfile } from '@/modules/voice/types';
+import { profileRowToCrsInput } from '@/lib/crs-input';
+import { computeProfileCompletenessPct } from '@/lib/completeness';
 
 const ProfileUpdateSchema = z.object({
   full_name: z.string().min(1).max(200).nullable().optional(),
@@ -87,17 +88,39 @@ export async function updateProfileFields(fields: ProfileUpdateFields): Promise<
     return;
   }
 
-  const { error } = await supabase
+  const { data: updatedRow, error } = await supabase
     .from('profiles')
     .update(updates)
-    .eq('auth_user_id', user.id);
+    .eq('auth_user_id', user.id)
+    .select(
+      'full_name,date_of_birth,nationality,current_country,marital_status,occupation,noc_teer_category,' +
+      'years_experience,canadian_work_years,foreign_work_years,education_level,eca_obtained,' +
+      'clb_speaking,clb_listening,clb_reading,clb_writing,intended_province,has_provincial_nomination,' +
+      'has_canadian_job_offer'
+    )
+    .single();
 
   if (error) {
     logger.error({ action: 'updateProfileFields.db_error', userId: user.id, error });
     throw new DatabaseError('Failed to update profile', { userId: user.id }, error);
   }
 
-  logger.info({ action: 'updateProfileFields.complete', userId: user.id });
+  // Field edits move voice-field completeness; recompute from the merged row so
+  // profile_completeness_pct never goes stale after onboarding.
+  const merged = updatedRow as Parameters<typeof computeProfileCompletenessPct>[0];
+  const profileCompletenessPct = computeProfileCompletenessPct(merged);
+
+  const { error: pctError } = await supabase
+    .from('profiles')
+    .update({ profile_completeness_pct: profileCompletenessPct })
+    .eq('auth_user_id', user.id);
+
+  if (pctError) {
+    logger.error({ action: 'updateProfileFields.pct_error', userId: user.id, error: pctError });
+    throw new DatabaseError('Failed to update profile completeness', { userId: user.id }, pctError);
+  }
+
+  logger.info({ action: 'updateProfileFields.complete', userId: user.id, profileCompletenessPct });
 }
 
 /** Re-computes the CRS estimate from the current profile and persists it into pathway_input_json. */
@@ -158,45 +181,7 @@ export async function recalculateCrsEstimate(): Promise<CrsEstimate | null> {
   };
   const profile = profileData as unknown as ProfileRow;
 
-  const voiceProfile: Partial<VoiceExtractedProfile> = {
-    date_of_birth: profile.date_of_birth ?? null,
-    education_level: profile.education_level as VoiceExtractedProfile['education_level'] ?? undefined,
-    eca_obtained: profile.eca_obtained ?? undefined,
-    clb_speaking: profile.clb_speaking ?? undefined,
-    clb_listening: profile.clb_listening ?? undefined,
-    clb_reading: profile.clb_reading ?? undefined,
-    clb_writing: profile.clb_writing ?? undefined,
-    language_proficiency_self: profile.language_proficiency_self as VoiceExtractedProfile['language_proficiency_self'] ?? undefined,
-    canadian_work_years: profile.canadian_work_years ?? undefined,
-    foreign_work_years: profile.foreign_work_years ?? undefined,
-    foreign_work_recent: profile.foreign_work_recent ?? undefined,
-    years_experience: profile.years_experience ?? undefined,
-    noc_teer_category: profile.noc_teer_category ?? undefined,
-    noc_code: profile.noc_code ?? undefined,
-    has_provincial_nomination: profile.has_provincial_nomination ?? undefined,
-    has_canadian_job_offer: profile.has_canadian_job_offer ?? undefined,
-    has_sibling_in_canada: profile.has_sibling_in_canada ?? undefined,
-    spouse_coming_to_canada: profile.spouse_coming_to_canada ?? undefined,
-    spouse_clb_speaking: profile.spouse_clb_speaking ?? undefined,
-    spouse_clb_listening: profile.spouse_clb_listening ?? undefined,
-    spouse_clb_reading: profile.spouse_clb_reading ?? undefined,
-    spouse_clb_writing: profile.spouse_clb_writing ?? undefined,
-    spouse_canadian_work_years: profile.spouse_canadian_work_years ?? undefined,
-    requires_review: [],
-    full_name: null,
-    nationality: null,
-    current_country: null,
-    marital_status: null,
-    education_level_voice: null,
-    has_canadian_experience: null,
-    occupation: null,
-    has_family_in_canada: null,
-    intended_province: null,
-    annual_income: null,
-    income_currency: null,
-  };
-
-  const estimate = computeCrsEstimate(voiceProfile);
+  const estimate = computeCrsEstimate(profileRowToCrsInput(profile));
 
   if (estimate !== null) {
     const currentJson = (profile.pathway_input_json as Record<string, unknown> | null) ?? {};
