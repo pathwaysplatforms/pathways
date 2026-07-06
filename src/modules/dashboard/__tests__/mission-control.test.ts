@@ -215,6 +215,31 @@ describe('deriveMissionControl — levers', () => {
     expect(language?.deltaLabel).toBeNull();
   });
 
+  it('keeps the computed language lever in the list when headroom alone would drop it', () => {
+    // Language headroom (12) ranks fourth behind PNP (600), experience (62),
+    // and education (25) — but its computed +12 delta must still surface.
+    const levers = deriveMissionControl(
+      makeExecutingData({
+        crsBreakdown: { age: 100, education: 125, language: 124, experience: 8, transferability: 75, additional: 0 },
+        crsClbPlusOneDelta: 12,
+      })
+    ).levers;
+    expect(levers).toHaveLength(3);
+    const language = levers.find((l) => l.id === 'language');
+    expect(language?.deltaLabel).toBe('+12 pts per +1 CLB');
+  });
+
+  it('lets pure headroom ranking drop a language lever with no computable delta', () => {
+    const levers = deriveMissionControl(
+      makeExecutingData({
+        crsBreakdown: { age: 100, education: 125, language: 124, experience: 8, transferability: 75, additional: 0 },
+        crsClbPlusOneDelta: null,
+      })
+    ).levers;
+    expect(levers).toHaveLength(3);
+    expect(levers.some((l) => l.id === 'language')).toBe(false);
+  });
+
   it('only ever labels deltas that are computed or documented', () => {
     const levers = deriveMissionControl(makeExecutingData({ crsClbPlusOneDelta: null })).levers;
     for (const lever of levers) {

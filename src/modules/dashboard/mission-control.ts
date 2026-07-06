@@ -157,10 +157,19 @@ function deriveLevers(data: DashboardData): CrsLever[] {
     });
   }
 
-  return candidates
-    .sort((a, b) => b.headroom - a.headroom)
-    .slice(0, 3)
-    .map(({ headroom: _headroom, ...lever }) => lever);
+  const ranked = candidates.sort((a, b) => b.headroom - a.headroom);
+  const top = ranked.slice(0, 3);
+
+  // The language lever carries the only counterfactually computed delta
+  // (crsClbPlusOneDelta, which already respects the CLB-10 ceiling). Pure
+  // headroom ranking must not drop the one lever with a real number — swap
+  // it into the last slot when it ranks fourth or lower.
+  const language = ranked.find((l) => l.id === 'language');
+  if (language !== undefined && language.deltaLabel !== null && !top.includes(language)) {
+    top[top.length - 1] = language;
+  }
+
+  return top.map(({ headroom: _headroom, ...lever }) => lever);
 }
 
 function currentStepOf(data: DashboardData): EnrichedApplicationStep | null {
