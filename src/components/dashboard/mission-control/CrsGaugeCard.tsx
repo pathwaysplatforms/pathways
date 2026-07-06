@@ -17,35 +17,31 @@ function formatDrawDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function GaugeTrack({ score, cutoff }: { score: number; cutoff: number | null }) {
+// Rendered only with a live cutoff — a fill percentage against the
+// theoretical 1200 maximum is meaningless without a reference marker.
+function GaugeTrack({ score, cutoff }: { score: number; cutoff: number }) {
   const scorePct = Math.min(100, (score / CRS_MAX) * 100);
-  const cutoffPct = cutoff !== null ? Math.min(100, (cutoff / CRS_MAX) * 100) : null;
+  const cutoffPct = Math.min(100, (cutoff / CRS_MAX) * 100);
 
   return (
-    <div style={{ position: 'relative', paddingTop: cutoffPct !== null ? 18 : 0 }}>
-      {cutoffPct !== null && (
-        <span
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: `${cutoffPct}%`,
-            transform: 'translateX(-50%)',
-            fontFamily: 'var(--pw-font-body)',
-            fontSize: 10,
-            color: 'var(--pw-muted)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          cutoff {cutoff}
-        </span>
-      )}
+    <div style={{ position: 'relative', paddingTop: 18 }}>
+      <span
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: `${cutoffPct}%`,
+          transform: 'translateX(-50%)',
+          fontFamily: 'var(--pw-font-body)',
+          fontSize: 10,
+          color: 'var(--pw-muted)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        cutoff {cutoff}
+      </span>
       <div
         role="img"
-        aria-label={
-          cutoff !== null
-            ? `CRS score ${score} of ${CRS_MAX}, latest cutoff ${cutoff}`
-            : `CRS score ${score} of ${CRS_MAX}`
-        }
+        aria-label={`CRS score ${score} of ${CRS_MAX}, latest cutoff ${cutoff}`}
         style={{
           position: 'relative',
           height: 6,
@@ -65,19 +61,17 @@ function GaugeTrack({ score, cutoff }: { score: number; cutoff: number | null })
             background: 'var(--pw-accent)',
           }}
         />
-        {cutoffPct !== null && (
-          <div
-            style={{
-              position: 'absolute',
-              left: `${cutoffPct}%`,
-              top: -3,
-              bottom: -3,
-              width: 2,
-              background: 'var(--pw-ink)',
-              borderRadius: 1,
-            }}
-          />
-        )}
+        <div
+          style={{
+            position: 'absolute',
+            left: `${cutoffPct}%`,
+            top: -3,
+            bottom: -3,
+            width: 2,
+            background: 'var(--pw-ink)',
+            borderRadius: 1,
+          }}
+        />
       </div>
     </div>
   );
@@ -147,7 +141,8 @@ interface CrsGaugeCardProps {
 /**
  * Executing-state CRS position card: score vs the latest same-stream cutoff
  * plus headroom-ranked levers. Degrades cleanly — no gauge without a score,
- * no cutoff marker or gap without draw data.
+ * and without a live draw the bar disappears entirely in favour of a
+ * no-live-cutoff status line; nothing invents a target.
  */
 export function CrsGaugeCard({ crsScore, latestDraw, crsGap, levers }: CrsGaugeCardProps) {
   return (
@@ -184,17 +179,32 @@ export function CrsGaugeCard({ crsScore, latestDraw, crsGap, levers }: CrsGaugeC
               </span>
             )}
           </div>
-          <GaugeTrack score={crsScore} cutoff={latestDraw?.cutoffScore ?? null} />
-          {latestDraw !== null && (
+          {latestDraw !== null ? (
+            <>
+              <GaugeTrack score={crsScore} cutoff={latestDraw.cutoffScore} />
+              <p
+                style={{
+                  fontFamily: 'var(--pw-font-body)',
+                  fontSize: 11,
+                  color: 'var(--pw-muted)',
+                  margin: '8px 0 0',
+                }}
+              >
+                Latest {latestDraw.drawType ?? 'Express Entry'} draw · {formatDrawDate(latestDraw.drawDate)}
+              </p>
+            </>
+          ) : (
             <p
               style={{
                 fontFamily: 'var(--pw-font-body)',
-                fontSize: 11,
+                fontSize: 12,
                 color: 'var(--pw-muted)',
-                margin: '8px 0 0',
+                lineHeight: 1.6,
+                margin: 0,
               }}
             >
-              Latest {latestDraw.drawType ?? 'Express Entry'} draw · {formatDrawDate(latestDraw.drawDate)}
+              No live cutoff for this stream right now — IRCC&rsquo;s recent draws have
+              targeted specific categories and provincial nominees.
             </p>
           )}
         </>
