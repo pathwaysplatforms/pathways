@@ -234,12 +234,12 @@ function ExecutingLayout({ model }: { model: MissionControlModel }) {
       </div>
       <div
         className="pw-entry pw-entry-delay-1"
-        style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}
+        style={{ display: 'flex', gap: 16, alignItems: 'stretch', flexWrap: 'wrap' }}
       >
-        <div style={{ flex: '1.4 1 340px', minWidth: 0 }}>
+        <div style={{ flex: '1.4 1 340px', minWidth: 0, display: 'flex' }}>
           <NextBestActionCard actions={model.actions} />
         </div>
-        <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+        <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex' }}>
           <CrsGaugeCard
             crsScore={model.crsScore}
             latestDraw={model.latestDraw}

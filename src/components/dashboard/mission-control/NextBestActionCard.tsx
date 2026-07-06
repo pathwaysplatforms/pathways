@@ -10,6 +10,9 @@ const CARD: React.CSSProperties = {
   border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: 16,
   padding: '24px',
+  // Fills the flex wrapper in the executing row so the two cards keep equal
+  // heights; inert when the parent lays out as a block.
+  width: '100%',
 };
 
 function DeltaChip({ label }: { label: string }) {
