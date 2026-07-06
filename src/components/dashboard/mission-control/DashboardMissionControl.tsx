@@ -147,36 +147,47 @@ function StatusHero({
       >
         {pathwayTitle ?? 'Your pathway'}
       </h1>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {crsScore !== null && (
-          <span style={segment}>CRS <span style={value}>{crsScore}</span></span>
-        )}
-        {crsScore !== null && latestDraw !== null && <HeroSeparator />}
-        {latestDraw !== null && (
+      {latestDraw !== null ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {crsScore !== null && (
+            <>
+              <span style={segment}>CRS <span style={value}>{crsScore}</span></span>
+              <HeroSeparator />
+            </>
+          )}
           <span style={segment}>
             Last cutoff <span style={value}>{latestDraw.cutoffScore}</span>
             {' '}({latestDraw.drawType ?? 'Express Entry'}, {formatDrawDate(latestDraw.drawDate)})
           </span>
-        )}
-        {crsGap !== null && (
-          <>
-            <HeroSeparator />
-            <span
-              style={{
-                padding: '2px 8px',
-                borderRadius: 9999,
-                fontFamily: 'var(--pw-font-ui)',
-                fontSize: 11,
-                fontWeight: 500,
-                background: crsGap >= 0 ? '#F0FDF4' : '#FEF3C7',
-                color: crsGap >= 0 ? '#16A34A' : '#D97706',
-              }}
-            >
-              Gap {crsGap >= 0 ? `+${crsGap}` : `${crsGap}`}
-            </span>
-          </>
-        )}
-      </div>
+          {crsGap !== null && (
+            <>
+              <HeroSeparator />
+              <span
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: 9999,
+                  fontFamily: 'var(--pw-font-ui)',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  background: crsGap >= 0 ? '#F0FDF4' : '#FEF3C7',
+                  color: crsGap >= 0 ? '#16A34A' : '#D97706',
+                }}
+              >
+                Gap {crsGap >= 0 ? `+${crsGap}` : `${crsGap}`}
+              </span>
+            </>
+          )}
+        </div>
+      ) : (
+        // No live cutoff: the CRS card already owns the number, so the hero
+        // frames the realistic route instead of repeating the score.
+        crsScore !== null && (
+          <p style={{ ...segment, lineHeight: 1.6, margin: 0 }}>
+            Your score sits below recent general cutoffs — your realistic routes are a
+            provincial nomination or a category-based draw.
+          </p>
+        )
+      )}
     </header>
   );
 }
