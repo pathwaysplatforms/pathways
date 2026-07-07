@@ -12,6 +12,10 @@
 -- Deletion order: pathway_steps first (NOT NULL FK), then document_requirements, then pathways.
 -- document_requirements.step_id has ON DELETE SET NULL — step deletes auto-null it.
 --
+-- Replay note: every insert is guarded by an EXISTS check on its hard-coded
+-- pathway id. On a fresh database (supabase start / db reset) those remote-only
+-- rows are absent and each phase no-ops instead of violating the pathways FK.
+--
 -- Sources for merged content:
 --   67-point FSW threshold: canada.ca/en/.../express-entry/eligibility/federal-skilled-workers.html
 --   Proof of funds (mandatory): canada.ca/en/.../express-entry/documents/proof-funds.html
@@ -40,7 +44,10 @@ FROM (VALUES
        'IRCC issues your Confirmation of Permanent Residence (COPR). Sign and submit it, then land in Canada before the expiry date to activate your permanent residency.',
        '1–3 months')
 ) AS v(step_number, title, description, estimated_duration)
-WHERE NOT EXISTS (
+WHERE EXISTS (
+  SELECT 1 FROM public.pathways WHERE id = '57b21155-bba4-4ce0-bccf-38609e7ac34c'
+)
+AND NOT EXISTS (
   SELECT 1 FROM public.pathway_steps
   WHERE pathway_id = '57b21155-bba4-4ce0-bccf-38609e7ac34c'
     AND step_number = v.step_number
@@ -65,7 +72,10 @@ FROM (VALUES
    'Recent digital photograph meeting IRCC specifications.',
    'photo', null::text, 13)
 ) AS v(name, description, document_type, validity_period, sort_order)
-WHERE NOT EXISTS (
+WHERE EXISTS (
+  SELECT 1 FROM public.pathways WHERE id = '57b21155-bba4-4ce0-bccf-38609e7ac34c'
+)
+AND NOT EXISTS (
   SELECT 1 FROM public.document_requirements
   WHERE pathway_id = '57b21155-bba4-4ce0-bccf-38609e7ac34c'
     AND document_type = v.document_type
@@ -110,7 +120,10 @@ FROM (VALUES
        'IRCC issues your COPR. Sign and submit it, then land in Canada before the expiry date.',
        '1–6 months')
 ) AS v(step_number, title, description, estimated_duration)
-WHERE NOT EXISTS (
+WHERE EXISTS (
+  SELECT 1 FROM public.pathways WHERE id = '7214d890-a0c9-44d7-901d-b363e7fdd323'
+)
+AND NOT EXISTS (
   SELECT 1 FROM public.pathway_steps
   WHERE pathway_id = '7214d890-a0c9-44d7-901d-b363e7fdd323'
     AND step_number = v.step_number
@@ -135,7 +148,10 @@ FROM (VALUES
    'Recent digital photograph meeting IRCC specifications.',
    'photo', null::text, 13)
 ) AS v(name, description, document_type, validity_period, sort_order)
-WHERE NOT EXISTS (
+WHERE EXISTS (
+  SELECT 1 FROM public.pathways WHERE id = '7214d890-a0c9-44d7-901d-b363e7fdd323'
+)
+AND NOT EXISTS (
   SELECT 1 FROM public.document_requirements
   WHERE pathway_id = '7214d890-a0c9-44d7-901d-b363e7fdd323'
     AND document_type = v.document_type
@@ -169,7 +185,9 @@ WHERE pathway_id = '9b5a7066-3fbc-4496-98e0-efbc4f42ac4d'
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM public.pathways WHERE id = 'ae71faae-7067-4f90-ab63-f32aa3b11879'
+  ) AND NOT EXISTS (
     SELECT 1 FROM public.pathway_steps
     WHERE pathway_id = 'ae71faae-7067-4f90-ab63-f32aa3b11879'
       AND title = 'Confirm your NOC code is STEM-eligible'
@@ -204,7 +222,10 @@ FROM (VALUES
    'Documentation confirming your work experience in a qualifying STEM occupation: reference letters, employment contracts, or job descriptions clearly showing your NOC code and specific duties.',
    'employment_reference', 11)
 ) AS v(name, description, document_type, sort_order)
-WHERE NOT EXISTS (
+WHERE EXISTS (
+  SELECT 1 FROM public.pathways WHERE id = 'ae71faae-7067-4f90-ab63-f32aa3b11879'
+)
+AND NOT EXISTS (
   SELECT 1 FROM public.document_requirements
   WHERE pathway_id = 'ae71faae-7067-4f90-ab63-f32aa3b11879'
     AND document_type = v.document_type
