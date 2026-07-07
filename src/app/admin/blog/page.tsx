@@ -9,11 +9,12 @@ import type { Tables } from "@/types/database";
 type Post = Tables<"posts">;
 
 interface PageProps {
-  searchParams: { status?: string; q?: string };
+  searchParams: Promise<{ status?: string; q?: string }>;
 }
 
 /** Admin post list — filterable by status and searchable by title. */
-export default async function AdminBlogPage({ searchParams }: PageProps) {
+export default async function AdminBlogPage({ searchParams: searchParamsPromise }: PageProps) {
+  const searchParams = await searchParamsPromise;
   const db = createSupabaseAdminClient() as unknown as SupabaseClient;
 
   let query = db

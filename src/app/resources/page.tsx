@@ -16,15 +16,16 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 9;
 
 interface PageProps {
-  searchParams: { tab?: string; page?: string };
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }
 
 /** Public resources & articles listing with tab navigation and URL-based pagination. */
-export default async function ResourcesPage({ searchParams }: PageProps) {
+export default async function ResourcesPage({ searchParams: searchParamsPromise }: PageProps) {
+  const searchParams = await searchParamsPromise;
   const activeType = searchParams.tab === "resources" ? "resource" : "article";
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10));
 
-  const db = createSupabaseServerClient() as unknown as SupabaseClient;
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
   const { data: posts, count } = await db
     .from("posts")
