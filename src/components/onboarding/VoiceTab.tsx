@@ -7,9 +7,9 @@ import { WaveformCanvas } from "@/components/fx/WaveformCanvas";
 import "@/components/voice/VoiceTab.css";
 import type { OrbState } from "@/components/voice/PathwaysOrb";
 import type { Message, VoiceExtractedProfile } from "@/modules/voice/types";
-import { createRequestLogger } from "@/lib/logger";
+import { createClientLogger } from "@/lib/client-logger";
 
-const log = createRequestLogger("voice-tab");
+const log = createClientLogger("voice-tab");
 
 const STATUS_TEXT: Record<OrbState, string> = {
   idle: "Ready when you are.",
