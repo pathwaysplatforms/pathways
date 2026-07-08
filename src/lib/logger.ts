@@ -2,9 +2,30 @@ import pino from "pino";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
+// Defense-in-depth redaction: even if a caller logs a secret or PII field by
+// accident, pino censors it before the line is written. Call sites should still
+// avoid logging credentials (see maskToken).
+const REDACT_PATHS = [
+  "token",
+  "*.token",
+  "session_token",
+  "*.session_token",
+  "password",
+  "*.password",
+  "authorization",
+  "*.authorization",
+  "cookie",
+  "*.cookie",
+  "email",
+  "*.email",
+  "req.headers.authorization",
+  "req.headers.cookie",
+];
+
 export function createLogger(stream?: pino.DestinationStream) {
   const options: pino.LoggerOptions = {
     level: process.env.LOG_LEVEL ?? "info",
+    redact: { paths: REDACT_PATHS, censor: "[redacted]" },
     base: {
       service: "pathways-api",
       env: process.env.NODE_ENV,

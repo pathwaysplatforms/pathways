@@ -46,6 +46,30 @@ describe("logger", () => {
     const reqLogger = createRequestLogger("req-abc-123");
     expect(reqLogger.bindings()).toMatchObject({ correlationId: "req-abc-123" });
   });
+
+  it("redacts secret and PII fields at the top level and one level deep", () => {
+    const { stream, getOutput } = makeStream();
+    const log = createLogger(stream);
+    log.info({
+      token: "raw-secret-token",
+      email: "jane@example.com",
+      nested: { session_token: "raw-session-token" },
+      safe: "keep-me",
+    });
+    const line = JSON.parse(getOutput().trim());
+    expect(line.token).toBe("[redacted]");
+    expect(line.email).toBe("[redacted]");
+    expect(line.nested.session_token).toBe("[redacted]");
+    expect(line.safe).toBe("keep-me");
+  });
+
+  it("leaves masked token prefixes intact (tokenPrefix is not redacted)", () => {
+    const { stream, getOutput } = makeStream();
+    const log = createLogger(stream);
+    log.info({ tokenPrefix: "a1b2c3…" });
+    const line = JSON.parse(getOutput().trim());
+    expect(line.tokenPrefix).toBe("a1b2c3…");
+  });
 });
 
 describe("maskToken", () => {
