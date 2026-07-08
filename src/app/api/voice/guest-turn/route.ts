@@ -7,6 +7,7 @@ import { TurnRequestSchema } from "@/modules/voice/types";
 import { PathwaysError, ValidationError } from "@/lib/errors";
 import type { PartialExtractedProfile } from "@/modules/voice/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { enforceRateLimit, getClientIp, rateLimitHeaders } from "@/lib/rate-limit";
 
 const GuestTurnSchema = TurnRequestSchema.extend({
   currentPartial: z.record(z.unknown()).optional(),
@@ -17,6 +18,16 @@ export async function POST(req: NextRequest): Promise<Response> {
   const correlationId = crypto.randomUUID();
   const log = createRequestLogger(correlationId);
   log.info({ action: "api.voice.guest-turn.start" });
+
+  // Each turn calls Claude + ElevenLabs TTS; rate limit per IP to bound abuse cost.
+  const rl = await enforceRateLimit(`guest-turn:${getClientIp(req)}`, { limit: 20, windowMs: 60_000 });
+  if (!rl.success) {
+    log.warn({ action: "api.voice.guest-turn.rate_limited" });
+    return Response.json(
+      { error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
+      { status: 429, headers: rateLimitHeaders(rl) }
+    );
+  }
 
   let body: unknown;
   try {

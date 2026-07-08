@@ -44,3 +44,9 @@ export class InternalError extends PathwaysError {
     super(message, { code: "INTERNAL_ERROR", statusCode: 500, context, cause });
   }
 }
+
+export class RateLimitError extends PathwaysError {
+  constructor(message = "Too many requests", context?: Record<string, unknown>, cause?: unknown) {
+    super(message, { code: "RATE_LIMITED", statusCode: 429, context, cause });
+  }
+}

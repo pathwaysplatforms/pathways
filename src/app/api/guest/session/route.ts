@@ -2,12 +2,24 @@ import type { NextRequest } from "next/server";
 import { createRequestLogger } from "@/lib/logger";
 import { createGuestSession, getGuestSession } from "@/modules/guest/service";
 import { PathwaysError, NotFoundError } from "@/lib/errors";
+import { enforceRateLimit, getClientIp, rateLimitHeaders } from "@/lib/rate-limit";
 
 /** Create a new guest session. Returns { session_token, expires_at }. */
-export async function POST(_req: NextRequest): Promise<Response> {
+export async function POST(req: NextRequest): Promise<Response> {
   const correlationId = crypto.randomUUID();
   const log = createRequestLogger(correlationId);
   log.info({ action: "api.guest.session.create.start" });
+
+  // Rate limit token minting per IP — this is the entry point an attacker would
+  // spam to obtain tokens for the (paid) AI guest-turn / match endpoints.
+  const rl = await enforceRateLimit(`guest-session:${getClientIp(req)}`, { limit: 10, windowMs: 60_000 });
+  if (!rl.success) {
+    log.warn({ action: "api.guest.session.create.rate_limited" });
+    return Response.json(
+      { error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
+      { status: 429, headers: rateLimitHeaders(rl) }
+    );
+  }
 
   try {
     const session = await createGuestSession(log);
