@@ -17,21 +17,21 @@ export const NocTeerCategorySchema = z.number().int().min(0).max(5);
 export const TurnResponseSchema = z.object({
   message: z.string(),
   delta: z.object({
-    full_name: z.string().nullable().optional(),
-    date_of_birth: z.string().nullable().optional(),
-    nationality: z.string().nullable().optional(),
-    current_country: z.string().nullable().optional(),
-    marital_status: z.string().nullable().optional(),
-    education_level_voice: z.string().nullable().optional(),
+    full_name: z.string().max(300).nullable().optional(),
+    date_of_birth: z.string().max(300).nullable().optional(),
+    nationality: z.string().max(300).nullable().optional(),
+    current_country: z.string().max(300).nullable().optional(),
+    marital_status: z.string().max(300).nullable().optional(),
+    education_level_voice: z.string().max(300).nullable().optional(),
     years_experience: z.number().nullable().optional(),
     has_canadian_experience: z.boolean().nullable().optional(),
-    occupation: z.string().nullable().optional(),
+    occupation: z.string().max(300).nullable().optional(),
     language_proficiency_self: z
       .enum(["native", "fluent", "advanced", "intermediate", "basic"])
       .nullable()
       .optional(),
     has_family_in_canada: z.boolean().nullable().optional(),
-    intended_province: z.string().nullable().optional(),
+    intended_province: z.string().max(300).nullable().optional(),
     // Language CLB scores
     clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
     clb_listening: z.number().int().min(0).max(12).nullable().optional(),
@@ -44,7 +44,7 @@ export const TurnResponseSchema = z.object({
     foreign_work_recent: z.boolean().nullable().optional(),
     // Occupation
     noc_teer_category: z.number().int().min(0).max(5).nullable().optional(),
-    noc_code: z.string().nullable().optional(),
+    noc_code: z.string().max(300).nullable().optional(),
     // Education structured
     education_level: EducationLevelEnum.nullable().optional(),
     eca_obtained: z.boolean().nullable().optional(),
@@ -54,8 +54,8 @@ export const TurnResponseSchema = z.object({
     has_provincial_nomination: z.boolean().nullable().optional(),
     has_canadian_job_offer: z.boolean().nullable().optional(),
     // Additional pathway fields
-    destination_country: z.string().nullable().optional(),
-    purpose: z.string().nullable().optional(),
+    destination_country: z.string().max(300).nullable().optional(),
+    purpose: z.string().max(300).nullable().optional(),
     dependents: z.number().int().min(0).nullable().optional(),
   }),
   complete: z.boolean(),
@@ -63,20 +63,20 @@ export const TurnResponseSchema = z.object({
 });
 
 export const VoiceExtractedProfileSchema = z.object({
-  full_name: z.string().nullable(),
-  date_of_birth: z.string().nullable(),
-  nationality: z.string().nullable(),
-  current_country: z.string().nullable(),
-  marital_status: z.string().nullable(),
-  education_level_voice: z.string().nullable(),
+  full_name: z.string().max(300).nullable(),
+  date_of_birth: z.string().max(300).nullable(),
+  nationality: z.string().max(300).nullable(),
+  current_country: z.string().max(300).nullable(),
+  marital_status: z.string().max(300).nullable(),
+  education_level_voice: z.string().max(300).nullable(),
   years_experience: z.number().nullable(),
   has_canadian_experience: z.boolean().nullable(),
-  occupation: z.string().nullable(),
+  occupation: z.string().max(300).nullable(),
   language_proficiency_self: z
     .enum(["native", "fluent", "advanced", "intermediate", "basic"])
     .nullable(),
   has_family_in_canada: z.boolean().nullable(),
-  intended_province: z.string().nullable(),
+  intended_province: z.string().max(300).nullable(),
   // Language CLB scores
   clb_speaking: z.number().int().min(0).max(12).nullable().optional(),
   clb_listening: z.number().int().min(0).max(12).nullable().optional(),
@@ -89,7 +89,7 @@ export const VoiceExtractedProfileSchema = z.object({
   foreign_work_recent: z.boolean().nullable().optional(),
   // Occupation
   noc_teer_category: z.number().int().min(0).max(5).nullable().optional(),
-  noc_code: z.string().nullable().optional(),
+  noc_code: z.string().max(300).nullable().optional(),
   // Education structured
   education_level: EducationLevelEnum.nullable().optional(),
   eca_obtained: z.boolean().nullable().optional(),
@@ -107,10 +107,10 @@ export const VoiceExtractedProfileSchema = z.object({
   // DB-only fields — not collected by voice, carried here for CRS/embeddings/matching compatibility
   has_sibling_in_canada: z.boolean().nullable().optional(),
   annual_income: z.number().nullable().optional(),
-  income_currency: z.string().nullable().optional(),
+  income_currency: z.string().max(300).nullable().optional(),
   // Additional pathway fields
-  destination_country: z.string().nullable().optional(),
-  purpose: z.string().nullable().optional(),
+  destination_country: z.string().max(300).nullable().optional(),
+  purpose: z.string().max(300).nullable().optional(),
   dependents: z.number().int().min(0).nullable().optional(),
   requires_review: z.array(z.string()),
 });
