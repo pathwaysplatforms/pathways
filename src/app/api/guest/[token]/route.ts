@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { createRequestLogger } from "@/lib/logger";
+import { createRequestLogger, maskToken } from "@/lib/logger";
 import { updateGuestOnboardingData } from "@/modules/guest/service";
 import { PathwaysError } from "@/lib/errors";
 import { VoiceExtractedProfileSchema } from "@/modules/voice/types";
@@ -12,11 +12,12 @@ const PatchSchema = z.object({
 /** Merge onboarding field deltas into the guest session. */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ): Promise<Response> {
+  const { token } = await params;
   const correlationId = crypto.randomUUID();
   const log = createRequestLogger(correlationId);
-  log.info({ action: "api.guest.patch.start", token: params.token });
+  log.info({ action: "api.guest.patch.start", tokenPrefix: maskToken(token) });
 
   let body: unknown;
   try {
@@ -34,8 +35,8 @@ export async function PATCH(
   }
 
   try {
-    const session = await updateGuestOnboardingData(params.token, parsed.data.onboarding_data, log);
-    log.info({ action: "api.guest.patch.done", token: params.token });
+    const session = await updateGuestOnboardingData(token, parsed.data.onboarding_data, log);
+    log.info({ action: "api.guest.patch.done", tokenPrefix: maskToken(token) });
     return Response.json({ session_token: session.session_token, onboarding_data: session.onboarding_data });
   } catch (err) {
     const code = err instanceof PathwaysError ? err.code : "INTERNAL_ERROR";

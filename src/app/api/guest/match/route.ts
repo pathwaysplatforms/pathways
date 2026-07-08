@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { createRequestLogger } from "@/lib/logger";
+import { createRequestLogger, maskToken } from "@/lib/logger";
 import { getGuestSession, saveGuestPathwayResults } from "@/modules/guest/service";
 import { matchPathwaysForGuest } from "@/lib/pathway-matcher";
 import { PathwaysError, safeErrorMessage } from "@/lib/errors";
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const results = await matchPathwaysForGuest(session.onboarding_data, session.session_token, log);
     const updated = await saveGuestPathwayResults(token, results, log);
 
-    log.info({ action: "api.guest.match.done", token });
+    log.info({ action: "api.guest.match.done", tokenPrefix: maskToken(token) });
     return Response.json({ results: updated.pathway_results });
   } catch (err) {
     const code = err instanceof PathwaysError ? err.code : "INTERNAL_ERROR";

@@ -34,3 +34,12 @@ export const logger = createLogger();
 export function createRequestLogger(correlationId: string) {
   return logger.child({ correlationId });
 }
+
+/**
+ * Reduce a bearer token to a short, non-reversible prefix safe for logs.
+ * Never log a raw session token — it is the sole credential for guest access.
+ */
+export function maskToken(token: string | null | undefined): string {
+  if (!token) return "(none)";
+  return token.length <= 8 ? "***" : `${token.slice(0, 6)}…`;
+}
