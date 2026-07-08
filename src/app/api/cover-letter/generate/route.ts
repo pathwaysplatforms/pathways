@@ -6,6 +6,7 @@ import { requireAuth } from '@/modules/auth/service';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { generateCoverLetter, type CoverLetterInput } from '@/lib/cover-letter-generator';
 import { PathwaysError } from '@/lib/errors';
+import { enforceRateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 const bodySchema = z.object({
   stepId: z.string().uuid(),
@@ -20,6 +21,17 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   try {
     const user = await requireAuth();
+
+    // Per-user rate limit — cover-letter generation is a Claude call.
+    const rl = await enforceRateLimit(`cover-letter:${user.id}`, { limit: 10, windowMs: 60_000 });
+    if (!rl.success) {
+      log.warn({ action: 'api.cover_letter.generate.rate_limited', userId: user.id });
+      return Response.json(
+        { error: { code: 'RATE_LIMITED', message: 'Too many requests. Please slow down.' } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
+    }
+
     const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
     const body = await req.json().catch(() => ({}));
