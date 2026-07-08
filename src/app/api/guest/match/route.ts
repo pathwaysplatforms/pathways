@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createRequestLogger } from "@/lib/logger";
 import { getGuestSession, saveGuestPathwayResults } from "@/modules/guest/service";
 import { matchPathwaysForGuest } from "@/lib/pathway-matcher";
-import { PathwaysError } from "@/lib/errors";
+import { PathwaysError, safeErrorMessage } from "@/lib/errors";
 import { enforceRateLimit, getClientIp, rateLimitHeaders } from "@/lib/rate-limit";
 
 const BodySchema = z.object({ token: z.string().min(10) });
@@ -53,6 +53,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     const code = err instanceof PathwaysError ? err.code : "INTERNAL_ERROR";
     const status = err instanceof PathwaysError ? err.statusCode : 500;
     log.error({ action: "api.guest.match.error", error: String(err) });
-    return Response.json({ error: { code, message: String(err) } }, { status });
+    return Response.json({ error: { code, message: safeErrorMessage(err) } }, { status });
   }
 }

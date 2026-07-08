@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createRequestLogger } from "@/lib/logger";
 import { getSession } from "@/modules/auth/service";
 import { migrateGuestSession } from "@/modules/guest/service";
-import { PathwaysError, AuthError } from "@/lib/errors";
+import { PathwaysError, AuthError, safeErrorMessage } from "@/lib/errors";
 
 const BodySchema = z.object({ guest_token: z.string().min(10) });
 
@@ -44,6 +44,6 @@ export async function POST(req: NextRequest): Promise<Response> {
     const code = err instanceof PathwaysError ? err.code : "INTERNAL_ERROR";
     const status = err instanceof PathwaysError ? err.statusCode : 500;
     log.error({ action: "api.auth.migrate-guest.error", error: String(err) });
-    return Response.json({ error: { code, message: String(err) } }, { status });
+    return Response.json({ error: { code, message: safeErrorMessage(err) } }, { status });
   }
 }

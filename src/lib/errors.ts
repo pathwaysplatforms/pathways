@@ -50,3 +50,13 @@ export class RateLimitError extends PathwaysError {
     super(message, { code: "RATE_LIMITED", statusCode: 429, context, cause });
   }
 }
+
+/**
+ * Return a client-safe error message: the curated message for a known PathwaysError,
+ * or a generic string for anything else. Prevents leaking internal/DB error detail
+ * (e.g. Postgres messages, stack context) to the response body — log the raw error
+ * server-side instead.
+ */
+export function safeErrorMessage(err: unknown): string {
+  return err instanceof PathwaysError ? err.message : "An unexpected error occurred.";
+}

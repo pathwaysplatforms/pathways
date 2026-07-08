@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { createRequestLogger } from "@/lib/logger";
 import { createGuestSession, getGuestSession } from "@/modules/guest/service";
-import { PathwaysError, NotFoundError } from "@/lib/errors";
+import { PathwaysError, NotFoundError, safeErrorMessage } from "@/lib/errors";
 import { enforceRateLimit, getClientIp, rateLimitHeaders } from "@/lib/rate-limit";
 
 /** Create a new guest session. Returns { session_token, expires_at }. */
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const code = err instanceof PathwaysError ? err.code : "INTERNAL_ERROR";
     const status = err instanceof PathwaysError ? err.statusCode : 500;
     log.error({ action: "api.guest.session.create.error", error: String(err) });
-    return Response.json({ error: { code, message: String(err) } }, { status });
+    return Response.json({ error: { code, message: safeErrorMessage(err) } }, { status });
   }
 }
 
@@ -55,6 +55,6 @@ export async function GET(req: NextRequest): Promise<Response> {
       return Response.json({ error: { code: "NOT_FOUND", message: "Session not found or expired." } }, { status: 404 });
     }
     log.error({ action: "api.guest.session.get.error", error: String(err) });
-    return Response.json({ error: { code, message: String(err) } }, { status });
+    return Response.json({ error: { code, message: safeErrorMessage(err) } }, { status });
   }
 }
