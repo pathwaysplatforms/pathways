@@ -21,6 +21,33 @@ interface UserDocRow {
 
 const FULL_SELECT = 'id, user_id, storage_path, file_name, display_name, file_size, mime_type, document_type, uploaded_at';
 
+type SniffedType = 'application/pdf' | 'image/jpeg' | 'image/png';
+
+/**
+ * Detect a file's true content type from its magic bytes. Returns null when the
+ * bytes match none of the allowed signatures. Never trust the client-supplied
+ * Content-Type for a security decision — a caller can set it to anything.
+ */
+function sniffContentType(buffer: ArrayBuffer): SniffedType | null {
+  const b = new Uint8Array(buffer.slice(0, 8));
+  // PDF: "%PDF"
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) {
+    return 'application/pdf';
+  }
+  // JPEG: FF D8 FF
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 &&
+    b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  return null;
+}
+
 function mapRow(row: UserDocRow): VaultFile {
   return {
     id: row.id,
@@ -73,6 +100,20 @@ export async function uploadVaultFile(
     throw new ValidationError('File exceeds 10 MB limit.', { fileSize: file.size });
   }
 
+  // Verify the actual bytes match an allowed type — the client Content-Type is not
+  // trustworthy. Reject unrecognised content, and reject a declared type that does
+  // not match the sniffed type (e.g. HTML masquerading as application/pdf).
+  const detectedType = sniffContentType(file.buffer);
+  if (!detectedType) {
+    throw new ValidationError('File content is not a valid PDF, JPEG, or PNG.', { mimeType: file.type });
+  }
+  if (detectedType !== file.type) {
+    throw new ValidationError('File content does not match its declared type.', {
+      declared: file.type,
+      detected: detectedType,
+    });
+  }
+
   const { count, error: countError } = await db
     .from('user_documents')
     .select('id', { count: 'exact', head: true })
@@ -94,7 +135,7 @@ export async function uploadVaultFile(
   const admin = createSupabaseAdminClient();
   const { error: uploadError } = await admin.storage
     .from(BUCKET)
-    .upload(storagePath, file.buffer, { contentType: file.type, upsert: false });
+    .upload(storagePath, file.buffer, { contentType: detectedType, upsert: false });
 
   if (uploadError) {
     throw new DatabaseError('Storage upload failed', { profileId, storagePath }, uploadError);
@@ -107,7 +148,7 @@ export async function uploadVaultFile(
       storage_path: storagePath,
       file_name: file.name,
       file_size: file.size,
-      mime_type: file.type,
+      mime_type: detectedType,
       document_type: documentType ?? null,
     })
     .select(FULL_SELECT)
@@ -226,8 +267,12 @@ export async function deleteVaultFile(
 export async function getVaultSignedUrl(storagePath: string, logger: Logger): Promise<string> {
   logger.info({ action: 'vault.getSignedUrl.start', storagePath });
 
+  // download: true sets Content-Disposition: attachment so a stored file is never
+  // rendered inline in the browser — defence-in-depth against a malicious upload.
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 3600);
+  const { data, error } = await admin.storage
+    .from(BUCKET)
+    .createSignedUrl(storagePath, 3600, { download: true });
 
   if (error || !data?.signedUrl) {
     throw new DatabaseError('Failed to create signed URL', { storagePath }, error ?? undefined);
