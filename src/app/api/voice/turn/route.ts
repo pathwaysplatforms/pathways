@@ -4,6 +4,7 @@ import { requireAuth, getProfile } from "@/modules/auth/service";
 import { streamConversationTurn } from "@/modules/voice/service";
 import { TurnRequestSchema } from "@/modules/voice/types";
 import { PathwaysError, AuthError, ValidationError } from "@/lib/errors";
+import { enforceRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import type { Logger } from "pino";
 
 export const maxDuration = 30;
@@ -35,6 +36,16 @@ export async function POST(req: NextRequest): Promise<Response> {
     const profile = await getProfile();
     if (!profile) {
       throw new AuthError("Profile not found");
+    }
+
+    // Per-user rate limit — each turn calls Claude + ElevenLabs TTS.
+    const rl = await enforceRateLimit(`voice-turn:${profile.id}`, { limit: 40, windowMs: 60_000 });
+    if (!rl.success) {
+      log.warn({ action: "api.voice.turn.rate_limited", profileId: profile.id });
+      return Response.json(
+        { error: { code: "RATE_LIMITED", message: "Too many requests. Please slow down." } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
     }
 
     let body: unknown;

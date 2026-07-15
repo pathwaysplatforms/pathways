@@ -4,11 +4,12 @@ import { getGuestSession } from "@/modules/guest/service";
 import { PathwayResultsView } from "@/components/results/PathwayResultsView";
 
 interface PageProps {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }
 
 /** Pathway results for a guest session — public route, no auth required. */
-export default async function ResultsPage({ params }: PageProps) {
+export default async function ResultsPage({ params: paramsPromise }: PageProps) {
+  const params = await paramsPromise;
   const log = createRequestLogger(crypto.randomUUID());
 
   let session;

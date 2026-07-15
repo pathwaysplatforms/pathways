@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "pino";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { maskToken } from "@/lib/logger";
 import { DatabaseError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { GuestSession, GuestOnboardingData } from "./types";
 import type { PathwayMatchResult } from "@/types/pathways";
@@ -26,13 +27,16 @@ export async function createGuestSession(log: Logger): Promise<GuestSession> {
     throw new DatabaseError("Failed to create guest session", {}, error ?? undefined);
   }
 
-  log.info({ action: "guest.session.created", token: (data as GuestSession).session_token });
+  log.info({
+    action: "guest.session.created",
+    tokenPrefix: maskToken((data as GuestSession).session_token),
+  });
   return data as GuestSession;
 }
 
 /** Fetch a guest session by its public token. Throws NotFoundError if missing or expired. */
 export async function getGuestSession(token: string, log: Logger): Promise<GuestSession> {
-  log.info({ action: "guest.session.get", token });
+  log.info({ action: "guest.session.get", tokenPrefix: maskToken(token) });
 
   if (!token || token.length < 10) {
     throw new ValidationError("Invalid session token");
@@ -59,7 +63,7 @@ export async function updateGuestOnboardingData(
   delta: GuestOnboardingData,
   log: Logger
 ): Promise<GuestSession> {
-  log.info({ action: "guest.session.update_data", token });
+  log.info({ action: "guest.session.update_data", tokenPrefix: maskToken(token) });
 
   const existing = await getGuestSession(token, log);
   const merged = { ...existing.onboarding_data, ...delta };
@@ -73,10 +77,10 @@ export async function updateGuestOnboardingData(
     .single();
 
   if (error || !data) {
-    throw new DatabaseError("Failed to update guest session data", { token }, error ?? undefined);
+    throw new DatabaseError("Failed to update guest session data", { tokenPrefix: maskToken(token) }, error ?? undefined);
   }
 
-  log.info({ action: "guest.session.data_updated", token });
+  log.info({ action: "guest.session.data_updated", tokenPrefix: maskToken(token) });
   return data as GuestSession;
 }
 
@@ -86,7 +90,7 @@ export async function saveGuestPathwayResults(
   results: PathwayMatchResult,
   log: Logger
 ): Promise<GuestSession> {
-  log.info({ action: "guest.session.save_results", token });
+  log.info({ action: "guest.session.save_results", tokenPrefix: maskToken(token) });
 
   const db = createSupabaseAdminClient() as unknown as SupabaseClient;
   const { data, error } = await db
@@ -98,10 +102,10 @@ export async function saveGuestPathwayResults(
     .single();
 
   if (error || !data) {
-    throw new DatabaseError("Failed to save guest pathway results", { token }, error ?? undefined);
+    throw new DatabaseError("Failed to save guest pathway results", { tokenPrefix: maskToken(token) }, error ?? undefined);
   }
 
-  log.info({ action: "guest.session.results_saved", token });
+  log.info({ action: "guest.session.results_saved", tokenPrefix: maskToken(token) });
   return data as GuestSession;
 }
 
@@ -111,7 +115,7 @@ export async function migrateGuestSession(
   authUserId: string,
   log: Logger
 ): Promise<void> {
-  log.info({ action: "guest.session.migrate", token, authUserId });
+  log.info({ action: "guest.session.migrate", tokenPrefix: maskToken(token), authUserId });
 
   const session = await getGuestSession(token, log);
   const db = createSupabaseAdminClient() as unknown as SupabaseClient;
@@ -152,5 +156,5 @@ export async function migrateGuestSession(
     .update({ expires_at: new Date().toISOString() })
     .eq("session_token", token);
 
-  log.info({ action: "guest.session.migrated", token, profileId });
+  log.info({ action: "guest.session.migrated", tokenPrefix: maskToken(token), profileId });
 }

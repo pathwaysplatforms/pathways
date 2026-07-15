@@ -7,10 +7,10 @@ import "@/components/voice/VoiceTab.css";
 import type { OrbState } from "@/components/voice/PathwaysOrb";
 import type { Message, VoiceExtractedProfile } from "@/modules/voice/types";
 import type { PartialExtractedProfile } from "@/modules/voice/types";
-import { createRequestLogger } from "@/lib/logger";
+import { createClientLogger } from "@/lib/client-logger";
 import { updateGuestOnboardingData } from "@/lib/guest-session-client";
 
-const log = createRequestLogger("guest-voice-tab");
+const log = createClientLogger("guest-voice-tab");
 
 const STATUS_TEXT: Record<OrbState, string> = {
   idle: "Ready when you are.",

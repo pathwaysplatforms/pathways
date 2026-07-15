@@ -26,6 +26,21 @@ export function clearGuestToken(): void {
 }
 
 /**
+ * Clear the guest token once a guest→account migration has completed.
+ * Server-side migration already expires the session; this removes the now-stale
+ * token from localStorage so it can't linger and be exfiltrated via XSS. Safe to
+ * call on every dashboard mount — it only acts on the post-migration `welcome=1`
+ * signal set by the auth callback.
+ */
+export function clearGuestTokenAfterMigration(): void {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("welcome") === "1") {
+    clearGuestToken();
+  }
+}
+
+/**
  * React hook that initialises or retrieves the guest session token.
  * Calls POST /api/guest/session the first time and persists the returned token.
  */

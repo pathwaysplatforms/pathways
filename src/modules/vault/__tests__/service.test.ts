@@ -94,11 +94,21 @@ const sampleRow = {
   uploaded_at: '2026-06-21T00:00:00Z',
 };
 
+/** Build a buffer whose leading bytes carry a given magic-byte signature. */
+function bufferWithSignature(signature: number[], size = 1024): ArrayBuffer {
+  const arr = new Uint8Array(size);
+  arr.set(signature, 0);
+  return arr.buffer;
+}
+
+const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46]; // %PDF
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
 const sampleFile = {
   name: 'test.pdf',
   size: 1024,
   type: 'application/pdf',
-  buffer: new ArrayBuffer(1024),
+  buffer: bufferWithSignature(PDF_SIGNATURE),
 };
 
 // ── listVaultFiles ────────────────────────────────────────────────────────────
@@ -168,6 +178,37 @@ describe('uploadVaultFile', () => {
 
     await expect(
       uploadVaultFile(profileId, { ...sampleFile, type: 'text/plain' }, null, db as unknown as SupabaseClient, mockLogger as never)
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+  });
+
+  it('throws ValidationError when content bytes match no allowed type', async () => {
+    const db = makeDb();
+
+    await expect(
+      uploadVaultFile(
+        profileId,
+        { ...sampleFile, buffer: new ArrayBuffer(1024) }, // all-zero bytes, no signature
+        null,
+        db as unknown as SupabaseClient,
+        mockLogger as never
+      )
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(mockStorageUpload).not.toHaveBeenCalled();
+  });
+
+  it('throws ValidationError when declared type does not match content', async () => {
+    const db = makeDb();
+
+    // Declares PDF but the bytes are a PNG.
+    await expect(
+      uploadVaultFile(
+        profileId,
+        { ...sampleFile, type: 'application/pdf', buffer: bufferWithSignature(PNG_SIGNATURE) },
+        null,
+        db as unknown as SupabaseClient,
+        mockLogger as never
+      )
     ).rejects.toBeInstanceOf(ValidationError);
     expect(mockStorageUpload).not.toHaveBeenCalled();
   });

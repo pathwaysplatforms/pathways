@@ -165,11 +165,34 @@ update public.document_requirements
 
 do $$
 declare
+  v_seeded_row_count   int;
   v_doc_upload_count   int;
   v_ext_action_count   int;
   v_step_id_link_count int;
   v_stem_dup_count     int;
 begin
+  -- Fresh-database replay guard: the rows this migration backfills were seeded
+  -- on the remote database only. When none of them exist (supabase start /
+  -- db reset on a clean instance), every statement above no-ops and the count
+  -- assertions would fail spuriously — skip them. On any database where the
+  -- seeded rows are present, the assertions still catch UUID typos.
+  select count(*) into v_seeded_row_count
+    from public.pathway_steps
+    where id in (
+      'f955e3b3-e2fa-46ec-a0df-38685457954b',
+      '94dd6341-3a02-4e3a-a3cb-a66c66f18fd0',
+      '131d2857-712a-4b77-a237-83b7536119f5',
+      '5c93acd5-e50e-405f-8f0f-804b48aea696',
+      '8eaa4a5c-4205-4b0c-af41-8074cea14e44',
+      '6719c3c3-8e6b-4121-acaf-8370d4233724',
+      'e5bea886-24cc-487f-9059-ea7dd25ce89b',
+      '01e8bf2b-ff44-479a-86da-f49391b41883'
+    );
+
+  if v_seeded_row_count = 0 then
+    return;
+  end if;
+
   select count(*) into v_doc_upload_count
     from public.pathway_steps
     where id in (

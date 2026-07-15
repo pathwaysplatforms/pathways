@@ -5,6 +5,8 @@ import {
   AuthError,
   NotFoundError,
   DatabaseError,
+  RateLimitError,
+  safeErrorMessage,
 } from "@/lib/errors";
 
 describe("PathwaysError", () => {
@@ -67,5 +69,32 @@ describe("DatabaseError", () => {
 
   it("has code DATABASE_ERROR", () => {
     expect(new DatabaseError("query failed").code).toBe("DATABASE_ERROR");
+  });
+});
+
+describe("RateLimitError", () => {
+  it("has statusCode 429 and code RATE_LIMITED", () => {
+    const err = new RateLimitError();
+    expect(err.statusCode).toBe(429);
+    expect(err.code).toBe("RATE_LIMITED");
+  });
+});
+
+describe("safeErrorMessage", () => {
+  it("returns the curated message for a PathwaysError (happy path)", () => {
+    expect(safeErrorMessage(new NotFoundError("Session not found or expired"))).toBe(
+      "Session not found or expired"
+    );
+  });
+
+  it("returns a generic message for a raw Error, hiding internals (edge case)", () => {
+    expect(safeErrorMessage(new Error("relation \"profiles\" does not exist"))).toBe(
+      "An unexpected error occurred."
+    );
+  });
+
+  it("returns a generic message for non-Error values (error case)", () => {
+    expect(safeErrorMessage("boom")).toBe("An unexpected error occurred.");
+    expect(safeErrorMessage(undefined)).toBe("An unexpected error occurred.");
   });
 });

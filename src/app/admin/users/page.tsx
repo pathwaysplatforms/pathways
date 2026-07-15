@@ -5,11 +5,12 @@ import { redirect } from "next/navigation";
 import { UserTableClient } from "./UserTableClient";
 
 interface PageProps {
-  searchParams: { page?: string; search?: string };
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 /** Admin user management table with pagination and search. */
-export default async function AdminUsersPage({ searchParams }: PageProps) {
+export default async function AdminUsersPage({ searchParams: searchParamsPromise }: PageProps) {
+  const searchParams = await searchParamsPromise;
   let admin;
   try {
     admin = await requireAdmin();

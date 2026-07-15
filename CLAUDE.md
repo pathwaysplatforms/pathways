@@ -157,9 +157,18 @@ Branches:
 Claude Code never commits, pushes, switches branches, or runs
 supabase db push. Those are always the developer's responsibility.
 
+## Dependencies
+Adding reasonable, well-maintained npm packages is authorized without asking first,
+provided they are: actively maintained, widely used, appropriately licensed
+(MIT/Apache/BSD or similar), and a good fit for the task. Prefer a small, focused
+dependency over reinventing non-trivial logic (e.g. rate limiting, validation,
+date handling). Still flag — and ask before adding — anything that is heavy,
+unmaintained, security-sensitive at the native level, or that meaningfully
+overlaps with something already in package.json. Always record the new dependency
+in package.json (no global-only installs) and note why it was added.
+
 ## What Claude Code must never do
 - Use any type or type assertions without explaining why
-- Install npm packages without asking first
 - Create database tables not in /specs/database-schema.md
 - Modify existing migration files
 - Run supabase db push

@@ -1,6 +1,7 @@
 import { type NextRequest } from 'next/server';
 import { createRequestLogger } from '@/lib/logger';
 import { backfillFullName } from '@/app/actions/backfillFullName';
+import { constantTimeEqual } from '@/lib/constant-time';
 import { PathwaysError } from '@/lib/errors';
 
 /**
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   const adminSecret = process.env.ADMIN_SECRET;
   const provided = req.headers.get('x-admin-secret');
 
-  if (!adminSecret || provided !== adminSecret) {
+  if (!adminSecret || !provided || !constantTimeEqual(provided, adminSecret)) {
     return Response.json(
       { error: { code: 'UNAUTHORIZED', message: 'Invalid or missing X-Admin-Secret header.' } },
       { status: 401 }

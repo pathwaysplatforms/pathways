@@ -32,17 +32,34 @@ interface PathwaySnapshot {
 /**
  * Maps a pathway slug to the immigration_draws.draw_type values that are
  * meaningful for that stream. Returns an array for use with .in().
- * "No Program Specified" covers all-pool Express Entry draws.
+ * The table stores snake_case slugs written by the draws scraper
+ * ('general', 'cec', 'pnp', 'fsw', 'fst', 'trades', 'french_language',
+ * 'healthcare', …); 'general' covers all-program Express Entry draws
+ * (IRCC's "No Program Specified").
  */
-function getDrawTypesForPathway(slug: string | null): string[] {
-  if (!slug) return ['No Program Specified', 'FSW'];
+export function getDrawTypesForPathway(slug: string | null): string[] {
+  if (!slug) return ['general', 'fsw'];
   const s = slug.toLowerCase();
-  if (s.includes('federal-skilled-worker') || s.includes('fsw')) return ['FSW', 'No Program Specified'];
-  if (s.includes('canadian-experience') || s.includes('cec')) return ['CEC', 'No Program Specified'];
-  if (s.includes('federal-skilled-trades') || s.includes('fst')) return ['FST'];
-  if (s.includes('pnp') || s.includes('provincial')) return ['PNP'];
+  if (s.includes('federal-skilled-worker') || s.includes('fsw')) return ['fsw', 'general'];
+  if (s.includes('canadian-experience') || s.includes('cec')) return ['cec', 'general'];
+  if (s.includes('federal-skilled-trades') || s.includes('fst')) return ['fst', 'trades'];
+  if (s.includes('pnp') || s.includes('provincial')) return ['pnp'];
   // express-entry (generic slug) covers the FSW pool + all-program draws
-  return ['No Program Specified', 'FSW'];
+  return ['general', 'fsw'];
+}
+
+/**
+ * Draws older than this many months carry no live cutoff signal and are
+ * treated exactly like a missing draw — a defunct number must never render
+ * as a gap, marker, or target.
+ */
+export const LATEST_DRAW_MAX_AGE_MONTHS = 6;
+
+/** True when a draw date falls outside the LATEST_DRAW_MAX_AGE_MONTHS window. */
+function isDrawStale(drawDate: string, now: Date): boolean {
+  const threshold = new Date(now);
+  threshold.setMonth(threshold.getMonth() - LATEST_DRAW_MAX_AGE_MONTHS);
+  return new Date(drawDate) < threshold;
 }
 
 /** Application row joined with its pathway snapshot. */
@@ -470,10 +487,8 @@ export async function getDashboardData(
 
   // Fetch the most recent draw that matches the user's Express Entry stream.
   // Filter by draw_type so a PNP cutoff (~800+) is never shown next to an FSW CRS score.
-  // FLAG: immigration_draws table may lack FSW/CEC stream data.
-  // Scraper needed: target https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/submit-profile/rounds-invitations/rounds-results.html
-  // Use curl_cffi with impersonate='chrome136'. Parse: draw date, CRS cutoff, draw type, invitations issued.
-  // Upsert to immigration_draws with program='express_entry' and draw_type populated ('FSW', 'CEC', 'FST', 'PNP', 'No Program Specified').
+  // Recency guard: a stream whose newest draw is stale (e.g. no general/FSW
+  // draw since Apr 2024) null-degrades exactly like a stream with no data.
   const effectivePathwaySlug =
     (appWithPathway?.pathway as PathwaySnapshot | null)?.slug ?? selectedPathwaySlug ?? null;
   const drawTypes = getDrawTypesForPathway(effectivePathwaySlug);
@@ -487,7 +502,8 @@ export async function getDashboardData(
     .limit(1)
     .maybeSingle();
 
-  const latestDraw: LatestDraw | null = drawData
+  const latestDraw: LatestDraw | null =
+    drawData && !isDrawStale((drawData as { draw_date: string }).draw_date, new Date())
     ? {
         cutoffScore: (drawData as { cutoff_score: number }).cutoff_score,
         drawDate: (drawData as { draw_date: string }).draw_date,

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ExternalLink } from "lucide-react";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { BackButton } from "@/components/ui/BackButton";
 import { generateCoverDataURI } from "@/lib/cover-art";
 import { formatDate } from "@/lib/utils/format-date";
@@ -17,11 +17,13 @@ export const revalidate = 3600;
 type Post = Tables<"posts">;
 
 interface PageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 function getDb() {
-  return createSupabaseServerClient() as unknown as SupabaseClient;
+  // Admin client: this route is static/ISR (revalidate above), so the cookie-based
+  // server client is unavailable at build time. Only published posts are read.
+  return createSupabaseAdminClient() as unknown as SupabaseClient;
 }
 
 /** Generates static paths for all published posts at build time. */
@@ -32,7 +34,8 @@ export async function generateStaticParams() {
 }
 
 /** Generates per-post OG metadata for social sharing. */
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params: paramsPromise }: PageProps): Promise<Metadata> {
+  const params = await paramsPromise;
   const db = getDb();
   const { data } = await db
     .from("posts")
@@ -56,7 +59,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /** Individual post or resource page with markdown body and related articles. */
-export default async function PostPage({ params }: PageProps) {
+export default async function PostPage({ params: paramsPromise }: PageProps) {
+  const params = await paramsPromise;
   const db = getDb();
 
   const { data } = await db

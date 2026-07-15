@@ -24,15 +24,18 @@ export function DashboardView({ isActive }: DashboardViewProps) {
   const { data } = state.data;
 
   return (
-    <div className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+    <div className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      {/* Natural height: pinning this box to the viewport (flex-1 min-h-0) let the
+          mission-control content overflow it, painting the redo link over the journey
+          card and burying the ask bar. The outer .pw-scroll owns all scrolling. */}
       <div
-        className="flex-1 min-h-0 flex flex-col relative z-[1]"
+        className="relative z-[1]"
         style={{ padding: '40px 32px 20px', width: '100%', maxWidth: 1200, margin: '0 auto' }}
       >
         <DashboardMissionControl data={data} />
       </div>
 
-      <div className="flex justify-center pb-12" style={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
+      <div className="flex justify-center pb-12" style={{ position: 'relative', zIndex: 1 }}>
         <form action={resetOnboarding}>
           <button
             type="submit"

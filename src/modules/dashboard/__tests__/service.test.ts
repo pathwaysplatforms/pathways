@@ -14,7 +14,7 @@ vi.mock('next/headers', () => ({
 }));
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getDashboardData } from '../service';
+import { getDashboardData, getDrawTypesForPathway, LATEST_DRAW_MAX_AGE_MONTHS } from '../service';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +111,7 @@ interface MockSetup {
   docsResult?: QueryResult;
   pathwaysResult?: QueryResult;
   progressResult?: QueryResult;
+  drawsResult?: QueryResult;
 }
 
 function setupClient(setup: MockSetup) {
@@ -121,6 +122,7 @@ function setupClient(setup: MockSetup) {
     docsResult = { data: [], error: null },
     pathwaysResult = { data: [], error: null },
     progressResult = { data: [], error: null },
+    drawsResult = { data: null, error: null },
   } = setup;
 
   const fromFn = vi.fn().mockImplementation((table: string) => {
@@ -130,6 +132,7 @@ function setupClient(setup: MockSetup) {
     if (table === 'application_documents') return makeChain(docsResult);
     if (table === 'pathways') return makeChain(pathwaysResult);
     if (table === 'pathway_progress') return makeChain(progressResult);
+    if (table === 'immigration_draws') return makeChain(drawsResult);
     return makeChain({ data: null, error: null });
   });
 
@@ -498,5 +501,96 @@ describe('getDashboardData', () => {
     const result = await getDashboardData('user-1', mockLogger as never);
     expect(result.crsBreakdown).toBeNull();
     expect(result.crsClbPlusOneDelta).toBeNull();
+  });
+
+  // ─── Latest draw: taxonomy + recency guard ─────────────────────────────────
+
+  it('resolves a non-null latest draw for a CEC pathway when a live cec draw exists', async () => {
+    const recentDate = new Date();
+    recentDate.setMonth(recentDate.getMonth() - 1);
+    const drawDate = recentDate.toISOString().slice(0, 10);
+
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: {
+        data: makeApplication({
+          pathway: {
+            id: 'pathway-1',
+            slug: 'canadian-experience-class',
+            title: 'Canadian Experience Class',
+            official_name: 'Canadian Experience Class',
+            processing_time_min: '6 months',
+            processing_time_max: '12 months',
+          },
+        }),
+        error: null,
+      },
+      drawsResult: {
+        data: { cutoff_score: 516, draw_date: drawDate, draw_type: 'cec', invitations_issued: 4000 },
+        error: null,
+      },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.latestDraw).not.toBeNull();
+    expect(result.latestDraw?.cutoffScore).toBe(516);
+    expect(result.latestDraw?.drawType).toBe('cec');
+  });
+
+  it('null-degrades a stale draw so a defunct cutoff never renders as a live reference', async () => {
+    const staleDate = new Date();
+    staleDate.setMonth(staleDate.getMonth() - (LATEST_DRAW_MAX_AGE_MONTHS + 2));
+    const drawDate = staleDate.toISOString().slice(0, 10);
+
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: { data: makeApplication(), error: null },
+      drawsResult: {
+        data: { cutoff_score: 529, draw_date: drawDate, draw_type: 'general', invitations_issued: 2095 },
+        error: null,
+      },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.latestDraw).toBeNull();
+  });
+
+  it('keeps a draw dated inside the recency window', async () => {
+    const insideWindow = new Date();
+    insideWindow.setMonth(insideWindow.getMonth() - (LATEST_DRAW_MAX_AGE_MONTHS - 1));
+    const drawDate = insideWindow.toISOString().slice(0, 10);
+
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: { data: makeApplication(), error: null },
+      drawsResult: {
+        data: { cutoff_score: 500, draw_date: drawDate, draw_type: 'general', invitations_issued: 3000 },
+        error: null,
+      },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.latestDraw?.cutoffScore).toBe(500);
+  });
+});
+
+describe('getDrawTypesForPathway', () => {
+  it('maps FSW slugs to the stored fsw and general slugs', () => {
+    expect(getDrawTypesForPathway('canada-express-entry-fsw')).toEqual(['fsw', 'general']);
+    expect(getDrawTypesForPathway('federal-skilled-worker')).toEqual(['fsw', 'general']);
+  });
+
+  it('maps CEC slugs to the stored cec and general slugs', () => {
+    expect(getDrawTypesForPathway('canadian-experience-class')).toEqual(['cec', 'general']);
+  });
+
+  it('maps trades and provincial slugs to their stored slugs', () => {
+    expect(getDrawTypesForPathway('federal-skilled-trades')).toEqual(['fst', 'trades']);
+    expect(getDrawTypesForPathway('ontario-pnp')).toEqual(['pnp']);
+  });
+
+  it('falls back to general and fsw for unknown or missing slugs', () => {
+    expect(getDrawTypesForPathway('express-entry')).toEqual(['general', 'fsw']);
+    expect(getDrawTypesForPathway(null)).toEqual(['general', 'fsw']);
   });
 });
