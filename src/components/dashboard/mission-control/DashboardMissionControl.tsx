@@ -22,7 +22,7 @@ function FinishProfileCta({ firstName }: { firstName: string }) {
     <div
       className="pw-entry"
       style={{
-        background: '#FFFFFF',
+        background: 'transparent',
         borderRadius: 16,
         padding: '32px 28px',
         maxWidth: 560,

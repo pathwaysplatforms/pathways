@@ -918,11 +918,10 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 6px 8px 8px;
+  margin: 10px 20px 20px;
   overflow: hidden;
   background: #F3F4F6;
-  border: 1px solid rgba(0, 0, 0, 0.07);
-  border-radius: 14px;
+  border-radius: 20px;
 }
 
 /* ─── Scroll containers inside the glass panel ───────────────────── */
@@ -970,7 +969,6 @@ html, body {
   position: relative;
   z-index: 10;
   background: #FFFFFF;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 /* Deep fallback: already solid surfaces. */
@@ -1049,7 +1047,7 @@ html, body {
     transition: none !important;
   }
 
-  .pw-glass-panel { background: #F3F4F6; border-color: rgba(0,0,0,0.07); }
+  .pw-glass-panel { background: #F3F4F6; }
   .pw-topnav-glass { background: #FFFFFF; }
 
   /* Modal: simple fade, no scale */

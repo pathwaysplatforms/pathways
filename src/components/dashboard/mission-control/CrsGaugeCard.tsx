@@ -4,7 +4,7 @@ import type { CrsLever } from '@/modules/dashboard/mission-control';
 import type { LatestDraw } from '@/modules/dashboard/types';
 
 const CARD: React.CSSProperties = {
-  background: '#FFFFFF',
+  background: 'transparent',
   borderRadius: 16,
   padding: '24px',
   // Fills the flex wrapper in the executing row so the two cards keep equal

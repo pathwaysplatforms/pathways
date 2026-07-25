@@ -42,7 +42,7 @@ const GREEN_BG = '#F0FDF4';
 const ACCENT = '#1A56DB';
 const font = { body: 'var(--pw-font-body)' as const, display: 'var(--pw-font-display)' as const };
 
-const CARD: CSSProperties = { background: BG, borderRadius: 12 };
+const CARD: CSSProperties = { background: 'transparent', borderRadius: 12 };
 
 const EYEBROW: CSSProperties = {
   fontFamily: font.body, fontSize: 11, fontWeight: 500,
@@ -569,7 +569,7 @@ function StepDetailPanel({
 
       {/* Scrollable content */}
       <div className="pw-scroll-fade" data-faded={faded} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div ref={scrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: BG, padding: '22px 32px' }}>
+      <div ref={scrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '22px 32px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
 
           {/* Section 1 — Objective */}
@@ -619,7 +619,7 @@ function StepDetailPanel({
       </div>
 
       {/* Completion bar */}
-      <div style={{ background: BG, borderTop: `1px solid ${BORDER_INNER}`, padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
+      <div style={{ borderTop: `1px solid ${BORDER_INNER}`, padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
 
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -779,7 +779,7 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
 
       {/* ─── Left sidebar — floating card, fluid width ─── */}
       <div style={{ flexShrink: 0, width: '32%', minWidth: 260, maxWidth: 340, padding: '16px 0 16px 24px', display: 'flex', alignItems: 'stretch' }}>
-        <div className="pw-scroll" style={{ width: '100%', background: BG, borderRadius: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.09), 0 1px 6px rgba(0,0,0,0.05)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="pw-scroll" style={{ width: '100%', borderRadius: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
           {/* Nav list */}
           <nav style={{ padding: '10px 8px', flex: 1 }}>
@@ -831,8 +831,8 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
         </div>
       </div>
 
-      {/* ─── Right content area — white, fills remaining space ─── */}
-      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: BG }}>
+      {/* ─── Right content area — fills remaining space ─── */}
+      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {selectedId === 'overview' || selectedStep === null ? (
           <div className="pw-scroll-fade" data-faded={overviewFaded} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div ref={overviewScrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
