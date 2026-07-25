@@ -918,10 +918,11 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 12px 32px 32px;
+  margin: 6px 8px 8px;
   overflow: hidden;
   background: #F3F4F6;
-  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 14px;
 }
 
 /* ─── Scroll containers inside the glass panel ───────────────────── */
@@ -972,13 +973,9 @@ html, body {
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* Deep fallback: already solid surfaces, no backdrop-filter needed. */
-.pw-reduce-motion .pw-glass-panel {
-  background: #F3F4F6;
-}
-.pw-reduce-motion .pw-topnav-glass {
-  background: #FFFFFF;
-}
+/* Deep fallback: already solid surfaces. */
+.pw-reduce-motion .pw-glass-panel { background: #F3F4F6; }
+.pw-reduce-motion .pw-topnav-glass { background: #FFFFFF; }
 
 /* ─── Profile/Settings modal ─────────────────────────────────────── */
 @keyframes pw-modal-backdrop-in {
@@ -1052,7 +1049,7 @@ html, body {
     transition: none !important;
   }
 
-  .pw-glass-panel { background: #F3F4F6; }
+  .pw-glass-panel { background: #F3F4F6; border-color: rgba(0,0,0,0.07); }
   .pw-topnav-glass { background: #FFFFFF; }
 
   /* Modal: simple fade, no scale */

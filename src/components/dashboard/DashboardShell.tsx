@@ -57,7 +57,7 @@ export function DashboardShell({
 
   return (
     <div className={`h-screen overflow-hidden flex flex-col bg-white${shouldReduceMotion ? ' pw-reduce-motion' : ''}`}>
-      <BackgroundLayer />
+      {/* <BackgroundLayer /> */}
       <TopNav
         avatarInitials={avatarInitials}
         firstName={firstName}
