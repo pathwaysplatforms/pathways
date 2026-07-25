@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DatabaseError, NotFoundError } from '@/lib/errors';
 import type { EnrichedApplicationStep, StepResource } from '@/modules/dashboard/types';
+import { parseChecklistItems } from '@/lib/parse-checklist-items';
 import type {
   Application,
   ApplicationStep,
@@ -33,8 +34,9 @@ interface PathwayStepRow {
   estimated_duration: string;
   is_optional: boolean;
   resources: StepResource[] | null;
-  checklist_items: string[] | null;
+  checklist_items: unknown;
 }
+
 
 /** Raw document_requirements row from DB. */
 interface DocumentRequirementRow {
@@ -183,7 +185,7 @@ export async function getApplicationData(
       estimatedDuration: s.estimated_duration,
       status,
       resources: Array.isArray(s.resources) ? s.resources : [],
-      checklistItems: Array.isArray(s.checklist_items) && s.checklist_items.length > 0 ? s.checklist_items : null,
+      checklistItems: parseChecklistItems(s.checklist_items),
     };
   });
 

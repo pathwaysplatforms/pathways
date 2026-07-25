@@ -7,7 +7,7 @@
 /* ─── CSS Custom Properties ─────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --color-bg-base:      #EDEEF2;
+  --color-bg-base:      #FFFFFF;
   --color-bg-surface:   #FFFFFF;
   --color-bg-subtle:    #F1F3F4;
   --color-bg-muted:     #E8EAED;
@@ -918,13 +918,9 @@ html, body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 32px;
+  margin: 12px 32px 32px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.62);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.40);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  background: #F3F4F6;
   border-radius: 16px;
 }
 
@@ -972,18 +968,16 @@ html, body {
 .pw-topnav-glass {
   position: relative;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.50);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.30);
+  background: #FFFFFF;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* Deep fallback: opaque surfaces, no blur, when the device reports low memory. */
-.pw-reduce-motion .pw-glass-panel,
+/* Deep fallback: already solid surfaces, no backdrop-filter needed. */
+.pw-reduce-motion .pw-glass-panel {
+  background: #F3F4F6;
+}
 .pw-reduce-motion .pw-topnav-glass {
-  background: rgba(255, 255, 255, 0.97);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  background: #FFFFFF;
 }
 
 /* ─── Profile/Settings modal ─────────────────────────────────────── */
@@ -1058,13 +1052,8 @@ html, body {
     transition: none !important;
   }
 
-  /* Glass surfaces: opaque, no blur */
-  .pw-glass-panel,
-  .pw-topnav-glass {
-    background: rgba(255, 255, 255, 0.97);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
+  .pw-glass-panel { background: #F3F4F6; }
+  .pw-topnav-glass { background: #FFFFFF; }
 
   /* Modal: simple fade, no scale */
   .pw-modal-panel,
@@ -1083,4 +1072,14 @@ html, body {
     animation: none !important;
     opacity: 0;
   }
+}
+
+@keyframes pw-ring-pulse {
+  0%   { transform: scale(0.55); opacity: 0.7; }
+  100% { transform: scale(2.6);  opacity: 0; }
+}
+
+@keyframes pw-dot-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+  50%       { transform: translate(-50%, -50%) scale(1.35); opacity: 0.6; }
 }

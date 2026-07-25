@@ -1,4 +1,5 @@
 import { CRS_FACTOR_CAPS } from '@/lib/crs-estimate';
+import type { FswEstimate } from '@/lib/fsw-points';
 import type {
   DashboardData,
   EnrichedApplicationStep,
@@ -70,6 +71,10 @@ export interface MissionControlModel {
   journeyPhase: JourneyPhaseId;
   /** "What this pathway asks for" reference list, mandatory items first. */
   pathwayAsks: PathwayAsk[];
+  /** FSW 67-point estimate; non-null when the active pathway is FSW-family. */
+  fswEstimate: FswEstimate | null;
+  /** True when the active pathway is in the FSW family (canada-express-entry-fsw, express-entry-fsw). */
+  isFswPathway: boolean;
 }
 
 /**
@@ -293,6 +298,10 @@ export function deriveMissionControl(data: DashboardData): MissionControlModel {
 
   const levers = state === 'executing' ? deriveLevers(data) : [];
 
+  const FSW_SLUGS = new Set(['canada-express-entry-fsw', 'express-entry-fsw']);
+  const activeSlug = data.applicationPathwaySlug ?? data.selectedPathwaySlug;
+  const isFswPathway = activeSlug != null && FSW_SLUGS.has(activeSlug);
+
   return {
     state,
     firstName: data.firstName,
@@ -305,5 +314,7 @@ export function deriveMissionControl(data: DashboardData): MissionControlModel {
     actions: deriveActions(data, state, levers, crsGap),
     journeyPhase: deriveJourneyPhase(data, state),
     pathwayAsks: derivePathwayAsks(data, state),
+    fswEstimate: isFswPathway ? (data.fswEstimate ?? null) : null,
+    isFswPathway,
   };
 }

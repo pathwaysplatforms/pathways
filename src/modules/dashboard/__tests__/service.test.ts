@@ -241,7 +241,10 @@ describe('getDashboardData', () => {
     const result = await getDashboardData('user-1', mockLogger as never);
     const step = result.applicationSteps[0];
 
-    expect(step.checklistItems).toEqual(['Gather passport', 'Book test']);
+    expect(step.checklistItems).toEqual([
+      { label: 'Gather passport', detail: 'Gather passport' },
+      { label: 'Book test', detail: 'Book test' },
+    ]);
     expect(step.proTips).toBe('Apply early.');
     expect(step.feeCad).toBe(850);
     expect(step.commonMistakes).toEqual(['Wrong photo size']);

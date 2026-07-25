@@ -61,6 +61,7 @@ function makeData(overrides: Partial<DashboardData> = {}): DashboardData {
     nationalityVoice: null,
     latestDraw: null,
     applicationPathwaySlug: null,
+    fswEstimate: null,
     ...overrides,
   };
 }

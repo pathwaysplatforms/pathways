@@ -10,7 +10,7 @@ import { getEmailTemplates, resolveTemplate } from '@/lib/email-templates';
 import { documentBelongsToStep } from '@/lib/step-document-map';
 import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
 import { ParticleBurst } from '@/components/fx/ParticleBurst';
-import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, StepResource } from '@/modules/dashboard/types';
+import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, StepResource, ChecklistItem } from '@/modules/dashboard/types';
 import { registerChecklistFlush } from '@/lib/checklist-flush-registry';
 
 const ink = '#0A0A0A';
@@ -78,7 +78,7 @@ function HighlightedText({ text }: { text: string }) {
 
 // ── Section — Checklist items ─────────────────────────────────────────────────
 
-export function ChecklistSection({ stepId, items }: { stepId: string; items: string[] }) {
+export function ChecklistSection({ stepId, items }: { stepId: string; items: ChecklistItem[] }) {
   const [open, setOpen] = useState(true);
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [hydrating, setHydrating] = useState(true);
@@ -221,7 +221,7 @@ export function ChecklistSection({ stepId, items }: { stepId: string; items: str
                   textDecoration: done ? 'line-through' : 'none',
                   lineHeight: 1.5,
                 }}>
-                  {item}
+                  {item.label}
                 </span>
               </label>
             );

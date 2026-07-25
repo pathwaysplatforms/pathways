@@ -107,7 +107,7 @@ export function TopNav({
 
   return (
     <nav
-      className="pw-topnav-glass h-16 flex items-center px-8 flex-shrink-0"
+      className="pw-topnav-glass h-12 flex items-center px-8 flex-shrink-0"
       aria-label="Main navigation"
     >
       {/* Wordmark */}

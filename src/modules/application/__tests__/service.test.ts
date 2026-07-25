@@ -157,7 +157,10 @@ describe('getApplicationData', () => {
     expect(result).not.toBeNull();
     expect(result!.pathwaySlug).toBe('express-entry-fsw');
     expect(result!.steps).toHaveLength(1);
-    expect(result!.steps[0].checklistItems).toEqual(['Submit to WES', 'Pay fee']);
+    expect(result!.steps[0].checklistItems).toEqual([
+      { label: 'Submit to WES', detail: 'Submit to WES' },
+      { label: 'Pay fee', detail: 'Pay fee' },
+    ]);
     expect(result!.documents).toHaveLength(1);
   });
 

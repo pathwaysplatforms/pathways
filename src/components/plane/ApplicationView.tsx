@@ -79,7 +79,7 @@ export function ApplicationView({ isActive }: ApplicationViewProps) {
   if (fetchState.status === 'error') {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-        <div style={{ maxWidth: 400, textAlign: 'center', padding: '32px 28px', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12 }}>
+        <div style={{ maxWidth: 400, textAlign: 'center', padding: '32px 28px', background: '#FFFFFF', borderRadius: 12 }}>
           <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '1.5rem', color: '#0D0D0D', marginBottom: 8 }}>
             Something went wrong
           </p>
@@ -105,7 +105,7 @@ export function ApplicationView({ isActive }: ApplicationViewProps) {
   if (!fetchState.data) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-        <div style={{ maxWidth: 400, textAlign: 'center', padding: '32px 28px', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12 }}>
+        <div style={{ maxWidth: 400, textAlign: 'center', padding: '32px 28px', background: '#FFFFFF', borderRadius: 12 }}>
           <p style={{ fontFamily: 'var(--pw-font-display)', fontSize: '1.5rem', color: '#0D0D0D', marginBottom: 8 }}>
             No active application
           </p>

@@ -12,7 +12,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useScrollFade } from '@/hooks/useScrollFade';
 import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
 import { ParticleBurst } from '@/components/fx/ParticleBurst';
-import type { EnrichedApplicationStep, DashboardDocument, ProfileContext } from '@/modules/dashboard/types';
+import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, ChecklistItem } from '@/modules/dashboard/types';
 import { registerChecklistFlush, flushAllChecklists } from '@/lib/checklist-flush-registry';
 
 export interface ApplicationPageClientProps {
@@ -42,7 +42,7 @@ const GREEN_BG = '#F0FDF4';
 const ACCENT = '#1A56DB';
 const font = { body: 'var(--pw-font-body)' as const, display: 'var(--pw-font-display)' as const };
 
-const CARD: CSSProperties = { background: BG, border: `1px solid ${BORDER_CARD}`, borderRadius: 12 };
+const CARD: CSSProperties = { background: BG, borderRadius: 12 };
 
 const EYEBROW: CSSProperties = {
   fontFamily: font.body, fontSize: 11, fontWeight: 500,
@@ -83,7 +83,7 @@ function SidebarStepCircle({ status, stepNumber }: { status: StepStatus; stepNum
 
 interface AccordionChecklistProps {
   stepId: string;
-  checklistItems: string[];
+  checklistItems: ChecklistItem[];
   stepDocs: DashboardDocument[];
   pathwaySlug: string;
   stepNumber: number;
@@ -263,7 +263,7 @@ function AccordionChecklist({
                 style={{ flexShrink: 0 }}
               />
               <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: done ? MUTED : INK, textDecoration: done ? 'line-through' : 'none', lineHeight: 1.5 }}>
-                {item}
+                {item.label}
               </span>
               <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
                 {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -272,13 +272,40 @@ function AccordionChecklist({
             {/* Expanded content */}
             {isOpen && (
               <div style={{ padding: '0 20px 16px 52px' }}>
-                <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, lineHeight: 1.6, margin: 0 }}>
-                  {item}
-                </p>
+                {item.detail && (
+                  <p style={{ fontFamily: font.body, fontSize: 13, color: '#374151', lineHeight: 1.65, margin: '0 0 12px' }}>
+                    {item.detail}
+                  </p>
+                )}
+                {item.links && item.links.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                    {item.links.map((link) => (
+                      <a
+                        key={link.url}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: font.body, fontSize: 12, color: 'var(--pw-accent)', textDecoration: 'none', fontWeight: 500 }}
+                      >
+                        <ExternalLink size={11} />
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {item.tips && item.tips.length > 0 && (
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                    {item.tips.map((tip, ti) => (
+                      <p key={ti} style={{ fontFamily: font.body, fontSize: 12, color: MUTED, lineHeight: 1.6, margin: ti === 0 ? 0 : '4px 0 0' }}>
+                        <span style={{ color: 'var(--pw-accent)', fontWeight: 500 }}>Tip: </span>{tip}
+                      </p>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={(e) => toggleChecked(i, e)}
-                  style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: done ? GREEN_BG : BG, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: done ? GREEN : INK, cursor: 'pointer' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: done ? GREEN_BG : BG, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: done ? GREEN : INK, cursor: 'pointer' }}
                 >
                   {done ? '✓ Marked done' : 'Mark as done'}
                 </button>
@@ -752,7 +779,7 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
 
       {/* ─── Left sidebar — floating card, fluid width ─── */}
       <div style={{ flexShrink: 0, width: '32%', minWidth: 260, maxWidth: 340, padding: '16px 0 16px 24px', display: 'flex', alignItems: 'stretch' }}>
-        <div className="pw-scroll" style={{ width: '100%', background: BG, borderRadius: 14, border: `1px solid ${BORDER_CARD}`, boxShadow: '0 4px 24px rgba(0,0,0,0.09), 0 1px 6px rgba(0,0,0,0.05)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className="pw-scroll" style={{ width: '100%', background: BG, borderRadius: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.09), 0 1px 6px rgba(0,0,0,0.05)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
           {/* Nav list */}
           <nav style={{ padding: '10px 8px', flex: 1 }}>

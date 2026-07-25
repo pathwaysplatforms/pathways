@@ -6,6 +6,7 @@ import type { MissionControlModel } from '@/modules/dashboard/mission-control';
 import type { DashboardData, LatestDraw } from '@/modules/dashboard/types';
 import { NextBestActionCard } from './NextBestActionCard';
 import { CrsGaugeCard, CrsNumberCard } from './CrsGaugeCard';
+import { FswEligibilityCard } from './FswEligibilityCard';
 import { JourneyPhaseStrip } from './JourneyPhaseStrip';
 import { AskPathwaysBar } from './AskPathwaysBar';
 
@@ -22,7 +23,6 @@ function FinishProfileCta({ firstName }: { firstName: string }) {
       className="pw-entry"
       style={{
         background: '#FFFFFF',
-        border: '1px solid rgba(0,0,0,0.08)',
         borderRadius: 16,
         padding: '32px 28px',
         maxWidth: 560,
@@ -240,12 +240,16 @@ function ExecutingLayout({ model }: { model: MissionControlModel }) {
           <NextBestActionCard actions={model.actions} />
         </div>
         <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex' }}>
-          <CrsGaugeCard
-            crsScore={model.crsScore}
-            latestDraw={model.latestDraw}
-            crsGap={model.crsGap}
-            levers={model.levers}
-          />
+          {model.isFswPathway && model.fswEstimate !== null ? (
+            <FswEligibilityCard estimate={model.fswEstimate} />
+          ) : (
+            <CrsGaugeCard
+              crsScore={model.crsScore}
+              latestDraw={model.latestDraw}
+              crsGap={model.crsGap}
+              levers={model.levers}
+            />
+          )}
         </div>
       </div>
       <div className="pw-entry pw-entry-delay-2">

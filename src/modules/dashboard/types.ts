@@ -1,5 +1,6 @@
 import type { Tables } from '@/types/database';
 import type { CrsBreakdown } from '@/lib/crs-estimate';
+import type { FswEstimate } from '@/lib/fsw-points';
 
 export type DashboardState =
   | 'onboarding_incomplete'
@@ -38,6 +39,14 @@ export interface StepResource {
   type: 'official' | 'form' | 'external';
 }
 
+/** A rich checklist sub-task with inline guidance for the expanded drawer. */
+export interface ChecklistItem {
+  label: string;
+  detail: string;
+  links?: { label: string; url: string }[];
+  tips?: string[];
+}
+
 /** A pre-written email template for a pathway step. */
 export interface StepEmailTemplate {
   subject: string;
@@ -49,7 +58,7 @@ export interface StepEmailTemplate {
 export interface EnrichedApplicationStep extends ApplicationStep {
   resources?: StepResource[];
   emailTemplates?: StepEmailTemplate[];
-  checklistItems?: string[] | null;
+  checklistItems?: ChecklistItem[] | null;
   proTips?: string | null;
   officialUrl?: string | null;
   feeCad?: number | null;
@@ -131,6 +140,9 @@ export interface DashboardData {
   crsBreakdown: CrsBreakdown | null;
   /** Real CRS delta from raising each provided CLB ability by one level (null when not computable). */
   crsClbPlusOneDelta: number | null;
+
+  /** FSW 67-point selection factor estimate; non-null only when pathway is FSW-family. */
+  fswEstimate: FswEstimate | null;
 
   selectedPathwaySlug: string | null;
   selectedPathwayTitle: string | null;

@@ -5,7 +5,6 @@ import type { LatestDraw } from '@/modules/dashboard/types';
 
 const CARD: React.CSSProperties = {
   background: '#FFFFFF',
-  border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: 16,
   padding: '24px',
   // Fills the flex wrapper in the executing row so the two cards keep equal

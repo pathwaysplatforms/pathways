@@ -6,7 +6,6 @@ import type { JourneyPhaseId, PathwayAsk } from '@/modules/dashboard/mission-con
 
 const CARD: React.CSSProperties = {
   background: '#FFFFFF',
-  border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: 16,
   padding: '24px',
 };

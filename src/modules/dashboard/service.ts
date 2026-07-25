@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DatabaseError, NotFoundError } from '@/lib/errors';
 import { computeCrsEstimate, computeClbPlusOneDelta } from '@/lib/crs-estimate';
 import { profileRowToCrsInput } from '@/lib/crs-input';
+import { computeFswEstimate } from '@/lib/fsw-points';
+import { parseChecklistItems } from '@/lib/parse-checklist-items';
 import type { Tables } from '@/types/database';
 import type {
   DashboardData,
@@ -127,7 +129,7 @@ interface EnrichedStepRow {
   description: string;
   estimated_duration: string;
   resources: StepResource[] | null;
-  checklist_items: string[] | null;
+  checklist_items: unknown;
   pro_tips: string | null;
   official_url: string | null;
   fee_cad: number | null;
@@ -153,7 +155,7 @@ function mapEnrichedStep(
     estimatedDuration: s.estimated_duration,
     status,
     resources: Array.isArray(s.resources) ? s.resources : [],
-    checklistItems: Array.isArray(s.checklist_items) && s.checklist_items.length > 0 ? s.checklist_items : null,
+    checklistItems: parseChecklistItems(s.checklist_items),
     proTips: s.pro_tips ?? null,
     officialUrl: s.official_url ?? null,
     feeCad: s.fee_cad ?? null,
@@ -317,6 +319,12 @@ export async function getDashboardData(
   const liveCrsEstimate = computeCrsEstimate(crsInput);
   const crsBreakdown = liveCrsEstimate?.breakdown ?? null;
   const crsClbPlusOneDelta = computeClbPlusOneDelta(crsInput);
+
+  // FSW 67-point estimate is computed here from the same profile data and
+  // attached to DashboardData. It is displayed only when the active pathway
+  // is FSW-family; the service always computes it so the client never needs
+  // to re-derive it.
+  const fswEstimate = computeFswEstimate(crsInput) ?? null;
 
   // Step 2: fetch application joined with pathway
   const { data: applicationData, error: applicationError } = await db
@@ -564,6 +572,7 @@ export async function getDashboardData(
     crsConfidence,
     crsBreakdown,
     crsClbPlusOneDelta,
+    fswEstimate,
     selectedPathwaySlug,
     selectedPathwayTitle,
     selectedPathwayProcessingTime,
