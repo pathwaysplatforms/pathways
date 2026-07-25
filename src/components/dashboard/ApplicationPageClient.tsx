@@ -759,10 +759,10 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#F3F4F6', padding: 10, gap: 8 }}>
 
-      {/* ─── Persistent pathway strip — static above both columns ─── */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '0 32px', height: 40, borderBottom: `1px solid ${BORDER_INNER}`, flexShrink: 0 }}>
+      {/* ─── Progress bar — white box ─── */}
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '0 20px', height: 44, background: BG, borderRadius: 14, flexShrink: 0 }}>
         <span style={{ fontFamily: font.display, fontWeight: 500, fontSize: 13, color: INK, whiteSpace: 'nowrap' }}>
           {pathway.title}
         </span>
@@ -775,11 +775,11 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
       </div>
 
       {/* ─── Two-column row ─── */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', gap: 32 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', gap: 8 }}>
 
-      {/* ─── Left sidebar — floating card, fluid width ─── */}
-      <div style={{ flexShrink: 0, width: '32%', minWidth: 260, maxWidth: 340, padding: '16px 0 16px 24px', display: 'flex', alignItems: 'stretch' }}>
-        <div className="pw-scroll" style={{ width: '100%', borderRadius: 14, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* ─── Left sidebar — white box ─── */}
+      <div style={{ flexShrink: 0, width: '30%', minWidth: 240, maxWidth: 320, background: BG, borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="pw-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
 
           {/* Nav list */}
           <nav style={{ padding: '10px 8px', flex: 1 }}>
@@ -831,8 +831,8 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
         </div>
       </div>
 
-      {/* ─── Right content area — fills remaining space ─── */}
-      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* ─── Right content area — white box ─── */}
+      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: BG, borderRadius: 14 }}>
         {selectedId === 'overview' || selectedStep === null ? (
           <div className="pw-scroll-fade" data-faded={overviewFaded} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div ref={overviewScrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>

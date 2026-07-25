@@ -5,7 +5,8 @@ const FSW_MINIMUM = 67;
 const FSW_MAX = 100;
 
 const CARD: React.CSSProperties = {
-  background: 'transparent',
+  background: '#FFFFFF',
+  border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: 16,
   padding: '24px',
   width: '100%',

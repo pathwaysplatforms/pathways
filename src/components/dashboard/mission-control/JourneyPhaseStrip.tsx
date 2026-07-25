@@ -5,7 +5,8 @@ import { JOURNEY_PHASES } from '@/modules/dashboard/mission-control';
 import type { JourneyPhaseId, PathwayAsk } from '@/modules/dashboard/mission-control';
 
 const CARD: React.CSSProperties = {
-  background: 'transparent',
+  background: '#FFFFFF',
+  border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: 16,
   padding: '24px',
 };
