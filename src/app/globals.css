@@ -928,9 +928,12 @@ html, body {
   border-radius: 16px;
 }
 
-/* Application and documents slots — tighter outer margin so the panel fills more of the viewport. */
+/* Application and documents slots — tighter margin, no glass border/shadow. */
 .pw-glass-panel--content {
   margin: 16px 20px;
+  border: none;
+  box-shadow: none;
+  background: #FFFFFF;
 }
 
 /* ─── Scroll containers inside the glass panel ───────────────────── */

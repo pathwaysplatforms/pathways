@@ -759,17 +759,58 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#E4E6EA', padding: 12, gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#EAECEF', padding: 12, gap: 12 }}>
 
-      {/* ─── Progress bar — white box ─── */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '0 20px', height: 44, background: BG, borderRadius: 14, flexShrink: 0 }}>
-        <span style={{ fontFamily: font.display, fontWeight: 500, fontSize: 13, color: INK, whiteSpace: 'nowrap' }}>
+      {/* ─── Step checkpoint progress bar — white box ─── */}
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 20, padding: '0 24px', height: 60, background: BG, borderRadius: 14, flexShrink: 0 }}>
+        {/* Pathway title */}
+        <span style={{ fontFamily: font.display, fontWeight: 500, fontSize: 13, color: INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
           {pathway.title}
         </span>
-        <div style={{ flex: 1, height: 2, borderRadius: 9999, background: '#EBEBEB', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${progressPct}%`, background: INK, borderRadius: 9999, transition: 'width 400ms cubic-bezier(0.16,1,0.3,1)', minWidth: completedCount > 0 ? 6 : 0 }} />
-        </div>
-        <span style={{ fontFamily: font.body, fontSize: 12, color: MUTED, whiteSpace: 'nowrap' }}>
+
+        {/* Step dot track */}
+        <ol style={{ flex: 1, display: 'flex', alignItems: 'center', margin: 0, padding: '0 4px', listStyle: 'none', gap: 0 }}>
+          {steps.map((step, i) => {
+            const isCompleted = completedIds.has(step.id);
+            const isSelected = step.id === selectedId;
+            const isLast = i === steps.length - 1;
+            return (
+              <li key={step.id} style={{ display: 'flex', alignItems: 'center', flex: isLast ? '0 0 auto' : 1, minWidth: 0 }}>
+                <button
+                  type="button"
+                  title={`Step ${step.stepNumber}: ${step.label}`}
+                  aria-label={`Go to step ${step.stepNumber}: ${step.label}`}
+                  onClick={() => handleSelectStep(step.id)}
+                  style={{
+                    width: isSelected ? 13 : 9,
+                    height: isSelected ? 13 : 9,
+                    borderRadius: '50%',
+                    background: isCompleted ? ACCENT : isSelected ? ACCENT : 'transparent',
+                    border: isCompleted || isSelected ? 'none' : '1.5px solid #CBD5E1',
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    padding: 0,
+                    transition: 'width 180ms cubic-bezier(0.34,1.56,0.64,1), height 180ms cubic-bezier(0.34,1.56,0.64,1), background 150ms ease',
+                    opacity: isCompleted ? 0.55 : 1,
+                  }}
+                />
+                {!isLast && (
+                  <div aria-hidden="true" style={{
+                    flex: 1,
+                    height: 1.5,
+                    minWidth: 6,
+                    background: isCompleted ? ACCENT : '#E2E8F0',
+                    opacity: isCompleted ? 0.35 : 1,
+                    transition: 'background 300ms ease',
+                  }} />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+
+        {/* Completion count */}
+        <span style={{ fontFamily: font.body, fontSize: 12, color: MUTED, whiteSpace: 'nowrap', flexShrink: 0 }}>
           {completedCount} of {steps.length} complete · {progressPct}%
         </span>
       </div>
