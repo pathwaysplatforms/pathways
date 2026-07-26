@@ -759,7 +759,7 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#F3F4F6', padding: 12, gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#E4E6EA', padding: 12, gap: 12 }}>
 
       {/* ─── Progress bar — white box ─── */}
       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '0 20px', height: 44, background: BG, borderRadius: 14, flexShrink: 0 }}>
@@ -862,24 +862,26 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
       <style>{`
         .app-sidebar-item {
           background: transparent;
-          border: 1.5px solid transparent;
+          border: none;
           border-radius: 8px;
-          transition: background 100ms ease, border-color 100ms ease;
+          transition: background 150ms ease, transform 80ms ease;
         }
         .app-sidebar-item.is-selected {
-          background: rgba(0,0,0,0.04);
-          border-color: rgba(0,0,0,0.14);
+          background: rgba(26, 86, 219, 0.09);
         }
         .app-sidebar-item:not(.is-selected):hover {
-          background: rgba(0,0,0,0.03);
-          border-color: rgba(0,0,0,0.08);
+          background: rgba(26, 86, 219, 0.05);
         }
-        .app-sidebar-item .item-label { color: #6B7280; transition: color 100ms ease; }
-        .app-sidebar-item.is-selected .item-label { color: #0A0A0A; }
-        .app-sidebar-item:not(.is-selected):hover .item-label { color: #374151; }
-        .app-sidebar-item .item-icon { transition: transform 150ms cubic-bezier(0.16,1,0.3,1); }
-        .app-sidebar-item:hover .item-icon { transform: scale(1.10); }
-        .app-sidebar-item:active .item-icon { transform: scale(1.0); }
+        .app-sidebar-item:active {
+          transform: scale(0.97);
+          background: rgba(26, 86, 219, 0.13) !important;
+        }
+        .app-sidebar-item .item-label { color: #6B7280; transition: color 150ms ease; }
+        .app-sidebar-item.is-selected .item-label { color: #1A56DB; font-weight: 500; }
+        .app-sidebar-item:not(.is-selected):hover .item-label { color: #1e3a8a; }
+        .app-sidebar-item .item-icon { transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1); }
+        .app-sidebar-item:hover .item-icon { transform: scale(1.12); }
+        .app-sidebar-item:active .item-icon { transform: scale(0.95); }
 
         /* Custom checkbox for tasks */
         .task-cb {
