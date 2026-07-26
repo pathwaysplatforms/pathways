@@ -928,6 +928,11 @@ html, body {
   border-radius: 16px;
 }
 
+/* Application and documents slots — tighter outer margin so the panel fills more of the viewport. */
+.pw-glass-panel--content {
+  margin: 16px 20px;
+}
+
 /* ─── Scroll containers inside the glass panel ───────────────────── */
 /* Thin, minimal scrollbar — no native default chrome. */
 .pw-scroll {

@@ -94,8 +94,8 @@ export function NavigationPlane({ activeIndex, onPopState }: NavigationPlaneProp
               overflow: 'hidden',
             }}
           >
-            {/* Glass panel: starts 60px below the strip, floats over the fixed background. */}
-            <div className="pw-glass-panel">
+            {/* Glass panel: content slots (1=application, 2=documents) use tighter margins. */}
+            <div className={`pw-glass-panel${(i === 1 || i === 2) ? ' pw-glass-panel--content' : ''}`}>
               {i === 0 && <DashboardView isActive={activeIndex === 0} />}
               {i === 1 && <ApplicationView isActive={activeIndex === 1} />}
               {i === 2 && <DocumentsView isActive={activeIndex === 2} />}

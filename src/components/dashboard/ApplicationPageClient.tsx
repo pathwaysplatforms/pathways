@@ -759,7 +759,7 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
   const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#F3F4F6', padding: 10, gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#F3F4F6', padding: 12, gap: 12 }}>
 
       {/* ─── Progress bar — white box ─── */}
       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '0 20px', height: 44, background: BG, borderRadius: 14, flexShrink: 0 }}>
@@ -775,7 +775,7 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
       </div>
 
       {/* ─── Two-column row ─── */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', gap: 8 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', gap: 12 }}>
 
       {/* ─── Left sidebar — white box ─── */}
       <div style={{ flexShrink: 0, width: '30%', minWidth: 240, maxWidth: 320, background: BG, borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
