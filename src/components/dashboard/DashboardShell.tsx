@@ -55,9 +55,11 @@ export function DashboardShell({
   const handleOpenModal = useCallback(() => setModalOpen(true), []);
   const handleCloseModal = useCallback(() => setModalOpen(false), []);
 
+  const showBackground = !isPlane || (activeIndex !== 1 && activeIndex !== 2);
+
   return (
     <div className={`h-screen overflow-hidden flex flex-col bg-white${shouldReduceMotion ? ' pw-reduce-motion' : ''}`}>
-      <BackgroundLayer />
+      {showBackground && <BackgroundLayer />}
       <TopNav
         avatarInitials={avatarInitials}
         firstName={firstName}
