@@ -3,22 +3,24 @@
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mic, MessageSquare, FileText } from "lucide-react";
+import { Mic, MessageSquare } from "lucide-react";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 import { VoiceTab } from "./VoiceTab";
 import { ChatTab } from "./ChatTab";
-import { FormTab } from "./FormTab";
 import { ProfileTracker } from "./ProfileTracker";
 import { VoiceProfilePanel } from "@/components/voice/VoiceProfilePanel";
 import { resolveDisplayFields } from "@/lib/profile-field-display";
 
-type Tab = "voice" | "chat" | "form";
+// "Form" is intentionally not a tab here — GuestFormOnboarding at /onboarding/form
+// is the single canonical form implementation (full field coverage, incl. TEER,
+// CLB, ECA, prior-study). The in-page FormTab used to duplicate a much smaller,
+// stale field set; it's been removed so form users always get the full flow.
+type Tab = "voice" | "chat";
 
 type TabIcon = typeof Mic;
 const TABS: { id: Tab; label: string; icon: TabIcon }[] = [
   { id: "voice", label: "Voice", icon: Mic },
   { id: "chat", label: "Chat", icon: MessageSquare },
-  { id: "form", label: "Form", icon: FileText },
 ];
 
 const NUMERIC_FIELDS = new Set(["years_experience", "annual_income", "dependents"]);
@@ -254,7 +256,6 @@ export function OnboardingLayout({ initialTab = "voice" }: { initialTab?: Tab })
           <div className="shrink-0 px-gutter py-3 border-b border-border-light bg-bg-subtle">
             <p className="text-xs text-text-tertiary">
               {activeTab === "chat" && "Prefer to type? Chat with our AI assistant"}
-              {activeTab === "form" && "Fill out the form at your own pace"}
             </p>
           </div>
 
@@ -262,9 +263,6 @@ export function OnboardingLayout({ initialTab = "voice" }: { initialTab?: Tab })
           <div className="flex-1 overflow-hidden p-gutter">
             {activeTab === "chat" && (
               <ChatTab onProfileUpdate={handleProfileUpdate} />
-            )}
-            {activeTab === "form" && (
-              <FormTab onProfileUpdate={handleProfileUpdate} />
             )}
           </div>
 

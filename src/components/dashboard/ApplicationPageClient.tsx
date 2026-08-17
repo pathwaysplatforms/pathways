@@ -1,18 +1,21 @@
 'use client';
 
 import { useState, useTransition, useRef, useEffect, useCallback } from 'react';
-import type { CSSProperties, MutableRefObject } from 'react';
 import Link from 'next/link';
-import { Clock, Home, ExternalLink, FileText, Mail, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import {
+  Home, ExternalLink, FileText, Mail, Loader2, ChevronDown, ChevronRight, Check, UploadCloud, ArrowLeft,
+  BookOpen, HeartPulse, Fingerprint, CreditCard, Briefcase, GraduationCap, Building2, Calendar, Plane, ClipboardList,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { updateStepProgress } from '@/app/actions/progress';
+import { saveChecklistInput } from '@/app/actions/profile';
 import { EmailTemplatesSection } from '@/components/dashboard/StepDetailDrawer';
+import { AiGenerateModal } from '@/components/dashboard/AiGenerateModal';
 import { documentBelongsToStep } from '@/lib/step-document-map';
 import { getEmailTemplates } from '@/lib/email-templates';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useScrollFade } from '@/hooks/useScrollFade';
-import { CheckmarkDraw } from '@/components/fx/CheckmarkDraw';
-import { ParticleBurst } from '@/components/fx/ParticleBurst';
-import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, ChecklistItem } from '@/modules/dashboard/types';
+import type { EnrichedApplicationStep, DashboardDocument, ProfileContext, ChecklistItem, AiActionType } from '@/modules/dashboard/types';
 import { registerChecklistFlush, flushAllChecklists } from '@/lib/checklist-flush-registry';
 
 export interface ApplicationPageClientProps {
@@ -27,54 +30,70 @@ export interface ApplicationPageClientProps {
   steps: EnrichedApplicationStep[];
   profileContext: ProfileContext | null;
   documents: DashboardDocument[];
+  crsScore: number | null;
+  /** Returns to the applications-home list (replaces the old pathway dropdown). */
+  onBack: () => void;
 }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
 const INK = '#0A0A0A';
 const MUTED = '#6B7280';
-const BORDER_CARD = 'rgba(0,0,0,0.08)'; // matches profile page cards
-const BORDER_INNER = 'rgba(0,0,0,0.06)'; // inner dividers
+const BORDER = '1px solid rgba(0,0,0,0.30)';         // thin black — panel + card container edges
+const BORDER_INNER = '1px solid rgba(0,0,0,0.08)';   // inner dividers, softer
+const PANEL_SHADOW = '0 1px 2px rgba(16,24,40,0.04), 0 1px 8px rgba(16,24,40,0.03)';
 const BG = '#FFFFFF';
+const PAGE_BG = '#FFFFFF';                           // white gutter behind the separated panels
+const CARD_RADIUS = 16;
+const PILL = 999;
+const CONTENT_MAX_WIDTH = 760;                       // centered reading column width for the main content area
 const TEXT_TERTIARY = '#9CA3AF';
 const GREEN = '#16A34A';
-const GREEN_BG = '#F0FDF4';
 const ACCENT = '#1A56DB';
+const ACCENT_TINT = 'rgba(26,86,219,0.08)';
+const AI_TEAL = '#14909C';                            // platform's design-system teal (--color-accent-500) — reserved for AI-generation actions
+const PROGRESS_TEAL = '#0E7BA6';                      // teal-blue used for the step progress bar
 const font = { body: 'var(--pw-font-body)' as const, display: 'var(--pw-font-display)' as const };
 
-const CARD: CSSProperties = { background: 'transparent', borderRadius: 12 };
+// ── Sidebar step icon ─────────────────────────────────────────────────────────
 
-const EYEBROW: CSSProperties = {
-  fontFamily: font.body, fontSize: 11, fontWeight: 500,
-  letterSpacing: '0.06em', textTransform: 'uppercase' as const,
-  color: TEXT_TERTIARY, margin: 0,
-};
+const STEP_ICON_SIZE = 20;
 
-// ── Sidebar step circle ───────────────────────────────────────────────────────
+// Keyword → icon lookup so incomplete steps get a little icon that hints at
+// the step's content, rather than a generic placeholder — checked in order,
+// first match wins.
+const STEP_ICON_KEYWORDS: [RegExp, LucideIcon][] = [
+  [/language|ielts|celpip|tef/i, BookOpen],
+  [/medical|health/i, HeartPulse],
+  [/biometric|photo|fingerprint/i, Fingerprint],
+  [/fee|pay|payment/i, CreditCard],
+  [/noc|occupation|job|employ/i, Briefcase],
+  [/education|credential|eca|degree/i, GraduationCap],
+  [/bank|fund|financ/i, Building2],
+  [/interview|appointment/i, Calendar],
+  [/passport|travel|visa stamp/i, Plane],
+  [/document|file|form|upload/i, FileText],
+];
 
-type StepStatus = 'complete' | 'current' | 'upcoming';
+function getStepIcon(label: string): LucideIcon {
+  const match = STEP_ICON_KEYWORDS.find(([pattern]) => pattern.test(label));
+  return match ? match[1] : ClipboardList;
+}
 
-/** Circular icon conveying step completion state in the sidebar. */
-function SidebarStepCircle({ status, stepNumber }: { status: StepStatus; stepNumber: number }) {
-  if (status === 'complete') {
+/** Icon conveying step completion state in the sidebar — a filled green
+ * checkmark when done, a bare content-hinted icon otherwise. */
+function SidebarStepIcon({ completed, label }: { completed: boolean; label: string }) {
+  if (completed) {
     return (
-      <div style={{ width: 20, height: 20, borderRadius: '50%', background: INK, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-          <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <div style={{ width: STEP_ICON_SIZE, height: STEP_ICON_SIZE, borderRadius: '50%', background: GREEN, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Check size={12} color="#fff" strokeWidth={3} />
       </div>
     );
   }
-  if (status === 'current') {
-    return (
-      <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${INK}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: INK, fontFamily: font.body, fontSize: 10 }}>
-        {stepNumber}
-      </div>
-    );
-  }
+  const Icon = getStepIcon(label);
   return (
-    <div style={{ width: 20, height: 20, borderRadius: '50%', border: '1.5px solid #D1D5DB', background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontFamily: font.body, fontSize: 10 }}>
-      {stepNumber}
+    <div style={{ width: STEP_ICON_SIZE, height: STEP_ICON_SIZE, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Icon size={17} strokeWidth={1.75} color={INK} />
     </div>
   );
 }
@@ -91,12 +110,12 @@ interface AccordionChecklistProps {
   resources: EnrichedApplicationStep['resources'];
   onCheckedChange: (n: number) => void;
   onAllChecked?: () => void;
+  onDocumentsReadyChange?: (ready: boolean) => void;
 }
 
 /**
  * Accordion-style checklist card — each row expands inline to reveal its
- * content and actions. DB tasks, documents, email drafts, and resources
- * are all surfaced here as first-class checklist items.
+ * content and actions.
  */
 function AccordionChecklist({
   stepId,
@@ -108,18 +127,42 @@ function AccordionChecklist({
   resources,
   onCheckedChange,
   onAllChecked,
+  onDocumentsReadyChange,
 }: AccordionChecklistProps) {
-  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  // Documents needed starts expanded — it's the one section users need to act on
+  // immediately, so it shouldn't require an extra click to even see what's required.
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set(['documents']));
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [hydrating, setHydrating] = useState(true);
+  const [aiModal, setAiModal] = useState<{ actionType: AiActionType; modalTitle: string } | null>(null);
+  const [inputValues, setInputValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (profileContext?.nocCode) initial['noc_code'] = profileContext.nocCode;
+    if (profileContext?.occupation) initial['occupation'] = profileContext.occupation;
+    const pij = profileContext?.pathwayInputJson ?? {};
+    for (const [k, v] of Object.entries(pij)) initial[k] = v;
+    return initial;
+  });
+  const [inputStatus, setInputStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+  const [docUploadStates, setDocUploadStates] = useState<Record<string, 'idle' | 'uploading' | 'success' | 'error'>>({});
+  // Seed from persisted status so documents uploaded in a prior session still count.
+  const [uploadedDocIds, setUploadedDocIds] = useState<Set<string>>(
+    () => new Set(stepDocs.filter((d) => d.status === 'uploaded' || d.status === 'verified').map((d) => d.id))
+  );
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onCheckedChangeRef = useRef(onCheckedChange);
   onCheckedChangeRef.current = onCheckedChange;
   const onAllCheckedRef = useRef(onAllChecked);
   onAllCheckedRef.current = onAllChecked;
+  const onDocumentsReadyChangeRef = useRef(onDocumentsReadyChange);
+  onDocumentsReadyChangeRef.current = onDocumentsReadyChange;
 
-  // Proxy refs — always point to the latest values so the flush fn registered
-  // once at mount can call the current logic without re-registering.
+  // Report document-upload readiness up so the parent can gate step completion.
+  useEffect(() => {
+    const ready = stepDocs.length === 0 || uploadedDocIds.size >= stepDocs.length;
+    onDocumentsReadyChangeRef.current?.(ready);
+  }, [uploadedDocIds, stepDocs.length]);
   const checkedRef = useRef<Set<number>>(new Set());
   checkedRef.current = checked;
   const flushFnRef = useRef<() => void>(() => {});
@@ -205,8 +248,6 @@ function AccordionChecklist({
     e.stopPropagation();
     const next = new Set(checked);
     next.has(i) ? next.delete(i) : next.add(i);
-    // Keep the proxy ref current so an immediate flush (fired below via
-    // onAllChecked) writes this toggle, not the stale render-time value.
     checkedRef.current = next;
     setChecked(next);
     onCheckedChangeRef.current(next.size);
@@ -222,37 +263,76 @@ function AccordionChecklist({
     });
   };
 
+  const handleSaveInput = async (key: string, value: string) => {
+    setInputStatus((s) => ({ ...s, [key]: 'saving' }));
+    try {
+      await saveChecklistInput(key, value.trim() || null);
+      setInputStatus((s) => ({ ...s, [key]: 'saved' }));
+      setTimeout(() => setInputStatus((s) => ({ ...s, [key]: 'idle' })), 2200);
+    } catch {
+      setInputStatus((s) => ({ ...s, [key]: 'error' }));
+    }
+  };
+
+  const handleDocUpload = async (docId: string, documentType: string | null, file: File) => {
+    setDocUploadStates((s) => ({ ...s, [docId]: 'uploading' }));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (documentType) formData.append('document_type', documentType);
+      const res = await fetch('/api/vault/upload', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        throw new Error(json?.error?.message ?? 'Upload failed');
+      }
+      setDocUploadStates((s) => ({ ...s, [docId]: 'success' }));
+      setUploadedDocIds((prev) => new Set([...prev, docId]));
+    } catch {
+      setDocUploadStates((s) => ({ ...s, [docId]: 'error' }));
+    }
+  };
+
   const totalCheckable = checklistItems.length;
   const doneCount = checked.size;
+  const rowCardStyle: React.CSSProperties = { border: BORDER, borderRadius: CARD_RADIUS, background: BG, boxShadow: PANEL_SHADOW, overflow: 'hidden' };
+  // Main "Tasks & actions" list — rounded top, square bottom (distinct from the
+  // separated documents/email/resources cards below it, which stay fully rounded).
+  const taskListCardStyle: React.CSSProperties = {
+    ...rowCardStyle,
+    borderRadius: 0,
+    borderTopLeftRadius: CARD_RADIUS,
+    borderTopRightRadius: CARD_RADIUS,
+  };
+  const rowHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' };
+  const rowIconStyle: React.CSSProperties = { width: 30, height: 30, borderRadius: PILL, background: '#F5F4F8', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
   return (
-    <div style={CARD}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${BORDER_INNER}` }}>
-        <span style={{ fontFamily: font.body, fontSize: 13, fontWeight: 500, color: INK }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Header label */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+        <span style={{ fontFamily: font.body, fontSize: 14, fontWeight: 500, color: INK, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Tasks &amp; actions
         </span>
         {totalCheckable > 0 && (
-          <span style={{ fontFamily: font.body, fontSize: 12, color: MUTED }}>
-            {hydrating ? '–' : doneCount} of {totalCheckable} done
+          <span style={{ fontFamily: font.body, fontSize: 13, color: MUTED }}>
+            {hydrating ? '–' : doneCount}/{totalCheckable}
           </span>
         )}
       </div>
 
-      {/* DB checklist items */}
+      {checklistItems.length > 0 && (
+      <div style={taskListCardStyle}>
       {checklistItems.map((item, i) => {
         const key = `task-${i}`;
         const isOpen = openKeys.has(key);
         const done = checked.has(i);
         return (
-          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
-            {/* Row header */}
+          <div key={key} style={{ borderBottom: i < checklistItems.length - 1 ? BORDER_INNER : 'none' }}>
             <button
               type="button"
               onClick={() => toggleOpen(key)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              style={rowHeaderStyle}
             >
-              {/* Custom checkbox */}
               <span
                 role="checkbox"
                 aria-checked={done}
@@ -262,213 +342,323 @@ function AccordionChecklist({
                 className={done ? 'task-cb task-cb-checked' : 'task-cb'}
                 style={{ flexShrink: 0 }}
               />
-              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: done ? MUTED : INK, textDecoration: done ? 'line-through' : 'none', lineHeight: 1.5 }}>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 15, color: done ? MUTED : INK, textDecoration: done ? 'line-through' : 'none', lineHeight: 1.5 }}>
                 {item.label}
               </span>
               <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
                 {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               </span>
             </button>
-            {/* Expanded content */}
             {isOpen && (
-              <div style={{ padding: '0 20px 16px 52px' }}>
-                {item.detail && (
-                  <p style={{ fontFamily: font.body, fontSize: 13, color: '#374151', lineHeight: 1.65, margin: '0 0 12px' }}>
-                    {item.detail}
-                  </p>
-                )}
-                {item.links && item.links.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-                    {item.links.map((link) => (
-                      <a
-                        key={link.url}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: font.body, fontSize: 12, color: 'var(--pw-accent)', textDecoration: 'none', fontWeight: 500 }}
-                      >
-                        <ExternalLink size={11} />
-                        {link.label}
-                      </a>
-                    ))}
+              <div style={{ padding: '0 18px 18px' }}>
+                <div style={{ background: ACCENT_TINT, borderRadius: CARD_RADIUS - 4, padding: '14px 16px', border: BORDER_INNER }}>
+                  {item.detail && (
+                    <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, lineHeight: 1.65, margin: '0 0 12px' }}>{item.detail}</p>
+                  )}
+                  {item.links && item.links.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+                      {item.links.map((link) => (
+                        <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" className="subtle-link"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: ACCENT, textDecoration: 'none', alignSelf: 'flex-start' }}>
+                          <ExternalLink size={11} style={{ flexShrink: 0, opacity: 0.75 }} />
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {item.tips && item.tips.length > 0 && (
+                    <div style={{ background: BG, borderRadius: 12, padding: '8px 12px', marginBottom: 12, border: BORDER_INNER }}>
+                      {item.tips.map((tip, ti) => (
+                        <p key={ti} style={{ fontFamily: font.body, fontSize: 12, color: MUTED, lineHeight: 1.6, margin: ti === 0 ? 0 : '4px 0 0' }}>
+                          <span style={{ color: ACCENT, fontWeight: 500 }}>Tip: </span>{tip}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {item.input_field && (() => {
+                    const field = item.input_field;
+                    const fkey = field.key;
+                    const fval = inputValues[fkey] ?? '';
+                    const fstatus = inputStatus[fkey] ?? 'idle';
+                    const isSaving = fstatus === 'saving';
+                    return (
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ display: 'block', fontFamily: font.body, fontSize: 11, fontWeight: 500, color: '#374151', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 5 }}>
+                          {field.label}
+                        </label>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <input type={field.type ?? 'text'} value={fval} placeholder={field.placeholder}
+                            onChange={(e) => setInputValues((v) => ({ ...v, [fkey]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveInput(fkey, fval); }}
+                            className="checklist-input"
+                            style={{ flex: 1, height: 38, padding: '0 14px', borderRadius: PILL, border: '1px solid rgba(26,86,219,0.22)', background: BG, fontFamily: font.body, fontSize: 13, color: INK, outline: 'none' }} />
+                          <button type="button" onClick={() => void handleSaveInput(fkey, fval)} disabled={isSaving}
+                            style={{ height: 38, padding: '0 16px', borderRadius: PILL, border: '1.5px solid rgba(0,0,0,0.55)', background: BG, color: INK, fontFamily: font.body, fontSize: 12, fontWeight: 500, cursor: isSaving ? 'default' : 'pointer', flexShrink: 0, opacity: isSaving ? 0.6 : 1 }}>
+                            {fstatus === 'saving' ? 'Saving…' : fstatus === 'saved' ? '✓ Saved' : fstatus === 'error' ? 'Retry' : 'Save'}
+                          </button>
+                        </div>
+                        {field.hint && <p style={{ fontFamily: font.body, fontSize: 11, color: MUTED, margin: '5px 0 0', lineHeight: 1.5 }}>{field.hint}</p>}
+                        {fstatus === 'error' && <p style={{ fontFamily: font.body, fontSize: 11, color: '#D0000C', margin: '4px 0 0' }}>Failed to save — please try again.</p>}
+                      </div>
+                    );
+                  })()}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {item.ai_action && (
+                      <button type="button" onClick={() => setAiModal({ actionType: item.ai_action!.type, modalTitle: item.ai_action!.modal_title })}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 18px', borderRadius: PILL, border: 'none', background: AI_TEAL, fontFamily: font.body, fontSize: 12, fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 2px 8px rgba(8,145,178,0.25)' }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                          <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                        </svg>
+                        {item.ai_action.button_label}
+                      </button>
+                    )}
+                    <button type="button" onClick={(e) => toggleChecked(i, e)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 18px', borderRadius: PILL, border: `1.5px solid ${ACCENT}`, background: done ? ACCENT_TINT : BG, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: ACCENT, cursor: 'pointer' }}>
+                      {done ? '✓ Marked done' : 'Mark as done'}
+                    </button>
                   </div>
-                )}
-                {item.tips && item.tips.length > 0 && (
-                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
-                    {item.tips.map((tip, ti) => (
-                      <p key={ti} style={{ fontFamily: font.body, fontSize: 12, color: MUTED, lineHeight: 1.6, margin: ti === 0 ? 0 : '4px 0 0' }}>
-                        <span style={{ color: 'var(--pw-accent)', fontWeight: 500 }}>Tip: </span>{tip}
-                      </p>
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => toggleChecked(i, e)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: done ? GREEN_BG : BG, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: done ? GREEN : INK, cursor: 'pointer' }}
-                >
-                  {done ? '✓ Marked done' : 'Mark as done'}
-                </button>
+                </div>
               </div>
             )}
           </div>
         );
       })}
+      </div>
+      )}
 
-      {/* Documents section item */}
+      {/* Documents — styled to stand out: uploads are required before the step can be completed */}
       {hasDocuments && (() => {
         const key = 'documents';
         const isOpen = openKeys.has(key);
+        const allDocsUploaded = stepDocs.length > 0 && uploadedDocIds.size >= stepDocs.length;
+        // Stays orange in both states — square top corners, rounded bottom — so the
+        // section never reverts to the generic grey task-card treatment.
+        const docCardStyle: React.CSSProperties = { border: '1px solid var(--color-terracotta-200)', borderRadius: 0, borderBottomLeftRadius: CARD_RADIUS, borderBottomRightRadius: CARD_RADIUS, background: 'var(--color-terracotta-50)', boxShadow: PANEL_SHADOW, overflow: 'hidden' };
         return (
-          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
-            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileText size={10} color={MUTED} />
+          <div key={key} style={docCardStyle}>
+            <button type="button" onClick={() => toggleOpen(key)} style={rowHeaderStyle}>
+              <div style={{ ...rowIconStyle, background: allDocsUploaded ? '#DCFCE7' : 'var(--color-terracotta-100)' }}>
+                <FileText size={12} color={allDocsUploaded ? GREEN : 'var(--color-terracotta-700)'} />
               </div>
-              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 15, color: INK, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 Documents needed
-                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({stepDocs.length})</span>
+                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED }}>
+                  ({uploadedDocIds.size > 0 ? `${uploadedDocIds.size}/${stepDocs.length} uploaded` : stepDocs.length})
+                </span>
+                {!allDocsUploaded && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 9px', borderRadius: PILL, background: 'var(--color-terracotta-100)', color: 'var(--color-terracotta-700)', fontFamily: font.body, fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    Required to proceed
+                  </span>
+                )}
               </span>
-              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
-                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>{isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
             </button>
+            {!allDocsUploaded && (
+              <p style={{ margin: '0 18px 12px 56px', fontFamily: font.body, fontSize: 12, color: 'var(--color-terracotta-700)', lineHeight: 1.5 }}>
+                Upload these documents before marking this step complete.
+              </p>
+            )}
             {isOpen && (
-              <div style={{ padding: '4px 20px 16px 52px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {stepDocs.map((doc) => (
-                  <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: `1px dashed ${BORDER_CARD}`, borderRadius: 8 }}>
-                    <FileText size={13} color={MUTED} style={{ flexShrink: 0 }} />
-                    <span style={{ fontFamily: font.body, fontSize: 13, color: MUTED, flex: 1, minWidth: 0 }}>{doc.name}</span>
-                    <button type="button" style={{ fontFamily: font.body, fontSize: 12, fontWeight: 500, color: ACCENT, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-                      Upload
-                    </button>
-                  </div>
-                ))}
+              <div style={{ padding: '0 18px 18px' }}>
+                <div style={{ background: 'var(--color-terracotta-50)', borderRadius: CARD_RADIUS - 4, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, border: '1px solid var(--color-terracotta-100)' }}>
+                  {stepDocs.map((doc) => {
+                    const upState = docUploadStates[doc.id] ?? 'idle';
+                    const isUploaded = uploadedDocIds.has(doc.id);
+                    return (
+                      <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: BG, borderRadius: PILL, border: '1px solid var(--color-terracotta-100)', transition: 'all 150ms' }}>
+                        <FileText size={13} color={isUploaded ? 'var(--color-terracotta-600)' : 'var(--color-terracotta-500)'} style={{ flexShrink: 0 }} />
+                        <span style={{ fontFamily: font.body, fontSize: 13, color: INK, flex: 1, minWidth: 0 }}>{doc.name}</span>
+                        {upState === 'uploading' ? (
+                          <Loader2 size={13} style={{ color: 'var(--color-terracotta-500)', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                        ) : isUploaded || upState === 'success' ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: font.body, fontSize: 11, fontWeight: 500, color: GREEN, flexShrink: 0 }}>
+                            <Check size={12} /> Uploaded
+                          </span>
+                        ) : upState === 'error' ? (
+                          <button type="button" onClick={() => fileInputRefs.current[doc.id]?.click()} style={{ fontFamily: font.body, fontSize: 12, fontWeight: 500, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>Retry</button>
+                        ) : (
+                          <button type="button" onClick={() => fileInputRefs.current[doc.id]?.click()} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: font.body, fontSize: 12, fontWeight: 500, color: 'var(--color-terracotta-600)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                            <UploadCloud size={12} /> Upload
+                          </button>
+                        )}
+                        <input ref={(el) => { fileInputRefs.current[doc.id] = el; }} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                          onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleDocUpload(doc.id, doc.documentType, file); e.target.value = ''; }} />
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontFamily: font.body, fontSize: 11, color: TEXT_TERTIARY, margin: '4px 4px 0', lineHeight: 1.5 }}>
+                    PDF, JPG, or PNG · Max 10 MB. Uploaded files appear in your Documents tab.
+                  </p>
+                </div>
               </div>
             )}
           </div>
         );
       })()}
 
-      {/* Email drafts section item */}
+      {/* Email drafts */}
       {hasEmail && (() => {
         const key = 'email';
         const isOpen = openKeys.has(key);
         return (
-          <div key={key} style={{ borderBottom: `1px solid ${BORDER_INNER}` }}>
-            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Mail size={10} color={MUTED} />
+          <div key={key} style={rowCardStyle}>
+            <button type="button" onClick={() => toggleOpen(key)} style={rowHeaderStyle}>
+              <div style={rowIconStyle}>
+                <Mail size={12} color={MUTED} />
               </div>
-              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
-                Email drafts
-                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({templates.length})</span>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 15, color: INK, lineHeight: 1.5 }}>
+                Email drafts <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({templates.length})</span>
               </span>
-              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
-                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>{isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
             </button>
             {isOpen && profileContext && (
-              <div style={{ padding: '4px 20px 16px 52px' }}>
-                <EmailTemplatesSection pathwaySlug={pathwaySlug} stepNumber={stepNumber} profileContext={profileContext} />
+              <div style={{ padding: '0 18px 18px' }}>
+                <div style={{ background: ACCENT_TINT, borderRadius: CARD_RADIUS - 4, padding: '12px 16px', border: BORDER_INNER }}>
+                  <EmailTemplatesSection pathwaySlug={pathwaySlug} stepNumber={stepNumber} profileContext={profileContext} />
+                </div>
               </div>
             )}
           </div>
         );
       })()}
 
-      {/* Official resources section item */}
+      {/* Official resources */}
       {hasResources && resources && (() => {
         const key = 'resources';
         const isOpen = openKeys.has(key);
         return (
-          <div key={key}>
-            <button type="button" onClick={() => toggleOpen(key)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${BORDER_CARD}`, background: 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ExternalLink size={10} color={MUTED} />
+          <div key={key} style={rowCardStyle}>
+            <button type="button" onClick={() => toggleOpen(key)} style={rowHeaderStyle}>
+              <div style={rowIconStyle}>
+                <ExternalLink size={12} color={MUTED} />
               </div>
-              <span style={{ flex: 1, fontFamily: font.body, fontSize: 13, color: INK, lineHeight: 1.5 }}>
-                Official resources
-                <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({resources.length})</span>
+              <span style={{ flex: 1, fontFamily: font.body, fontSize: 15, color: INK, lineHeight: 1.5 }}>
+                Official resources <span style={{ fontFamily: font.body, fontSize: 11, color: MUTED, marginLeft: 6 }}>({resources.length})</span>
               </span>
-              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>
-                {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </span>
+              <span style={{ flexShrink: 0, color: TEXT_TERTIARY }}>{isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
             </button>
             {isOpen && (
-              <div style={{ padding: '4px 12px 12px 52px' }}>
-                {resources.map((r, i) => (
-                  <a
-                    key={i}
-                    href={r.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 6, textDecoration: 'none' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = '#F9FAFB'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'; }}
-                  >
-                    <ExternalLink size={13} style={{ color: MUTED, flexShrink: 0 }} />
-                    <span style={{ fontFamily: font.body, fontSize: 13, color: INK, flex: 1, minWidth: 0 }}>{r.label}</span>
-                    <ExternalLink size={11} style={{ color: MUTED, flexShrink: 0, opacity: 0.4 }} />
-                  </a>
-                ))}
+              <div style={{ padding: '0 18px 18px' }}>
+                <div style={{ background: ACCENT_TINT, borderRadius: CARD_RADIUS - 4, padding: '4px 8px', border: BORDER_INNER }}>
+                  {resources.map((r, ri) => (
+                    <a key={ri} href={r.url} target="_blank" rel="noopener noreferrer" className="subtle-link"
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: PILL, textDecoration: 'none', transition: 'background 0.1s' }}>
+                      <ExternalLink size={13} style={{ color: MUTED, flexShrink: 0 }} />
+                      <span style={{ fontFamily: font.body, fontSize: 13, color: INK, flex: 1, minWidth: 0 }}>{r.label}</span>
+                      <ExternalLink size={11} style={{ color: MUTED, flexShrink: 0, opacity: 0.4 }} />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         );
       })()}
 
-      {/* Empty state */}
       {checklistItems.length === 0 && !hasDocuments && !hasEmail && !hasResources && (
-        <div style={{ padding: '20px', textAlign: 'center' }}>
-          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: 0 }}>
-            No tasks for this step.
-          </p>
+        <div style={{ ...rowCardStyle, padding: '20px', textAlign: 'center' }}>
+          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: 0 }}>No tasks for this step.</p>
         </div>
       )}
+
+      <AiGenerateModal isOpen={aiModal !== null} onClose={() => setAiModal(null)} title={aiModal?.modalTitle ?? ''} actionType={aiModal?.actionType ?? 'cover_letter'} stepId={stepId} />
     </div>
   );
 }
 
 // ── Pathway overview panel ────────────────────────────────────────────────────
 
-/** Pathway overview — shown when no step is selected. */
-function OverviewPanel({ pathway }: { pathway: ApplicationPageClientProps['pathway'] }) {
+interface OverviewPanelProps {
+  pathway: ApplicationPageClientProps['pathway'];
+  steps: EnrichedApplicationStep[];
+  completedIds: Set<string>;
+  displayCrs: number;
+  onSelectStep: (id: string) => void;
+}
+
+/** Overview — shown when no step is selected. CRS score and the "what to do
+ * next" shortlist live here instead of the top progress bar / sidebar. */
+function OverviewPanel({ pathway, steps, completedIds, displayCrs, onSelectStep }: OverviewPanelProps) {
+  const nextSteps = steps.filter((s) => !completedIds.has(s.id)).slice(0, 3);
+
   return (
-    <div style={{ padding: '28px 32px' }}>
-      <div style={{ ...CARD, padding: '28px' }}>
-        <p style={{ ...EYEBROW, marginBottom: 12 }}>Your pathway</p>
-        <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 400, color: INK, margin: '0 0 4px', lineHeight: 1.2 }}>
-          {pathway.title}
-        </h1>
-        {pathway.officialName && (
-          <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: '0 0 20px' }}>{pathway.officialName}</p>
-        )}
-        <hr style={{ border: 'none', borderTop: `1px solid ${BORDER_INNER}`, margin: '0 0 20px' }} />
-        <div style={{ display: 'flex', gap: 40, marginBottom: pathway.description ? 20 : 0 }}>
-          <div>
-            <p style={{ ...EYEBROW, marginBottom: 4 }}>Processing time</p>
-            <p style={{ fontFamily: font.body, fontSize: 14, color: INK, margin: 0 }}>{pathway.processingTime}</p>
-          </div>
-          <div>
-            <p style={{ ...EYEBROW, marginBottom: 4 }}>Total steps</p>
-            <p style={{ fontFamily: font.body, fontSize: 14, color: INK, margin: 0 }}>{pathway.totalSteps}</p>
+    <div style={{ maxWidth: CONTENT_MAX_WIDTH, padding: '24px 48px 80px 72px' }}>
+      <style>{`
+        .pw-next-step-row:hover { background: rgba(0,0,0,0.03); }
+        .pw-next-step-row:hover .pw-next-step-arrow { opacity: 1; transform: translateX(0); }
+        .pw-next-step-arrow { opacity: 0; transform: translateX(-2px); transition: opacity 120ms ease, transform 120ms ease; }
+      `}</style>
+      <h1 style={{ fontFamily: font.display, fontSize: 38, fontWeight: 400, color: INK, margin: '0 0 8px', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+        {pathway.title}
+      </h1>
+      {pathway.officialName && (
+        <p style={{ fontFamily: font.body, fontSize: 17, color: MUTED, margin: '0 0 28px' }}>{pathway.officialName}</p>
+      )}
+      <div style={{ display: 'flex', gap: 14, marginBottom: pathway.description ? 32 : 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '14px 24px', borderRadius: CARD_RADIUS, background: '#FAFAFB', border: BORDER }}>
+          <p style={{ fontFamily: font.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT_TERTIARY, margin: 0 }}>Processing time</p>
+          <p style={{ fontFamily: font.body, fontSize: 18, color: INK, margin: 0, fontWeight: 500 }}>{pathway.processingTime}</p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '14px 24px', borderRadius: CARD_RADIUS, background: '#FAFAFB', border: BORDER }}>
+          <p style={{ fontFamily: font.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT_TERTIARY, margin: 0 }}>Total steps</p>
+          <p style={{ fontFamily: font.body, fontSize: 18, color: INK, margin: 0, fontWeight: 500 }}>{pathway.totalSteps}</p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '14px 24px', borderRadius: CARD_RADIUS, background: '#FAFAFB', border: BORDER }}>
+          <p style={{ fontFamily: font.body, fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: TEXT_TERTIARY, margin: 0 }}>CRS score</p>
+          <p style={{ fontFamily: font.body, fontSize: 18, color: ACCENT, margin: 0, fontWeight: 500 }}>{displayCrs}</p>
+        </div>
+      </div>
+      {pathway.description && (
+        <p style={{ fontFamily: font.body, fontSize: 17, color: '#374151', margin: '0 0 36px', lineHeight: 1.75 }}>
+          {pathway.description}
+        </p>
+      )}
+
+      {nextSteps.length > 0 && (
+        <div style={{ marginBottom: 36 }}>
+          <p style={{ fontFamily: font.body, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: INK, margin: '0 0 12px' }}>
+            What to do next
+          </p>
+          <div style={{ border: BORDER, borderRadius: CARD_RADIUS, overflow: 'hidden', background: BG }}>
+            {nextSteps.map((step, i) => (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => onSelectStep(step.id)}
+                className="pw-next-step-row"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14, width: '100%',
+                  padding: '16px 20px',
+                  background: 'none', border: 'none',
+                  borderBottom: i < nextSteps.length - 1 ? BORDER_INNER : 'none',
+                  cursor: 'pointer', textAlign: 'left',
+                  transition: 'background 120ms ease',
+                }}
+              >
+                <SidebarStepIcon completed={false} label={step.label} />
+                <span style={{ flex: 1, fontFamily: font.body, fontSize: 15, color: INK }}>{step.label}</span>
+                <ChevronRight size={16} className="pw-next-step-arrow" style={{ flexShrink: 0, color: ACCENT }} />
+              </button>
+            ))}
           </div>
         </div>
-        {pathway.description && (
-          <p style={{ fontFamily: font.body, fontSize: 14, color: '#374151', margin: '0 0 28px', lineHeight: 1.7, maxWidth: 560 }}>
-            {pathway.description}
-          </p>
-        )}
-        <Link
-          href="/onboarding/matches"
-          style={{ fontFamily: font.body, fontSize: 13, color: INK, textDecoration: 'none', opacity: 0.7 }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '1'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.opacity = '0.7'; }}
-        >
-          Change pathway →
-        </Link>
-      </div>
+      )}
+
+      <Link href="/onboarding/matches"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '13px 28px',
+          borderRadius: PILL,
+          border: `1.5px solid ${ACCENT}`,
+          fontFamily: font.body, fontSize: 14, fontWeight: 600,
+          letterSpacing: '0.04em', textTransform: 'uppercase',
+          color: ACCENT, textDecoration: 'none',
+          transition: 'background 120ms ease',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = ACCENT_TINT; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.background = 'none'; }}>
+        Change pathway →
+      </Link>
     </div>
   );
 }
@@ -477,214 +667,110 @@ function OverviewPanel({ pathway }: { pathway: ApplicationPageClientProps['pathw
 
 interface StepDetailPanelProps {
   step: EnrichedApplicationStep;
-  steps: EnrichedApplicationStep[];
   documents: DashboardDocument[];
   pathwaySlug: string;
   profileContext: ProfileContext | null;
   isCompleted: boolean;
-  onMarkComplete: (stepId: string) => void;
-  onMarkIncomplete: (stepId: string) => void;
-  onSelectStep: (id: string | 'overview') => void;
+  isPending: boolean;
+  docsReady: boolean;
+  actionError: string | null;
+  hasNextStep: boolean;
+  onMarkComplete: () => void;
+  onMarkIncomplete: () => void;
+  onGoToOverview: () => void;
+  onGoToNext: () => void;
   onAllChecked?: () => void;
-  markCompleteRef?: MutableRefObject<((onSuccess?: () => void) => void) | null>;
+  onDocumentsReadyChange?: (ready: boolean) => void;
 }
 
-/** Step detail — objective card, accordion task list, completion bar. */
+/** Step detail — plain heading + description, then the accordion task list,
+ * then the complete / navigate actions at the bottom of the page. */
 function StepDetailPanel({
-  step,
-  steps,
-  documents,
-  pathwaySlug,
-  profileContext,
-  isCompleted,
-  onMarkComplete,
-  onMarkIncomplete,
-  onSelectStep,
-  onAllChecked,
-  markCompleteRef,
+  step, documents, pathwaySlug, profileContext,
+  isCompleted, isPending, docsReady, actionError, hasNextStep,
+  onMarkComplete, onMarkIncomplete, onGoToOverview, onGoToNext,
+  onAllChecked, onDocumentsReadyChange,
 }: StepDetailPanelProps) {
   const { ref: scrollRef, faded } = useScrollFade();
-  const [isPending, startTransition] = useTransition();
-  const [justCompleted, setJustCompleted] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [checkedCount, setCheckedCount] = useState(0);
-
+  const [, setCheckedCount] = useState(0);
   const handleCheckedChange = useCallback((n: number) => { setCheckedCount(n); }, []);
-
-  const handleMarkComplete = (onSuccess?: () => void) => {
-    setActionError(null);
-    startTransition(async () => {
-      try {
-        await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
-        setJustCompleted(true);
-        onMarkComplete(step.id);
-        onSuccess?.();
-      } catch {
-        setActionError('Failed to save. Please try again.');
-      }
-    });
-  };
-
-  const handleMarkIncomplete = () => {
-    setActionError(null);
-    setJustCompleted(false);
-    startTransition(async () => {
-      try {
-        await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'upcoming' });
-        onMarkIncomplete(step.id);
-      } catch {
-        setActionError('Failed to save. Please try again.');
-      }
-    });
-  };
-
-  // Expose the button's mark-complete flow so the parent's auto-complete handler
-  // can trigger the identical path (DB write + success animation).
-  useEffect(() => {
-    if (markCompleteRef) markCompleteRef.current = handleMarkComplete;
-  });
-
   const stepDocs = documents.filter((d) => documentBelongsToStep(d.name, step.stepNumber));
-  const currentIdx = steps.findIndex((s) => s.id === step.id);
-  const nextStep = currentIdx >= 0 && currentIdx < steps.length - 1 ? steps[currentIdx + 1] : null;
-
-  const totalTasks = step.checklistItems?.length ?? 0;
-  const remaining = totalTasks > 0 ? totalTasks - checkedCount : 0;
-  const completionLabel = isCompleted
-    ? 'Step complete'
-    : totalTasks > 0
-      ? `${remaining} ${remaining === 1 ? 'task' : 'tasks'} remaining`
-      : 'Ready to mark complete';
-
-  const ss = isCompleted || step.status === 'complete'
-    ? { bg: GREEN_BG, color: GREEN, label: 'Complete' }
-    : step.status === 'current'
-      ? { bg: '#F3F4F6', color: INK, label: 'In progress' }
-      : { bg: '#F3F4F6', color: MUTED, label: 'Upcoming' };
 
   const checklistItems = step.checklistItems ?? [];
 
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-
-      {/* Scrollable content */}
       <div className="pw-scroll-fade" data-faded={faded} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div ref={scrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '22px 32px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+        <div ref={scrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <div style={{ maxWidth: CONTENT_MAX_WIDTH, padding: '24px 48px 80px 72px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Section 1 — Objective */}
-          <div style={CARD}>
-            <div style={{ padding: '16px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={EYEBROW}>Step {step.stepNumber}</span>
-                  <span style={{ display: 'inline-block', padding: '2px 9px', borderRadius: 9999, background: ss.bg, color: ss.color, fontFamily: font.body, fontSize: 11, fontWeight: 500 }}>
-                    {ss.label}
-                  </span>
-                </div>
-                {step.estimatedDuration && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 9999, background: '#F3F4F6', fontFamily: font.body, fontSize: 12, color: MUTED }}>
-                    <Clock size={12} />
-                    {step.estimatedDuration}
-                  </span>
-                )}
-              </div>
-              <h1 style={{ fontFamily: font.display, fontSize: 20, fontWeight: 500, color: INK, margin: '0 0 12px', lineHeight: 1.3 }}>
+            {/* Heading + description — plain text, no container */}
+            <div>
+              <h1 style={{ fontFamily: font.display, fontSize: 28, fontWeight: 500, color: INK, margin: '0 0 14px', lineHeight: 1.25, letterSpacing: '-0.01em' }}>
                 {step.label}
               </h1>
               {step.description && (
-                <p style={{ fontFamily: font.body, fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.65 }}>
+                <p style={{ fontFamily: font.body, fontSize: 16, color: '#374151', margin: 0, lineHeight: 1.7 }}>
                   {step.description}
                 </p>
               )}
             </div>
-          </div>
 
-          {/* Section 2 — Accordion tasks & actions */}
-          <AccordionChecklist
-            key={step.id}
-            stepId={step.id}
-            checklistItems={checklistItems}
-            stepDocs={stepDocs}
-            pathwaySlug={pathwaySlug}
-            stepNumber={step.stepNumber}
-            profileContext={profileContext}
-            resources={step.resources}
-            onCheckedChange={handleCheckedChange}
-            onAllChecked={onAllChecked}
-          />
+            {/* Tasks accordion */}
+            <AccordionChecklist
+              key={step.id}
+              stepId={step.id}
+              checklistItems={checklistItems}
+              stepDocs={stepDocs}
+              pathwaySlug={pathwaySlug}
+              stepNumber={step.stepNumber}
+              profileContext={profileContext}
+              resources={step.resources}
+              onCheckedChange={handleCheckedChange}
+              onAllChecked={onAllChecked}
+              onDocumentsReadyChange={onDocumentsReadyChange}
+            />
 
-        </div>
-      </div>
-      </div>
-
-      {/* Completion bar */}
-      <div style={{ borderTop: `1px solid ${BORDER_INNER}`, padding: '14px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
-
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ position: 'relative', flexShrink: 0, width: 20, height: 20 }}>
-              {isCompleted && justCompleted ? (
-                <>
-                  <CheckmarkDraw size={20} color={GREEN} />
-                  <ParticleBurst count={10} size={48} />
-                </>
-              ) : (
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: isCompleted ? GREEN : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                    <path d="M1 3.5L3.5 6L8 1" stroke={isCompleted ? 'white' : '#9CA3AF'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
+            {/* Complete / navigate actions — bottom of the page, reached by scrolling */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
+              {actionError && (
+                <p style={{ fontFamily: font.body, fontSize: 12, color: '#DC2626', margin: 0 }}>{actionError}</p>
               )}
+              <div style={{ display: 'flex', gap: 10 }}>
+                {isCompleted ? (
+                  <button type="button" onClick={onMarkIncomplete} disabled={isPending}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '13px 22px', borderRadius: PILL, border: '1px solid #E7E5EC', background: BG, fontFamily: font.body, fontSize: 14, fontWeight: 500, color: MUTED, cursor: isPending ? 'not-allowed' : 'pointer' }}>
+                    Mark incomplete
+                  </button>
+                ) : (
+                  <button type="button" onClick={onMarkComplete} disabled={isPending || !docsReady}
+                    title={!docsReady ? 'Upload the required documents first' : undefined}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 22px', borderRadius: PILL,
+                      background: '#FFFFFF',
+                      color: isPending || !docsReady ? '#B0B8C1' : ACCENT,
+                      border: `1.5px solid ${isPending || !docsReady ? '#D8DCE1' : ACCENT}`,
+                      fontFamily: font.body, fontSize: 14, fontWeight: 600,
+                      cursor: isPending || !docsReady ? 'not-allowed' : 'pointer',
+                    }}>
+                    {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                    {isPending ? 'Saving…' : !docsReady ? 'Upload documents to continue' : 'Mark as complete'}
+                  </button>
+                )}
+                <button type="button" onClick={onGoToOverview}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '13px 20px', borderRadius: PILL, border: '1.5px solid #E7E5EC', background: BG, fontFamily: font.body, fontSize: 14, fontWeight: 500, color: INK, cursor: 'pointer' }}>
+                  ← Overview
+                </button>
+                {hasNextStep && (
+                  <button type="button" onClick={onGoToNext}
+                    disabled={!isCompleted} title={!isCompleted ? 'Complete this step first' : undefined}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '13px 20px', borderRadius: PILL, background: isCompleted ? INK : BG, color: isCompleted ? '#FFFFFF' : MUTED, border: isCompleted ? 'none' : '1.5px solid #E7E5EC', fontFamily: font.body, fontSize: 14, fontWeight: 500, cursor: isCompleted ? 'pointer' : 'not-allowed' }}>
+                    Next →
+                  </button>
+                )}
+              </div>
             </div>
-            <span style={{ fontFamily: font.body, fontSize: 13, fontWeight: 500, color: isCompleted ? GREEN : INK }}>
-              {completionLabel}
-            </span>
           </div>
-          {actionError && (
-            <p style={{ fontFamily: font.body, fontSize: 12, color: '#DC2626', margin: '4px 0 0' }}>{actionError}</p>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={() => onSelectStep('overview')}
-            style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: BG, fontFamily: font.body, fontSize: 13, fontWeight: 500, color: INK, cursor: 'pointer' }}
-          >
-            ← Back to overview
-          </button>
-          {isCompleted ? (
-            <button
-              type="button"
-              onClick={handleMarkIncomplete}
-              disabled={isPending}
-              style={{ display: 'inline-flex', alignItems: 'center', padding: '8px 16px', borderRadius: 8, border: `1px solid ${BORDER_CARD}`, background: BG, fontFamily: font.body, fontSize: 13, fontWeight: 500, color: MUTED, cursor: isPending ? 'not-allowed' : 'pointer' }}
-            >
-              Mark incomplete
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleMarkComplete()}
-              disabled={isPending}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: isPending ? '#E5E7EB' : INK, color: isPending ? MUTED : '#FFFFFF', border: 'none', fontFamily: font.body, fontSize: 13, fontWeight: 500, cursor: isPending ? 'not-allowed' : 'pointer' }}
-            >
-              {isPending && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-              {isPending ? 'Saving…' : 'Mark as complete'}
-            </button>
-          )}
-          {nextStep && (
-            <button
-              type="button"
-              onClick={() => { if (isCompleted) onSelectStep(nextStep.id); }}
-              disabled={!isCompleted}
-              title={!isCompleted ? 'Complete this step first' : undefined}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: isCompleted ? INK : '#E5E7EB', color: isCompleted ? '#FFFFFF' : MUTED, border: 'none', fontFamily: font.body, fontSize: 13, fontWeight: 500, cursor: isCompleted ? 'pointer' : 'not-allowed' }}
-            >
-              Next step →
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -693,51 +779,59 @@ function StepDetailPanel({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-/** Application page — floating left sidebar + white card content area. */
-export function ApplicationPageClient({ pathway, steps, profileContext, documents }: ApplicationPageClientProps) {
+/** Application page — unified bordered container with top strip + sidebar | content layout. */
+export function ApplicationPageClient({
+  pathway,
+  steps,
+  profileContext,
+  documents,
+  crsScore,
+  onBack,
+}: ApplicationPageClientProps) {
   const { ref: overviewScrollRef, faded: overviewFaded } = useScrollFade();
   const [selectedId, setSelectedId] = useState<string>('overview');
   const [completedIds, setCompletedIds] = useState<Set<string>>(
     () => new Set(steps.filter((s) => s.status === 'complete').map((s) => s.id))
   );
+  const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const selectedStep = steps.find((s) => s.id === selectedId) ?? null;
+  const completedCount = completedIds.size;
+  const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
+
+  const currentStepIdx = selectedStep ? steps.findIndex((s) => s.id === selectedStep.id) : -1;
+  const nextStep = currentStepIdx >= 0 && currentStepIdx < steps.length - 1 ? steps[currentStepIdx + 1] : null;
+  const isCurrentStepCompleted = selectedStep ? completedIds.has(selectedStep.id) : false;
+
+  // Documents-uploaded gate — a step with required documents can't be marked
+  // complete until all of them are uploaded. Seeded from persisted status on
+  // step switch; AccordionChecklist reports live (in-session) uploads on top.
+  const computeDocsReady = useCallback((step: EnrichedApplicationStep | null) => {
+    if (!step) return true;
+    const stepDocs = documents.filter((d) => documentBelongsToStep(d.name, step.stepNumber));
+    return stepDocs.length === 0 || stepDocs.every((d) => d.status === 'uploaded' || d.status === 'verified');
+  }, [documents]);
+  const [docsReady, setDocsReady] = useState(() => computeDocsReady(selectedStep));
 
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const markCompleteRef = useRef<((onSuccess?: () => void) => void) | null>(null);
-
   const clearAutoAdvance = () => {
-    if (autoAdvanceRef.current) {
-      clearTimeout(autoAdvanceRef.current);
-      autoAdvanceRef.current = null;
-    }
+    if (autoAdvanceRef.current) { clearTimeout(autoAdvanceRef.current); autoAdvanceRef.current = null; }
   };
 
-  // Manual navigation cancels any pending auto-advance (D).
   const handleSelectStep = (id: string) => {
     clearAutoAdvance();
     setSelectedId(id);
+    setDocsReady(computeDocsReady(steps.find((s) => s.id === id) ?? null));
   };
 
-  // Clear a pending auto-advance timer on unmount (D).
-  useEffect(() => () => {
-    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-  }, []);
+  useEffect(() => () => { if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current); }, []);
 
   const handleMarkComplete = (stepId: string) => setCompletedIds((prev) => new Set([...prev, stepId]));
   const handleMarkIncomplete = (stepId: string) => {
     setCompletedIds((prev) => { const next = new Set(prev); next.delete(stepId); return next; });
   };
 
-  // Auto-complete when every checklist item is checked (B). Idempotent, and
-  // flushes pending checklist writes before completing so none are lost.
-  const handleAutoComplete = () => {
-    if (completedIds.has(selectedId)) return;
-    flushAllChecklists();
-    // Advance only on the checklist path — passed as the success callback so the
-    // timer starts after the mark-complete write resolves (button path passes none).
-    markCompleteRef.current?.(() => scheduleAutoAdvance(selectedId));
-  };
-
-  // After a step completes, advance to the next still-incomplete step (C).
   const scheduleAutoAdvance = (fromId: string) => {
     const idx = steps.findIndex((s) => s.id === fromId);
     if (idx < 0) return;
@@ -745,194 +839,241 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
     for (let i = idx + 1; i < steps.length; i++) {
       if (!completedIds.has(steps[i].id)) { nextId = steps[i].id; break; }
     }
-    if (nextId === null) return; // all remaining steps complete — stay put
+    if (nextId === null) return;
     const target = nextId;
     clearAutoAdvance();
-    autoAdvanceRef.current = setTimeout(() => {
-      autoAdvanceRef.current = null;
-      setSelectedId(target);
-    }, 800);
+    autoAdvanceRef.current = setTimeout(() => { autoAdvanceRef.current = null; setSelectedId(target); }, 800);
   };
 
-  const selectedStep = steps.find((s) => s.id === selectedId) ?? null;
-  const completedCount = completedIds.size;
-  const progressPct = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
+  const handleMutateComplete = (onSuccess?: () => void) => {
+    if (!selectedStep) return;
+    if (!docsReady) { setActionError('Upload the required documents before completing this step.'); return; }
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await updateStepProgress({ stepId: selectedStep.id, pathwaySlug: pathway.slug, status: 'complete' });
+        handleMarkComplete(selectedStep.id);
+        onSuccess?.();
+      } catch {
+        setActionError('Failed to save. Please try again.');
+      }
+    });
+  };
+
+  const handleMutateIncomplete = () => {
+    if (!selectedStep) return;
+    setActionError(null);
+    startTransition(async () => {
+      try {
+        await updateStepProgress({ stepId: selectedStep.id, pathwaySlug: pathway.slug, status: 'upcoming' });
+        handleMarkIncomplete(selectedStep.id);
+      } catch {
+        setActionError('Failed to save. Please try again.');
+      }
+    });
+  };
+
+  const handleAutoComplete = () => {
+    if (completedIds.has(selectedId)) return;
+    if (!docsReady) return;
+    flushAllChecklists();
+    handleMutateComplete(() => scheduleAutoAdvance(selectedId));
+  };
+
+  // CRS display — show computed score, or 450 as demo placeholder
+  const displayCrs = crsScore ?? 450;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: '#EAECEF', padding: 12, gap: 12 }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, background: PAGE_BG }}>
 
-      {/* ─── Step checkpoint progress bar — white box ─── */}
-      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 20, padding: '0 24px', height: 60, background: BG, borderRadius: 14, flexShrink: 0 }}>
-        {/* Pathway title */}
-        <span style={{ fontFamily: font.display, fontWeight: 500, fontSize: 13, color: INK, whiteSpace: 'nowrap', flexShrink: 0 }}>
-          {pathway.title}
-        </span>
+        {/* ── Left sidebar — floated off the screen edge, no divider from the content area ── */}
+        <div style={{ width: 252, flexShrink: 0, margin: '24px 0 24px 28px', display: 'flex', flexDirection: 'column', overflow: 'visible', background: BG }}>
 
-        {/* Step dot track */}
-        <ol style={{ flex: 1, display: 'flex', alignItems: 'center', margin: 0, padding: '0 4px', listStyle: 'none', gap: 0 }}>
-          {steps.map((step, i) => {
-            const isCompleted = completedIds.has(step.id);
-            const isSelected = step.id === selectedId;
-            const isLast = i === steps.length - 1;
-            return (
-              <li key={step.id} style={{ display: 'flex', alignItems: 'center', flex: isLast ? '0 0 auto' : 1, minWidth: 0 }}>
-                <button
-                  type="button"
-                  title={`Step ${step.stepNumber}: ${step.label}`}
-                  aria-label={`Go to step ${step.stepNumber}: ${step.label}`}
-                  onClick={() => handleSelectStep(step.id)}
-                  style={{
-                    width: isSelected ? 13 : 9,
-                    height: isSelected ? 13 : 9,
-                    borderRadius: '50%',
-                    background: isCompleted ? ACCENT : isSelected ? ACCENT : 'transparent',
-                    border: isCompleted || isSelected ? 'none' : '1.5px solid #CBD5E1',
-                    flexShrink: 0,
-                    cursor: 'pointer',
-                    padding: 0,
-                    transition: 'width 180ms cubic-bezier(0.34,1.56,0.64,1), height 180ms cubic-bezier(0.34,1.56,0.64,1), background 150ms ease',
-                    opacity: isCompleted ? 0.55 : 1,
-                  }}
-                />
-                {!isLast && (
-                  <div aria-hidden="true" style={{
-                    flex: 1,
-                    height: 1.5,
-                    minWidth: 6,
-                    background: isCompleted ? ACCENT : '#E2E8F0',
-                    opacity: isCompleted ? 0.35 : 1,
-                    transition: 'background 300ms ease',
-                  }} />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-
-        {/* Completion count */}
-        <span style={{ fontFamily: font.body, fontSize: 12, color: MUTED, whiteSpace: 'nowrap', flexShrink: 0 }}>
-          {completedCount} of {steps.length} complete · {progressPct}%
-        </span>
-      </div>
-
-      {/* ─── Two-column row ─── */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', gap: 12 }}>
-
-      {/* ─── Left sidebar — white box ─── */}
-      <div style={{ flexShrink: 0, width: '30%', minWidth: 240, maxWidth: 320, background: BG, borderRadius: 14, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div className="pw-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-
-          {/* Nav list */}
-          <nav style={{ padding: '10px 8px', flex: 1 }}>
-            <button
-              type="button"
-              onClick={() => handleSelectStep('overview')}
-              className={`app-sidebar-item${selectedId === 'overview' ? ' is-selected' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 10px', cursor: 'pointer', textAlign: 'left' }}
-            >
-              <div className="item-icon" style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: selectedId === 'overview' ? '#E8E8E8' : '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Home size={12} color={selectedId === 'overview' ? INK : '#9CA3AF'} />
-              </div>
-              <span className="item-label" style={{ fontFamily: font.body, fontSize: 13, fontWeight: selectedId === 'overview' ? 500 : 400 }}>
-                Pathway overview
-              </span>
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 4px 6px' }}>
-              <span style={{ fontFamily: font.body, fontSize: 9, fontWeight: 500, letterSpacing: '0.10em', color: '#C8C8C8', textTransform: 'uppercase', flexShrink: 0 }}>Steps</span>
-              <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
+            {/* Minimal back button — returns to the applications-home list. Replaces
+                the old pathway dropdown; inset matches the Overview button below it. */}
+            <div style={{ padding: '10px 10px 6px', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={onBack}
+                className="pw-back-btn"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 10px 8px 6px',
+                  background: 'none', border: 'none', borderRadius: 10,
+                  cursor: 'pointer',
+                  fontFamily: font.body, fontSize: 13, fontWeight: 500,
+                  color: MUTED,
+                }}
+              >
+                <ArrowLeft size={15} style={{ flexShrink: 0 }} />
+                Back to applications
+              </button>
             </div>
 
-            {steps.map((step) => {
-              const isSelected = selectedId === step.id;
-              const effectiveStatus: StepStatus = completedIds.has(step.id) ? 'complete' : step.status;
-              return (
-                <button
-                  key={step.id}
-                  type="button"
-                  onClick={() => handleSelectStep(step.id)}
-                  className={`app-sidebar-item${isSelected ? ' is-selected' : ''}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '6px 10px', cursor: 'pointer', textAlign: 'left' }}
-                >
-                  <div className="item-icon" style={{ flexShrink: 0 }}>
-                    <SidebarStepCircle status={effectiveStatus} stepNumber={step.stepNumber} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p className="item-label" style={{ fontFamily: font.body, fontSize: 12, fontWeight: isSelected ? 500 : 400, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>
-                      {step.label}
-                    </p>
-                    {step.estimatedDuration && (
-                      <p style={{ fontFamily: font.body, fontSize: 10, color: '#A0A0A0', margin: '1px 0 0' }}>{step.estimatedDuration}</p>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
+            <div className="pw-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+              <nav style={{ padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-      {/* ─── Right content area — white box ─── */}
-      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: BG, borderRadius: 14 }}>
-        {selectedId === 'overview' || selectedStep === null ? (
-          <div className="pw-scroll-fade" data-faded={overviewFaded} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div ref={overviewScrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-              <OverviewPanel pathway={pathway} />
+                {/* Overview button — rounded blue pill matching the "Change pathway"
+                    CTA on the overview page: persistent accent border, always-blue
+                    icon/text, tinted fill on hover/selected. */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectStep('overview')}
+                  className={`app-sidebar-item app-sidebar-item--cta${selectedId === 'overview' ? ' is-selected' : ''}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '13px 14px 13px 6px', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <Home size={15} color={ACCENT} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: font.body, fontSize: 11, fontWeight: 600, letterSpacing: '0.02em', textTransform: 'uppercase', color: ACCENT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Pathway overview
+                  </span>
+                  <ChevronRight size={13} className="item-arrow" style={{ flexShrink: 0, color: ACCENT }} />
+                </button>
+
+                {/* Steps label — aligned with the Pathway/Overview inset above it;
+                    the step rows below are indented further than this baseline. */}
+                <span style={{ fontFamily: font.body, fontSize: 10, fontWeight: 600, letterSpacing: '0.10em', color: INK, textTransform: 'uppercase', margin: '18px 6px 4px' }}>Steps</span>
+
+                {steps.map((step) => {
+                  const isSelected = selectedId === step.id;
+                  const isComplete = completedIds.has(step.id);
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => handleSelectStep(step.id)}
+                      className={`app-sidebar-item${isSelected ? ' is-selected' : ''}`}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '9px 12px 9px 16px', cursor: 'pointer', textAlign: 'left', minHeight: 40 }}
+                    >
+                      <div className="item-icon" style={{ flexShrink: 0 }}>
+                        <SidebarStepIcon completed={isComplete} label={step.label} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p className="item-label" style={{ fontFamily: font.body, fontSize: 12, fontWeight: isSelected ? 500 : 400, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4 }}>
+                          {step.label}
+                        </p>
+                      </div>
+                      <ChevronRight size={13} className="item-arrow" style={{ flexShrink: 0, color: '#9CA3AF' }} />
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
           </div>
-        ) : (
-          <StepDetailPanel
-            key={selectedStep.id}
-            step={selectedStep}
-            steps={steps}
-            documents={documents}
-            pathwaySlug={pathway.slug}
-            profileContext={profileContext}
-            isCompleted={completedIds.has(selectedStep.id)}
-            onMarkComplete={handleMarkComplete}
-            onMarkIncomplete={handleMarkIncomplete}
-            onSelectStep={handleSelectStep}
-            onAllChecked={handleAutoComplete}
-            markCompleteRef={markCompleteRef}
-          />
-        )}
-      </div>
 
-      </div>
+        {/* ── Main content area — flush under the header, no raised container ── */}
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: BG }}>
+
+          {/* Progress / CRS — sits at the top of the content area, no container. Spans
+              the full width of the main view; its left edge matches the content below. */}
+          <div style={{ padding: '24px 48px 16px 72px', flexShrink: 0 }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+
+            {/* Progress bar — fills the remaining middle space, no container */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+              <span style={{ fontFamily: font.display, fontSize: 26, fontWeight: 600, color: INK, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '-0.01em' }}>
+                {progressPct}%
+              </span>
+              {/* Segmented — one bar per pathway step, filled for completed steps */}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                {steps.map((step) => {
+                  const filled = completedIds.has(step.id);
+                  return (
+                    <div
+                      key={step.id}
+                      title={step.label}
+                      style={{
+                        flex: 1,
+                        height: 8,
+                        borderRadius: PILL,
+                        background: filled ? (progressPct === 100 ? '#16A34A' : PROGRESS_TEAL) : '#EEEDF2',
+                        transition: 'background 300ms ease',
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <span style={{ fontFamily: font.body, fontSize: 13, color: MUTED, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Step {Math.min(completedCount + 1, steps.length)} of {steps.length}
+              </span>
+            </div>
+           </div>
+          </div>
+
+          {selectedId === 'overview' || selectedStep === null ? (
+            <div className="pw-scroll-fade" data-faded={overviewFaded} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <div ref={overviewScrollRef} className="pw-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                <OverviewPanel pathway={pathway} steps={steps} completedIds={completedIds} displayCrs={displayCrs} onSelectStep={handleSelectStep} />
+              </div>
+            </div>
+          ) : (
+            <StepDetailPanel
+              key={selectedStep.id}
+              step={selectedStep}
+              documents={documents}
+              pathwaySlug={pathway.slug}
+              profileContext={profileContext}
+              isCompleted={isCurrentStepCompleted}
+              isPending={isPending}
+              docsReady={docsReady}
+              actionError={actionError}
+              hasNextStep={nextStep !== null}
+              onMarkComplete={() => handleMutateComplete()}
+              onMarkIncomplete={handleMutateIncomplete}
+              onGoToOverview={() => handleSelectStep('overview')}
+              onGoToNext={() => { if (isCurrentStepCompleted && nextStep) handleSelectStep(nextStep.id); }}
+              onAllChecked={handleAutoComplete}
+              onDocumentsReadyChange={setDocsReady}
+            />
+          )}
+        </div>
 
       <style>{`
         .app-sidebar-item {
           background: transparent;
           border: none;
-          border-radius: 8px;
-          transition: background 150ms ease, transform 80ms ease;
+          border-radius: 12px;
+          transition: background 120ms ease;
         }
         .app-sidebar-item.is-selected {
-          background: rgba(26, 86, 219, 0.09);
+          background: rgba(26,86,219,0.08);
         }
         .app-sidebar-item:not(.is-selected):hover {
-          background: rgba(26, 86, 219, 0.05);
+          background: rgba(0,0,0,0.04);
         }
         .app-sidebar-item:active {
-          transform: scale(0.97);
-          background: rgba(26, 86, 219, 0.13) !important;
+          background: rgba(26,86,219,0.12) !important;
         }
-        .app-sidebar-item .item-label { color: #6B7280; transition: color 150ms ease; }
+        .app-sidebar-item .item-label { color: #0A0A0A; transition: color 120ms ease; }
         .app-sidebar-item.is-selected .item-label { color: #1A56DB; font-weight: 500; }
         .app-sidebar-item:not(.is-selected):hover .item-label { color: #1e3a8a; }
-        .app-sidebar-item .item-icon { transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1); }
-        .app-sidebar-item:hover .item-icon { transform: scale(1.12); }
-        .app-sidebar-item:active .item-icon { transform: scale(0.95); }
+        .app-sidebar-item .item-arrow { opacity: 0; transform: translateX(-2px); transition: opacity 120ms ease, transform 120ms ease; }
+        .app-sidebar-item:hover .item-arrow { opacity: 1; transform: translateX(0); }
 
-        /* Custom checkbox for tasks */
+        /* CTA pill — the Overview button matches the "Change pathway" button's
+           rounded blue styling: persistent accent border, tinted fill on hover/select. */
+        .app-sidebar-item--cta {
+          border-radius: 999px;
+          border: 1.5px solid #1A56DB;
+          background: transparent;
+        }
+        .app-sidebar-item--cta:not(.is-selected):hover {
+          background: rgba(26,86,219,0.08);
+        }
+        .app-sidebar-item--cta.is-selected {
+          background: rgba(26,86,219,0.10);
+        }
+
+        .pw-back-btn:hover { background: rgba(0,0,0,0.05); color: #1e3a8a; }
+        .pw-back-btn:active { background: rgba(0,0,0,0.08); }
+
         .task-cb {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 18px;
-          height: 18px;
+          width: 16px;
+          height: 16px;
           border: 1.5px solid #D1D5DB;
-          border-radius: 4px;
+          border-radius: 3px;
           cursor: pointer;
           background: white;
           flex-shrink: 0;
@@ -949,6 +1090,12 @@ export function ApplicationPageClient({ pathway, steps, profileContext, document
         .task-cb:hover:not(.task-cb-checked) { border-color: #9CA3AF; }
 
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+
+        .subtle-link { transition: opacity 100ms ease; }
+        .subtle-link:hover { opacity: 0.7; text-decoration: underline; text-decoration-color: rgba(26,86,219,0.40); text-underline-offset: 2px; }
+        .subtle-link:active { opacity: 0.5; }
+
+        .checklist-input:focus { border-color: rgba(26,86,219,0.50) !important; box-shadow: 0 0 0 3px rgba(26,86,219,0.10); }
       `}</style>
     </div>
   );

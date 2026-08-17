@@ -113,6 +113,45 @@ CANADA_VISA_TYPE_MAP: dict[str, dict] = {
         "category_slug": "skilled-worker",
         "pathway_type": "permanent_residency",
     },
+    # Category-based Express Entry draws
+    "ee_french_language": {
+        "slug": "canada-ee-french",
+        "title": "Express Entry – French Language Proficiency Draw",
+        "category_slug": "skilled-worker",
+        "pathway_type": "permanent_residency",
+    },
+    "ee_healthcare": {
+        "slug": "canada-ee-healthcare",
+        "title": "Express Entry – Healthcare Occupations Draw",
+        "category_slug": "skilled-worker",
+        "pathway_type": "permanent_residency",
+    },
+    "ee_trades": {
+        "slug": "canada-ee-trades",
+        "title": "Express Entry – Trade Occupations Draw",
+        "category_slug": "skilled-worker",
+        "pathway_type": "permanent_residency",
+    },
+    # Quebec pathways
+    "quebec_skilled_worker": {
+        "slug": "canada-qsw",
+        "title": "Quebec Skilled Worker Program (QSW / CSQ)",
+        "category_slug": "skilled-worker",
+        "pathway_type": "permanent_residency",
+    },
+    # Additional provincial PNPs
+    "pnp_manitoba": {
+        "slug": "canada-pnp-mb",
+        "title": "Manitoba Provincial Nominee Program (MPNP)",
+        "category_slug": "skilled-worker",
+        "pathway_type": "permanent_residency",
+    },
+    "pnp_saskatchewan": {
+        "slug": "canada-pnp-sk",
+        "title": "Saskatchewan Immigrant Nominee Program (SINP)",
+        "category_slug": "skilled-worker",
+        "pathway_type": "permanent_residency",
+    },
 }
 
 # Maps the `country` parameter (matches immigration_chunks.country) to its

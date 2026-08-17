@@ -26,7 +26,7 @@ const W = {
 
 type StepType =
   | "text" | "date" | "number" | "choice"
-  | "select" | "clb" | "income" | "province" | "multicheck";
+  | "select" | "clb" | "province" | "multicheck";
 
 type SubmittingPhase = "saving" | "searching" | "ranking" | null;
 
@@ -49,23 +49,23 @@ interface StepDef {
 type FormValues = {
   full_name: string;
   date_of_birth: string;
-  nationality: string;
   current_country: string;
   marital_status: string;
   spouse_coming_to_canada: string;
-  spouse_education_level: string;
   has_spouse_language_test: string;
   spouse_clb_speaking: string;
   spouse_clb_listening: string;
   spouse_clb_reading: string;
   spouse_clb_writing: string;
-  spouse_canadian_work_years: string;
   occupation: string;
+  noc_teer_category: string;
   years_experience: string;
   has_canadian_experience: string;
   canadian_work_years: string;
   canadian_work_recent: string;
+  has_prior_canadian_study: string;
   education_level: string;
+  eca_obtained: string;
   language_proficiency_self: string;
   has_language_test: string;
   clb_speaking: string;
@@ -74,8 +74,6 @@ type FormValues = {
   clb_writing: string;
   has_family_in_canada: string;
   intended_province: string;
-  annual_income: string;
-  income_currency: string;
   has_canadian_job_offer: string;
   has_provincial_nomination: string;
   has_sibling_in_canada: string;
@@ -98,6 +96,23 @@ const EDUCATION_LABELS: Record<string, string> = Object.fromEntries(
   EDUCATION_OPTIONS.map((o) => [o.value, o.label])
 );
 
+const POST_SECONDARY_LEVELS = new Set([
+  "bachelors", "masters", "phd", "two_or_more_credentials",
+  "two_year_post_secondary", "one_year_post_secondary",
+]);
+
+// Mirrors the TEER_INFERENCE rubric in the voice onboarding system prompt
+// (src/modules/voice/service.ts) — kept in sync manually since there is no LLM
+// in the form flow to infer this from a free-text job title.
+const TEER_OPTIONS: ChoiceOption[] = [
+  { value: "0", label: "Senior management or executive — e.g. director, VP, C-suite" },
+  { value: "1", label: "Professional role requiring a university degree — e.g. engineer, doctor, lawyer, IT professional, accountant, nurse" },
+  { value: "2", label: "Technical role — college diploma or 2+ year apprenticeship — e.g. technologist, paralegal, chef, pilot" },
+  { value: "3", label: "Skilled trade — college or under-2-year apprenticeship — e.g. electrician, plumber, early childhood educator, carpenter" },
+  { value: "4", label: "Role usually requiring a high school diploma — e.g. truck driver, administrative assistant, home support worker" },
+  { value: "5", label: "Role requiring short-term on-the-job training — e.g. labourer, food service worker, cleaner" },
+];
+
 const CLB_FROM_PROFICIENCY: Record<string, number> = {
   native: 10, fluent: 9, advanced: 8, intermediate: 7, basic: 5,
 };
@@ -108,8 +123,6 @@ const PROVINCES = [
   "Prince Edward Island", "Quebec", "Saskatchewan",
   "Northwest Territories", "Nunavut", "Yukon",
 ];
-
-const CURRENCIES = ["CAD", "USD", "GBP", "EUR", "INR", "AUD", "NGN", "PKR", "PHP"];
 
 const BONUS_OPTIONS = [
   {
@@ -135,7 +148,6 @@ const isMarried = (v: FormValues) =>
 const STEPS: StepDef[] = [
   { id: "full_name",     question: "What's your full name?",               type: "text",   field: "full_name",     placeholder: "e.g. Priya Sharma" },
   { id: "date_of_birth", question: "When were you born?",                  type: "date",   field: "date_of_birth", hint: "Used to assess age-based eligibility criteria." },
-  { id: "nationality",   question: "What is your nationality?",            type: "text",   field: "nationality",   placeholder: "e.g. Indian, Brazilian", hint: "Your country or countries of citizenship." },
   { id: "current_country", question: "Where do you currently live?",       type: "text",   field: "current_country", placeholder: "e.g. United Kingdom" },
   {
     id: "marital_status", question: "What is your marital status?", type: "choice", field: "marital_status",
@@ -155,11 +167,6 @@ const STEPS: StepDef[] = [
     showIf: isMarried,
   },
   {
-    id: "spouse_education", question: "What is your spouse's highest level of education?",
-    type: "select", field: "spouse_education_level", options: EDUCATION_OPTIONS,
-    showIf: (v) => isMarried(v) && v.spouse_coming_to_canada === "yes",
-  },
-  {
     id: "has_spouse_language_test", question: "Has your spouse taken a language test?",
     hint: "IELTS, CELPIP, TEF, or TCF",
     type: "choice", field: "has_spouse_language_test",
@@ -172,13 +179,12 @@ const STEPS: StepDef[] = [
     type: "clb", clbFields: ["spouse_clb_speaking", "spouse_clb_listening", "spouse_clb_reading", "spouse_clb_writing"],
     showIf: (v) => isMarried(v) && v.spouse_coming_to_canada === "yes" && v.has_spouse_language_test === "yes",
   },
-  {
-    id: "spouse_canadian_work", question: "How many years has your spouse worked in Canada?",
-    hint: "Enter 0 if they have no Canadian work experience.",
-    type: "number", field: "spouse_canadian_work_years", min: 0, max: 50, placeholder: "0",
-    showIf: (v) => isMarried(v) && v.spouse_coming_to_canada === "yes",
-  },
   { id: "occupation",       question: "What is your current or most recent job title?",         type: "text",   field: "occupation",       placeholder: "e.g. Software Engineer" },
+  {
+    id: "noc_teer_category", question: "Which of these best describes that role?",
+    hint: "This determines which skill category your occupation falls into for immigration purposes.",
+    type: "select", field: "noc_teer_category", options: TEER_OPTIONS,
+  },
   { id: "years_experience", question: "How many years of skilled work experience do you have?", type: "number", field: "years_experience",  min: 0, max: 60, placeholder: "e.g. 5", hint: "Count all professional or trade work since completing your studies." },
   {
     id: "has_canadian_experience", question: "Have you ever worked in Canada?",
@@ -196,7 +202,20 @@ const STEPS: StepDef[] = [
     options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }],
     showIf: (v) => v.has_canadian_experience === "yes",
   },
+  {
+    id: "has_prior_canadian_study", question: "Have you ever studied full-time at a Canadian college or university?",
+    hint: "Relevant for the Post-Graduation Work Permit pathway.",
+    type: "choice", field: "has_prior_canadian_study",
+    options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }],
+  },
   { id: "education_level",  question: "What is your highest level of education?",                type: "select", field: "education_level",  options: EDUCATION_OPTIONS },
+  {
+    id: "eca_obtained", question: "Have you had your foreign credentials assessed for Canadian immigration purposes?",
+    hint: "E.g. through WES or another designated organization. Most Express Entry pathways require this if you studied outside Canada.",
+    type: "choice", field: "eca_obtained",
+    options: [{ value: "yes", label: "Yes" }, { value: "no", label: "Not yet" }],
+    showIf: (v) => v.has_prior_canadian_study !== "yes" && POST_SECONDARY_LEVELS.has(v.education_level),
+  },
   {
     id: "language_level", question: "How would you describe your English or French proficiency?",
     type: "choice", field: "language_proficiency_self",
@@ -227,50 +246,54 @@ const STEPS: StepDef[] = [
     options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }],
   },
   { id: "province", question: "Do you have a preferred province or territory?", hint: "Some provincial programs have higher acceptance rates — this helps us prioritize.", type: "province", field: "intended_province" },
-  { id: "income",   question: "What is your approximate annual income?",         hint: "Helps us check income thresholds for certain pathways.",                             type: "income",   field: "annual_income" },
   { id: "bonus",    question: "A few things that could significantly improve your options.", hint: "Select all that apply — these can dramatically affect your eligibility.", type: "multicheck" },
 ];
 
 const INITIAL_VALUES: FormValues = {
-  full_name: "", date_of_birth: "", nationality: "", current_country: "",
-  marital_status: "", spouse_coming_to_canada: "", spouse_education_level: "",
+  full_name: "", date_of_birth: "", current_country: "",
+  marital_status: "", spouse_coming_to_canada: "",
   has_spouse_language_test: "", spouse_clb_speaking: "", spouse_clb_listening: "",
-  spouse_clb_reading: "", spouse_clb_writing: "", spouse_canadian_work_years: "",
-  occupation: "", years_experience: "", has_canadian_experience: "",
-  canadian_work_years: "", canadian_work_recent: "", education_level: "",
+  spouse_clb_reading: "", spouse_clb_writing: "",
+  occupation: "", noc_teer_category: "", years_experience: "", has_canadian_experience: "",
+  canadian_work_years: "", canadian_work_recent: "", has_prior_canadian_study: "",
+  education_level: "", eca_obtained: "",
   language_proficiency_self: "", has_language_test: "", clb_speaking: "",
   clb_listening: "", clb_reading: "", clb_writing: "", has_family_in_canada: "",
-  intended_province: "no_preference", annual_income: "", income_currency: "CAD",
+  intended_province: "no_preference",
   has_canadian_job_offer: "", has_provincial_nomination: "", has_sibling_in_canada: "",
 };
 
 // ─── Payload builder ─────────────────────────────────────────────────────────
 
-/** Maps form values to the guest onboarding data format consumed by the matcher. */
-function buildPayload(v: FormValues): Record<string, unknown> {
+/**
+ * Maps form values to the guest onboarding data format consumed by the matcher.
+ * `includeBonusDefaults` controls whether unanswered job-offer/PN/sibling checkboxes
+ * are written as explicit `false` (correct once the user has actually seen that
+ * screen — the default for final submission) or omitted entirely (correct for
+ * incremental progress saves made before the user has reached that step, where
+ * blank must mean "unknown", not "no").
+ */
+function buildPayload(v: FormValues, includeBonusDefaults = true): Record<string, unknown> {
   const d: Record<string, unknown> = {};
 
   if (v.full_name)      d.full_name      = v.full_name;
   if (v.date_of_birth)  d.date_of_birth  = v.date_of_birth;
-  if (v.nationality)    d.nationality    = v.nationality;
   if (v.current_country) d.current_country = v.current_country;
   if (v.marital_status)  d.marital_status  = v.marital_status;
 
   if (isMarried(v)) {
     d.spouse_coming_to_canada = v.spouse_coming_to_canada === "yes";
-    if (v.spouse_coming_to_canada === "yes") {
-      if (v.spouse_education_level) d.spouse_education_level = v.spouse_education_level;
-      if (v.has_spouse_language_test === "yes") {
-        (["spouse_clb_speaking", "spouse_clb_listening", "spouse_clb_reading", "spouse_clb_writing"] as const).forEach((f) => {
-          const n = parseInt(v[f]); if (!isNaN(n)) d[f] = n;
-        });
-      }
-      const scwy = parseInt(v.spouse_canadian_work_years);
-      if (!isNaN(scwy)) d.spouse_canadian_work_years = scwy;
+    if (v.spouse_coming_to_canada === "yes" && v.has_spouse_language_test === "yes") {
+      (["spouse_clb_speaking", "spouse_clb_listening", "spouse_clb_reading", "spouse_clb_writing"] as const).forEach((f) => {
+        const n = parseInt(v[f]); if (!isNaN(n)) d[f] = n;
+      });
     }
   }
 
   if (v.occupation) d.occupation = v.occupation;
+
+  const teer = parseInt(v.noc_teer_category);
+  if (!isNaN(teer)) d.noc_teer_category = teer;
 
   const ye = parseInt(v.years_experience);
   if (!isNaN(ye)) {
@@ -283,6 +306,11 @@ function buildPayload(v: FormValues): Record<string, unknown> {
     d.canadian_work_recent    = hasCA && v.canadian_work_recent === "yes";
     d.foreign_work_recent     = !hasCA && ye > 0;
   }
+
+  if (v.has_prior_canadian_study) d.has_prior_canadian_study = v.has_prior_canadian_study === "yes";
+  // eca_obtained is only meaningful (and only shown) for foreign-educated, post-secondary applicants;
+  // leave it unset otherwise rather than defaulting to false, which would wrongly imply no ECA.
+  if (v.eca_obtained) d.eca_obtained = v.eca_obtained === "yes";
 
   if (v.education_level) {
     d.education_level       = v.education_level;
@@ -303,15 +331,87 @@ function buildPayload(v: FormValues): Record<string, unknown> {
   if (v.has_family_in_canada) d.has_family_in_canada = v.has_family_in_canada === "yes";
   if (v.intended_province && v.intended_province !== "no_preference") d.intended_province = v.intended_province;
 
-  const ai = parseInt(v.annual_income);
-  if (!isNaN(ai)) { d.annual_income = ai; d.income_currency = v.income_currency || "CAD"; }
-
-  d.has_canadian_job_offer   = v.has_canadian_job_offer   === "yes";
-  d.has_provincial_nomination = v.has_provincial_nomination === "yes";
-  d.has_sibling_in_canada    = v.has_sibling_in_canada    === "yes";
-  d.destination_country      = "Canada";
+  if (includeBonusDefaults) {
+    d.has_canadian_job_offer    = v.has_canadian_job_offer    === "yes";
+    d.has_provincial_nomination = v.has_provincial_nomination === "yes";
+    d.has_sibling_in_canada     = v.has_sibling_in_canada     === "yes";
+  } else {
+    if (v.has_canadian_job_offer)    d.has_canadian_job_offer    = v.has_canadian_job_offer    === "yes";
+    if (v.has_provincial_nomination) d.has_provincial_nomination = v.has_provincial_nomination === "yes";
+    if (v.has_sibling_in_canada)     d.has_sibling_in_canada     = v.has_sibling_in_canada     === "yes";
+  }
+  d.destination_country = "Canada";
 
   return d;
+}
+
+// ─── Reverse mapping (hydrate form values from previously-saved data) ────────
+
+/** Rebuild partial FormValues from a saved profile / guest onboarding_data blob. */
+function hydrateValues(data: Record<string, unknown>): Partial<FormValues> {
+  const v: Partial<FormValues> = {};
+  const str = (val: unknown): string | undefined => (val == null ? undefined : String(val));
+  const yn = (val: unknown): string | undefined => (val == null ? undefined : (val ? "yes" : "no"));
+
+  if (data.full_name != null) v.full_name = str(data.full_name);
+  if (data.date_of_birth != null) v.date_of_birth = str(data.date_of_birth)?.slice(0, 10);
+  if (data.current_country != null) v.current_country = str(data.current_country);
+  if (data.marital_status != null) v.marital_status = str(data.marital_status);
+  if (data.spouse_coming_to_canada != null) v.spouse_coming_to_canada = yn(data.spouse_coming_to_canada);
+  if (data.occupation != null) v.occupation = str(data.occupation);
+  if (data.noc_teer_category != null) v.noc_teer_category = str(data.noc_teer_category);
+  if (data.years_experience != null) v.years_experience = str(data.years_experience);
+  if (data.canadian_work_years != null) {
+    v.has_canadian_experience = Number(data.canadian_work_years) > 0 ? "yes" : "no";
+    v.canadian_work_years = str(data.canadian_work_years);
+  }
+  if (data.canadian_work_recent != null) v.canadian_work_recent = yn(data.canadian_work_recent);
+  if (data.has_prior_canadian_study != null) v.has_prior_canadian_study = yn(data.has_prior_canadian_study);
+  if (data.education_level != null) v.education_level = str(data.education_level);
+  if (data.eca_obtained != null) v.eca_obtained = yn(data.eca_obtained);
+  if (data.language_proficiency_self != null) v.language_proficiency_self = str(data.language_proficiency_self);
+  if (data.clb_speaking != null) {
+    v.has_language_test = "yes";
+    v.clb_speaking = str(data.clb_speaking);
+    v.clb_listening = str(data.clb_listening);
+    v.clb_reading = str(data.clb_reading);
+    v.clb_writing = str(data.clb_writing);
+  }
+  if (data.has_family_in_canada != null) v.has_family_in_canada = yn(data.has_family_in_canada);
+  if (data.intended_province != null) v.intended_province = str(data.intended_province);
+  if (data.has_canadian_job_offer != null) v.has_canadian_job_offer = yn(data.has_canadian_job_offer);
+  if (data.has_provincial_nomination != null) v.has_provincial_nomination = yn(data.has_provincial_nomination);
+  if (data.has_sibling_in_canada != null) v.has_sibling_in_canada = yn(data.has_sibling_in_canada);
+
+  return v;
+}
+
+/** Whether a step's answer (or defaultable state) is already present in `values`. */
+function isStepAnswered(step: StepDef, values: FormValues): boolean {
+  switch (step.type) {
+    case "text":
+    case "date":
+    case "select":
+      return ((values[step.field!] as string) ?? "").trim() !== "";
+    case "number":
+      return ((values[step.field!] as string) ?? "") !== "";
+    case "choice":
+      return ((values[step.field!] as string) ?? "") !== "";
+    case "clb":
+      return (step.clbFields ?? []).every((f) => ((values[f] as string) ?? "") !== "");
+    case "province":
+      return true; // always has a default value ("no_preference")
+    case "multicheck":
+      return false; // let the user always land on / confirm the bonus screen explicitly
+    default:
+      return false;
+  }
+}
+
+/** First step in `steps` the user hasn't answered yet, for resuming mid-flow. */
+function firstIncompleteIndex(steps: StepDef[], values: FormValues): number {
+  const idx = steps.findIndex((s) => !isStepAnswered(s, values));
+  return idx === -1 ? Math.max(0, steps.length - 1) : idx;
 }
 
 // ─── Loading overlay ─────────────────────────────────────────────────────────
@@ -406,17 +506,60 @@ function MatchingLoadingOverlay({ phase }: { phase: NonNullable<SubmittingPhase>
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+interface GuestFormOnboardingProps {
+  mode?: "guest" | "auth";
+  /** Previously-saved profile fields (auth mode only) — hydrates the form so a
+   *  reload or return visit resumes where the user left off instead of restarting. */
+  initialData?: Record<string, unknown>;
+}
+
 /** Step-by-step onboarding form — one question per screen, website design language. */
-export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth" }) {
+export function GuestFormOnboarding({ mode = "guest", initialData }: GuestFormOnboardingProps) {
   const router = useRouter();
   const { token, loading: sessionLoading, error: sessionError } = useGuestSession();
 
-  const [values,      setValues]      = useState<FormValues>(INITIAL_VALUES);
-  const [stepIndex,   setStepIndex]   = useState(0);
+  const [values, setValues] = useState<FormValues>(() =>
+    mode === "auth" && initialData
+      ? { ...INITIAL_VALUES, ...hydrateValues(initialData) }
+      : INITIAL_VALUES
+  );
+  const [stepIndex, setStepIndex] = useState(() => {
+    if (mode !== "auth" || !initialData) return 0;
+    const hydratedValues = { ...INITIAL_VALUES, ...hydrateValues(initialData) };
+    const active = STEPS.filter((s) => !s.showIf || s.showIf(hydratedValues));
+    return firstIncompleteIndex(active, hydratedValues);
+  });
+  // Guest mode hydrates asynchronously (must fetch the guest session first);
+  // auth mode is hydrated synchronously above from the server-fetched prop.
+  const [hydrated, setHydrated] = useState(mode === "auth");
   const [direction,   setDirection]   = useState<"forward" | "backward">("forward");
   const [submittingPhase, setSubmittingPhase] = useState<SubmittingPhase>(null);
   const [submitError,     setSubmitError]     = useState<string | null>(null);
   const submitting = submittingPhase !== null;
+
+  // Guest mode: once the session token is ready, pull any previously-saved
+  // onboarding_data and resume from the first unanswered step.
+  useEffect(() => {
+    if (mode !== "guest" || !token || hydrated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/guest/session?token=${encodeURIComponent(token)}`);
+        if (res.ok && !cancelled) {
+          const body = await res.json() as { session?: { onboarding_data?: Record<string, unknown> } };
+          const existing = body.session?.onboarding_data ?? {};
+          if (Object.keys(existing).length > 0) {
+            const hydratedValues = { ...INITIAL_VALUES, ...hydrateValues(existing) };
+            setValues(hydratedValues);
+            const active = STEPS.filter((s) => !s.showIf || s.showIf(hydratedValues));
+            setStepIndex(firstIncompleteIndex(active, hydratedValues));
+          }
+        }
+      } catch { /* best-effort — fall back to starting fresh */ }
+      if (!cancelled) setHydrated(true);
+    })();
+    return () => { cancelled = true; };
+  }, [mode, token, hydrated]);
 
   const activeSteps = useMemo(
     () => STEPS.filter((s) => !s.showIf || s.showIf(values)),
@@ -439,10 +582,26 @@ export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth
       case "number": { const v = (values[currentStep.field!] as string) ?? ""; return v !== "" && !isNaN(Number(v)) && Number(v) >= 0; }
       case "select": return ((values[currentStep.field!] as string) ?? "") !== "";
       case "clb":    return (currentStep.clbFields ?? []).every((f) => { const v = (values[f] as string) ?? ""; const n = parseInt(v); return v !== "" && !isNaN(n) && n >= 1 && n <= 12; });
-      case "income": return (values.annual_income ?? "").trim() !== "";
       default:       return true;
     }
   }, [currentStep, values]);
+
+  /** Best-effort incremental save so a reload mid-flow doesn't lose progress. */
+  const persistProgress = useCallback((nextValues: FormValues, reachedBonusStep: boolean) => {
+    const payload = buildPayload(nextValues, reachedBonusStep);
+    if (Object.keys(payload).length === 0) return;
+    if (mode === "auth") {
+      void fetch("/api/onboarding/profile", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => { /* best-effort */ });
+    } else if (token) {
+      void fetch(`/api/guest/${token}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ onboarding_data: payload }),
+      }).catch(() => { /* best-effort */ });
+    }
+  }, [mode, token]);
 
   function setValue(field: keyof FormValues, value: string) {
     setValues((prev) => ({ ...prev, [field]: value }));
@@ -450,6 +609,7 @@ export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth
 
   function advance() {
     if (!canAdvance()) return;
+    persistProgress(values, currentStep?.id === "bonus");
     if (isLastStep) { void handleSubmit(); return; }
     setDirection("forward");
     setStepIndex((i) => i + 1);
@@ -462,7 +622,9 @@ export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth
   }
 
   function handleChoiceSelect(field: keyof FormValues, value: string) {
-    setValue(field, value);
+    const next = { ...values, [field]: value };
+    setValues(next);
+    persistProgress(next, currentStep?.id === "bonus");
     setTimeout(() => {
       if (isLastStep) { void handleSubmit(); }
       else { setDirection("forward"); setStepIndex((i) => i + 1); }
@@ -552,7 +714,7 @@ export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth
     return <MatchingLoadingOverlay phase={submittingPhase} />;
   }
 
-  if (mode === "guest" && sessionLoading) {
+  if (mode === "guest" && (sessionLoading || !hydrated)) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", backgroundColor: W.greenTint }}>
         <p style={{ color: W.grey500, fontFamily: W.body, fontSize: 14 }}>Starting session…</p>
@@ -705,28 +867,6 @@ export function GuestFormOnboarding({ mode = "guest" }: { mode?: "guest" | "auth
           </div>
         );
       }
-
-      case "income":
-        return (
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-            <input key={currentStep.id} type="number" autoFocus min={0}
-              style={{ ...inputStyle, flex: 1 }} placeholder="e.g. 60,000"
-              value={values.annual_income ?? ""}
-              onChange={(e) => setValue("annual_income", e.target.value)}
-              onFocus={(e) => { e.currentTarget.style.borderBottomColor = W.green; }}
-              onBlur={(e)  => { e.currentTarget.style.borderBottomColor = W.grey300; }}
-            />
-            <select
-              style={{ ...inputStyle, width: 80, fontSize: 16, cursor: "pointer" }}
-              value={values.income_currency ?? "CAD"}
-              onChange={(e) => setValue("income_currency", e.target.value)}
-              onFocus={(e) => { e.currentTarget.style.borderBottomColor = W.green; }}
-              onBlur={(e)  => { e.currentTarget.style.borderBottomColor = W.grey300; }}
-            >
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        );
 
       case "province":
         return (

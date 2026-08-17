@@ -56,9 +56,13 @@ export function DashboardShell({
   const handleCloseModal = useCallback(() => setModalOpen(false), []);
 
   const showBackground = !isPlane || (activeIndex !== 1 && activeIndex !== 2);
+  const isApplicationPage = isPlane && activeIndex === 1;
 
   return (
-    <div className={`h-screen overflow-hidden flex flex-col bg-white${shouldReduceMotion ? ' pw-reduce-motion' : ''}`}>
+    <div
+      className={`h-screen overflow-hidden flex flex-col${shouldReduceMotion ? ' pw-reduce-motion' : ''}`}
+      style={{ background: '#FFFFFF' }}
+    >
       {showBackground && <BackgroundLayer />}
       <TopNav
         avatarInitials={avatarInitials}
@@ -67,6 +71,7 @@ export function DashboardShell({
         activeIndex={isPlane ? activeIndex : -1}
         onNavigate={handleNavigate}
         onOpenModal={handleOpenModal}
+        flat={isApplicationPage}
       />
       <main className="flex-1 overflow-hidden flex flex-col relative">
         {isPlane ? (

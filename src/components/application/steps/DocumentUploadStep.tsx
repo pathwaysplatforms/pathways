@@ -3,17 +3,18 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import type { DocumentRequirement } from '@/modules/pathways/types';
-import { completeStep } from '@/app/applications/actions';
+import { updateStepProgress } from '@/app/actions/progress';
 import { DocumentUploadModal } from '../modals/DocumentUploadModal';
 
 interface Props {
   document: DocumentRequirement;
   applicationId: string;
   stepId: string;
+  pathwaySlug: string;
 }
 
 /** Upload CTA for a document_upload step — triggers DocumentUploadModal on click. */
-export function DocumentUploadStep({ document, applicationId, stepId }: Props) {
+export function DocumentUploadStep({ document, applicationId: _applicationId, stepId, pathwaySlug }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [isUploaded, setIsUploaded] = useState(document.satisfied ?? false);
 
@@ -76,7 +77,7 @@ export function DocumentUploadStep({ document, applicationId, stepId }: Props) {
           onSuccess={async () => {
             setIsUploaded(true);
             setModalOpen(false);
-            await completeStep(applicationId, stepId);
+            await updateStepProgress({ stepId, pathwaySlug, status: 'complete' });
           }}
         />
       )}

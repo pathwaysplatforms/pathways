@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ShieldCheck, BookOpen, RefreshCw } from "lucide-react";
 import { LoginForm } from "./login-form";
 import { getT } from "@/lib/i18n";
 import { ParticleField } from "@/components/fx/ParticleField";
@@ -45,20 +44,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         {/* Form — floats on white, no card border */}
         <LoginForm errorMessage={errorMessage} />
-
-        {/* Trust row */}
-        <div className="space-y-3">
-          {[
-            { icon: ShieldCheck, text: t("landing_trust_1") },
-            { icon: BookOpen,    text: t("landing_trust_2") },
-            { icon: RefreshCw,  text: t("landing_trust_3") },
-          ].map(({ icon: Icon, text }) => (
-            <div key={text} className="flex items-center gap-2 text-xs text-pw-muted">
-              <Icon size={13} className="text-pw-accent shrink-0" />
-              {text}
-            </div>
-          ))}
-        </div>
 
       </div>
     </main>

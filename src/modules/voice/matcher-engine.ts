@@ -6,9 +6,15 @@ export type VisaType =
   | "express_entry_cec"
   | "express_entry_fst"
   | "express_entry_stem"
+  | "ee_french_language"
+  | "ee_healthcare"
+  | "ee_trades"
+  | "quebec_skilled_worker"
   | "pnp_ontario"
   | "pnp_bc"
   | "pnp_alberta"
+  | "pnp_manitoba"
+  | "pnp_saskatchewan"
   | "family_sponsorship"
   | "pgwp"
   | "atlantic_immigration"
@@ -22,9 +28,15 @@ export const ALL_VISA_TYPES: VisaType[] = [
   "express_entry_cec",
   "express_entry_fst",
   "express_entry_stem",
+  "ee_french_language",
+  "ee_healthcare",
+  "ee_trades",
+  "quebec_skilled_worker",
   "pnp_ontario",
   "pnp_bc",
   "pnp_alberta",
+  "pnp_manitoba",
+  "pnp_saskatchewan",
   "family_sponsorship",
   "pgwp",
   "atlantic_immigration",
@@ -138,6 +150,29 @@ export const PATHWAY_RULES: Record<VisaType, PathwayRule[]> = {
     { field: "clbScore", operator: "lte", value: 6, eliminates: true },
   ],
 
+  // Express Entry French Language Proficiency draw: CLB 7+; must demonstrate French ability
+  ee_french_language: [
+    { field: "clbScore", operator: "lte", value: 6, eliminates: true },
+    { field: "frenchAbility", operator: "eq", value: false, eliminates: true },
+  ],
+
+  // Express Entry Healthcare draw: TEER 1-3 healthcare occupations, CLB 5+
+  ee_healthcare: [
+    { field: "clbScore", operator: "lte", value: 4, eliminates: true },
+    { field: "teerCategory", operator: "in", value: [0, 4, 5], eliminates: true },
+  ],
+
+  // Express Entry Trade Occupations draw: TEER 2-3 only, CLB 5+
+  ee_trades: [
+    { field: "teerCategory", operator: "in", value: [0, 1, 4, 5], eliminates: true },
+    { field: "clbScore", operator: "lte", value: 4, eliminates: true },
+  ],
+
+  // Quebec Skilled Worker: only for applicants intending Quebec; separate from EE
+  quebec_skilled_worker: [
+    { field: "intentToLiveInQuebec", operator: "eq", value: false, eliminates: true },
+  ],
+
   // Ontario PNP: many streams, no universal hard eliminator from voice fields
   pnp_ontario: [],
 
@@ -146,6 +181,12 @@ export const PATHWAY_RULES: Record<VisaType, PathwayRule[]> = {
 
   // Alberta AAIP: many streams, no universal hard eliminator from voice fields
   pnp_alberta: [],
+
+  // Manitoba PNP: many streams, no universal hard eliminator from voice fields
+  pnp_manitoba: [],
+
+  // Saskatchewan PNP: many streams, no universal hard eliminator from voice fields
+  pnp_saskatchewan: [],
 
   // Family Sponsorship: must have a qualifying family member in Canada
   family_sponsorship: [
@@ -332,6 +373,33 @@ export function scorePathways(
         if (edu && ["masters", "phd"].includes(edu)) { score += 10; reasons.push("Graduate STEM credential"); }
         break;
 
+      case "ee_french_language":
+        if (answers.frenchAbility) { score += 30; reasons.push("French proficiency — key for Francophone draw"); }
+        if (clb != null && clb >= 9) { score += 15; reasons.push("Strong CLB baseline"); }
+        else if (clb != null && clb >= 7) { score += 8; reasons.push("CLB meets draw threshold"); }
+        if (teer != null && teer <= 1) { score += 10; reasons.push("Skilled occupation competitive in French draws"); }
+        break;
+
+      case "ee_healthcare":
+        if (teer != null && teer >= 1 && teer <= 3) { score += 25; reasons.push("Healthcare-eligible TEER 1–3"); }
+        if (clb != null && clb >= 7) { score += 10; reasons.push("Language exceeds minimum"); }
+        else if (clb != null && clb >= 5) { score += 5; reasons.push("Language meets minimum"); }
+        break;
+
+      case "ee_trades":
+        if (teer === 2 || teer === 3) { score += 20; reasons.push("Trades-eligible TEER 2/3"); }
+        if (foreignWork + canWork >= 2) { score += 15; reasons.push("2+ yrs trades experience"); }
+        if (clb != null && clb >= 5) { score += 10; reasons.push("Language meets threshold"); }
+        break;
+
+      case "quebec_skilled_worker":
+        if (answers.intentToLiveInQuebec) { score += 40; reasons.push("Intending Quebec residency"); }
+        if (answers.frenchAbility) { score += 15; reasons.push("French ability valued for QSW"); }
+        if (edu && ["masters", "phd"].includes(edu)) { score += 10; reasons.push("Graduate education"); }
+        else if (edu && ["bachelors", "two_or_more_credentials"].includes(edu)) { score += 6; reasons.push("Post-secondary degree"); }
+        if (clb != null && clb >= 7) { score += 8; reasons.push("Language proficiency"); }
+        break;
+
       case "pnp_ontario":
         if (answers.provincialTie && answers.intentToLiveInQuebec === false) { score += 20; reasons.push("Provincial connection"); }
         if (canWork >= 1) { score += 10; reasons.push("Ontario work history valued"); }
@@ -343,6 +411,12 @@ export function scorePathways(
         break;
 
       case "pnp_alberta":
+        if (answers.provincialTie && answers.intentToLiveInQuebec === false) { score += 20; reasons.push("Provincial connection"); }
+        if (teer != null && teer <= 3) { score += 10; reasons.push("Eligible occupation"); }
+        break;
+
+      case "pnp_manitoba":
+      case "pnp_saskatchewan":
         if (answers.provincialTie && answers.intentToLiveInQuebec === false) { score += 20; reasons.push("Provincial connection"); }
         if (teer != null && teer <= 3) { score += 10; reasons.push("Eligible occupation"); }
         break;
@@ -464,6 +538,11 @@ export function profileToAnswers(profile: PartialExtractedProfile): Partial<User
   if (profile.date_of_birth != null) {
     const range = ageToRange(profile.date_of_birth);
     if (range) answers.ageRange = range;
+  }
+
+  if (profile.has_prior_canadian_study != null) {
+    answers.priorCanadianStudy = profile.has_prior_canadian_study;
+    if (profile.has_prior_canadian_study === true) answers.pgwpEligible = true;
   }
 
   // ageRange 45+ is a soft CRS signal but not a hard eliminator

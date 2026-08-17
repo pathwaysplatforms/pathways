@@ -300,6 +300,36 @@ export type Database = {
           },
         ]
       }
+      ee_pool_snapshots: {
+        Row: {
+          by_program: Json | null
+          crs_distribution: Json | null
+          id: string
+          scraped_at: string
+          snapshot_date: string
+          source_url: string | null
+          total_candidates: number | null
+        }
+        Insert: {
+          by_program?: Json | null
+          crs_distribution?: Json | null
+          id?: string
+          scraped_at?: string
+          snapshot_date: string
+          source_url?: string | null
+          total_candidates?: number | null
+        }
+        Update: {
+          by_program?: Json | null
+          crs_distribution?: Json | null
+          id?: string
+          scraped_at?: string
+          snapshot_date?: string
+          source_url?: string | null
+          total_candidates?: number | null
+        }
+        Relationships: []
+      }
       guest_sessions: {
         Row: {
           created_at: string
@@ -648,36 +678,60 @@ export type Database = {
       }
       pathway_steps: {
         Row: {
+          checklist_items: Json | null
           description: string
           document_requirement_id: string | null
+          estimated_days_max: number | null
+          estimated_days_min: number | null
           estimated_duration: string
+          fee_cad: number | null
+          form_numbers: string[] | null
           id: string
           is_optional: boolean
+          last_enriched_at: string | null
+          official_url: string | null
           pathway_id: string
+          pro_tips: string | null
           resources: Json | null
           step_number: number
           title: string
           type: string
         }
         Insert: {
+          checklist_items?: Json | null
           description: string
           document_requirement_id?: string | null
+          estimated_days_max?: number | null
+          estimated_days_min?: number | null
           estimated_duration: string
+          fee_cad?: number | null
+          form_numbers?: string[] | null
           id?: string
           is_optional?: boolean
+          last_enriched_at?: string | null
+          official_url?: string | null
           pathway_id: string
+          pro_tips?: string | null
           resources?: Json | null
           step_number: number
           title: string
           type?: string
         }
         Update: {
+          checklist_items?: Json | null
           description?: string
           document_requirement_id?: string | null
+          estimated_days_max?: number | null
+          estimated_days_min?: number | null
           estimated_duration?: string
+          fee_cad?: number | null
+          form_numbers?: string[] | null
           id?: string
           is_optional?: boolean
+          last_enriched_at?: string | null
+          official_url?: string | null
           pathway_id?: string
+          pro_tips?: string | null
           resources?: Json | null
           step_number?: number
           title?: string
@@ -1068,6 +1122,121 @@ export type Database = {
           years_experience?: number | null
         }
         Relationships: []
+      }
+      step_checklist_progress: {
+        Row: {
+          checked_items: Json
+          step_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checked_items?: Json
+          step_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checked_items?: Json
+          step_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "step_checklist_progress_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "pathway_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_documents: {
+        Row: {
+          display_name: string | null
+          document_type: string | null
+          file_name: string
+          file_size: number
+          id: string
+          mime_type: string
+          storage_path: string
+          uploaded_at: string
+          user_id: string
+        }
+        Insert: {
+          display_name?: string | null
+          document_type?: string | null
+          file_name: string
+          file_size: number
+          id?: string
+          mime_type: string
+          storage_path: string
+          uploaded_at?: string
+          user_id: string
+        }
+        Update: {
+          display_name?: string | null
+          document_type?: string | null
+          file_name?: string
+          file_size?: number
+          id?: string
+          mime_type?: string
+          storage_path?: string
+          uploaded_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       voice_sessions: {
         Row: {

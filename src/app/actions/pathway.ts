@@ -37,6 +37,29 @@ export async function selectPathway(slug: string): Promise<void> {
     throw new DatabaseError('Failed to save pathway selection', { userId: user.id }, error);
   }
 
+  // Create a draft application row so /applications/[id] is reachable.
+  const [{ data: profileRow }, { data: pathwayRow }] = await Promise.all([
+    supabase.from('profiles').select('id').eq('auth_user_id', user.id).single(),
+    supabase.from('pathways').select('id').eq('slug', parsed.data).eq('is_active', true).maybeSingle(),
+  ]);
+
+  const profileId = (profileRow as { id: string } | null)?.id;
+  const pathwayId = (pathwayRow as { id: string } | null)?.id;
+
+  if (profileId && pathwayId) {
+    const { error: appErr } = await supabase
+      .from('applications')
+      .upsert(
+        { profile_id: profileId, pathway_id: pathwayId, status: 'draft' },
+        { onConflict: 'profile_id,pathway_id', ignoreDuplicates: true }
+      );
+    if (appErr) {
+      logger.warn({ action: 'selectPathway.applicationUpsertFailed', userId: user.id, error: appErr });
+    } else {
+      logger.info({ action: 'selectPathway.applicationCreated', userId: user.id, pathwayId });
+    }
+  }
+
   logger.info({ action: 'selectPathway.complete', userId: user.id, slug: parsed.data });
   revalidatePath('/dashboard');
 }

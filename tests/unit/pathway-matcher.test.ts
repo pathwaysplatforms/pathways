@@ -211,6 +211,7 @@ function setupSuccessfulDbMocks() {
           eq: vi.fn().mockReturnValue({ order: mockOrder }),
         }),
         insert: mockInsert,
+        delete: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
       };
     }
     return { select: mockSelect, insert: mockInsert };

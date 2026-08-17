@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useTransition } from "react";
 import { X, Check } from "lucide-react";
 
 export interface UpgradeModalProps {
@@ -18,9 +18,34 @@ const PRO_FEATURES = [
   "Early access to new pathways",
 ];
 
+async function startCheckout(): Promise<void> {
+  const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+  if (res.status === 401) {
+    window.location.href = '/auth/login';
+    return;
+  }
+  const json = await res.json() as { url?: string; error?: { code: string; message: string } };
+  if (json.url) {
+    window.location.href = json.url;
+  }
+}
+
 /** Full-screen upgrade modal with dark forest green overlay and topographic texture. */
 export function UpgradeModal({ open, onClose, featureName }: UpgradeModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const [isPending, startTransition] = useTransition();
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const handleUpgrade = () => {
+    setCheckoutError(null);
+    startTransition(async () => {
+      try {
+        await startCheckout();
+      } catch {
+        setCheckoutError('Something went wrong. Please try again.');
+      }
+    });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -165,8 +190,10 @@ export function UpgradeModal({ open, onClose, featureName }: UpgradeModalProps) 
         </ul>
 
         {/* CTA */}
-        <a
-          href="/pricing"
+        <button
+          type="button"
+          onClick={handleUpgrade}
+          disabled={isPending}
           style={{
             display: "flex",
             alignItems: "center",
@@ -174,16 +201,23 @@ export function UpgradeModal({ open, onClose, featureName }: UpgradeModalProps) 
             width: "100%",
             padding: "13px 24px",
             borderRadius: 9999,
-            backgroundColor: "#0D4A3A",
+            backgroundColor: isPending ? "rgba(13,74,58,0.55)" : "#0D4A3A",
             color: "#fff",
             fontSize: 15,
             fontWeight: 500,
             fontFamily: "var(--pw-font-body)",
-            textDecoration: "none",
+            border: "none",
+            cursor: isPending ? "default" : "pointer",
           }}
         >
-          See Pro plans →
-        </a>
+          {isPending ? "Redirecting…" : "Upgrade to Pro — $99/year"}
+        </button>
+
+        {checkoutError && (
+          <p style={{ textAlign: "center", fontSize: 12, color: "#D0000C", fontFamily: "var(--pw-font-body)", marginTop: 10 }}>
+            {checkoutError}
+          </p>
+        )}
 
         <p style={{ textAlign: "center", fontSize: 12, color: "#9D9D9D", fontFamily: "var(--pw-font-body)", marginTop: 14 }}>
           Cancel anytime. No hidden fees.

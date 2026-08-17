@@ -47,10 +47,10 @@ const fullProfile: Partial<VoiceExtractedProfile> = {
 };
 
 describe("profileToNLSummary", () => {
-  it("includes nationality and age in output", () => {
+  it("includes nationality and date of birth in output", () => {
     const summary = profileToNLSummary(fullProfile);
     expect(summary).toContain("Indian");
-    expect(summary).toMatch(/\d+ years old/);
+    expect(summary).toContain("1995-04-15");
   });
 
   it("includes CLB scores when available", () => {

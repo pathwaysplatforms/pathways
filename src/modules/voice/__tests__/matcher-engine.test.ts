@@ -307,3 +307,96 @@ describe("updateMatcher", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// New VisaType elimination rules
+// ---------------------------------------------------------------------------
+
+describe("survivingPathways — new VisaType rules", () => {
+  it("eliminates quebec_skilled_worker when intentToLiveInQuebec is false", () => {
+    const answers: Partial<UserAnswers> = { intentToLiveInQuebec: false };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).not.toContain("quebec_skilled_worker");
+  });
+
+  it("does not eliminate quebec_skilled_worker when intentToLiveInQuebec is true", () => {
+    const answers: Partial<UserAnswers> = { intentToLiveInQuebec: true };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).toContain("quebec_skilled_worker");
+  });
+
+  it("eliminates ee_french_language when frenchAbility is false", () => {
+    const answers: Partial<UserAnswers> = { frenchAbility: false };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).not.toContain("ee_french_language");
+  });
+
+  it("eliminates ee_french_language when CLB is below 7", () => {
+    const answers: Partial<UserAnswers> = { clbScore: 6 };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).not.toContain("ee_french_language");
+  });
+
+  it("eliminates ee_trades for TEER 0 (management)", () => {
+    const answers: Partial<UserAnswers> = { teerCategory: 0 };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).not.toContain("ee_trades");
+  });
+
+  it("eliminates ee_trades for TEER 1", () => {
+    const answers: Partial<UserAnswers> = { teerCategory: 1 };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).not.toContain("ee_trades");
+  });
+
+  it("keeps ee_trades for TEER 2", () => {
+    const answers: Partial<UserAnswers> = { teerCategory: 2 };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).toContain("ee_trades");
+  });
+
+  it("eliminates ee_healthcare for TEER 0", () => {
+    const answers: Partial<UserAnswers> = { teerCategory: 0 };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).not.toContain("ee_healthcare");
+  });
+
+  it("keeps ee_healthcare for TEER 2 (allied health)", () => {
+    const answers: Partial<UserAnswers> = { teerCategory: 2 };
+    const all = ALL_VISA_TYPES as VisaType[];
+    const surviving = survivingPathways(answers, all);
+    expect(surviving).toContain("ee_healthcare");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// profileToAnswers — has_prior_canadian_study mapping
+// ---------------------------------------------------------------------------
+
+describe("profileToAnswers — has_prior_canadian_study", () => {
+  it("maps has_prior_canadian_study=true to priorCanadianStudy=true and pgwpEligible=true", () => {
+    const answers = profileToAnswers({ has_prior_canadian_study: true, requires_review: [] });
+    expect(answers.priorCanadianStudy).toBe(true);
+    expect(answers.pgwpEligible).toBe(true);
+  });
+
+  it("maps has_prior_canadian_study=false to priorCanadianStudy=false and does not set pgwpEligible", () => {
+    const answers = profileToAnswers({ has_prior_canadian_study: false, requires_review: [] });
+    expect(answers.priorCanadianStudy).toBe(false);
+    expect(answers.pgwpEligible).toBeUndefined();
+  });
+
+  it("leaves priorCanadianStudy and pgwpEligible undefined when field is null", () => {
+    const answers = profileToAnswers({ has_prior_canadian_study: null, requires_review: [] });
+    expect(answers.priorCanadianStudy).toBeUndefined();
+    expect(answers.pgwpEligible).toBeUndefined();
+  });
+});

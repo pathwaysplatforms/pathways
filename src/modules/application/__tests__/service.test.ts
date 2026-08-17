@@ -10,7 +10,7 @@ vi.mock('next/headers', () => ({
 }));
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getApplicationForLayout, getApplicationData } from '../service';
+import { getApplicationForLayout, getApplicationData, getUserApplications } from '../service';
 
 const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -74,6 +74,7 @@ function makeStep(n: number, overrides: Record<string, unknown> = {}) {
     estimated_duration: '2 weeks',
     is_optional: false,
     type: 'information',
+    resources: null,
     ...overrides,
   };
 }
@@ -111,6 +112,7 @@ function makeAppDataClient(setup: {
     if (table === 'pathway_steps') return makeChain(stepsResult);
     if (table === 'document_requirements') return makeChain(docsResult);
     if (table === 'pathway_progress') return makeChain(progressResult);
+    if (table === 'user_documents') return makeChain({ data: [], error: null });
     return makeChain({ data: null, error: null });
   });
 
@@ -149,7 +151,7 @@ describe('getApplicationData', () => {
         }],
         error: null,
       },
-      docsResult: { data: [{ id: 'doc-1', name: 'ECA Report', is_mandatory: true }], error: null },
+      docsResult: { data: [{ id: 'doc-1', name: 'ECA Report', is_mandatory: true, document_type: 'eca_report' }], error: null },
     });
 
     const result = await getApplicationData('user-1', mockLogger as never);
@@ -162,6 +164,7 @@ describe('getApplicationData', () => {
       { label: 'Pay fee', detail: 'Pay fee' },
     ]);
     expect(result!.documents).toHaveLength(1);
+    expect(result!.documents[0].satisfied).toBe(false);
   });
 
   it('sets checklistItems to null when the DB column is empty', async () => {
@@ -321,6 +324,123 @@ describe('getApplicationForLayout', () => {
 
     await expect(
       getApplicationForLayout('app-1', 'user-1', mockLogger as never)
+    ).rejects.toBeInstanceOf(DatabaseError);
+  });
+});
+
+// ─── getUserApplications ────────────────────────────────────────────────────
+
+function setupUserApplicationsClient(setup: {
+  profileResult: QueryResult;
+  applicationsResult?: QueryResult;
+  stepsResult?: QueryResult;
+  progressResult?: QueryResult;
+}) {
+  const {
+    profileResult,
+    applicationsResult = { data: [], error: null },
+    stepsResult = { data: [], error: null },
+    progressResult = { data: [], error: null },
+  } = setup;
+
+  const fromFn = vi.fn().mockImplementation((table: string) => {
+    if (table === 'profiles') return makeChain(profileResult);
+    if (table === 'applications') return makeChain(applicationsResult);
+    if (table === 'pathway_steps') return makeChain(stepsResult);
+    if (table === 'pathway_progress') return makeChain(progressResult);
+    return makeChain({ data: null, error: null });
+  });
+
+  vi.mocked(createSupabaseServerClient).mockReturnValue(
+    { from: fromFn } as unknown as ReturnType<typeof createSupabaseServerClient>
+  );
+}
+
+describe('getUserApplications', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  // ── Happy path ──
+  it('returns each application with its completed/total step counts', async () => {
+    setupUserApplicationsClient({
+      profileResult: PROFILE,
+      applicationsResult: {
+        data: [
+          {
+            id: 'app-1', status: 'draft', pathway_id: 'pathway-1',
+            pathway: { id: 'pathway-1', slug: 'express-entry-fsw', title: 'Skilled Worker', official_name: 'FSW Program', processing_time_min: '6 months', processing_time_max: '12 months' },
+          },
+          {
+            id: 'app-2', status: 'draft', pathway_id: 'pathway-2',
+            pathway: { id: 'pathway-2', slug: 'provincial-nominee', title: 'PNP', official_name: 'Provincial Nominee Program', processing_time_min: '12 months', processing_time_max: '18 months' },
+          },
+        ],
+        error: null,
+      },
+      stepsResult: {
+        data: [
+          { id: 'step-1', pathway_id: 'pathway-1' },
+          { id: 'step-2', pathway_id: 'pathway-1' },
+          { id: 'step-3', pathway_id: 'pathway-2' },
+        ],
+        error: null,
+      },
+      progressResult: {
+        data: [
+          { pathway_slug: 'express-entry-fsw', status: 'complete' },
+          { pathway_slug: 'provincial-nominee', status: 'in_progress' },
+        ],
+        error: null,
+      },
+    });
+
+    const result = await getUserApplications('user-1', mockLogger as never);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      applicationId: 'app-1',
+      pathwaySlug: 'express-entry-fsw',
+      pathwayTitle: 'Skilled Worker',
+      pathwayOfficialName: 'FSW Program',
+      processingTime: '6 months–12 months',
+      status: 'draft',
+      completedSteps: 1,
+      totalSteps: 2,
+    });
+    expect(result[1].completedSteps).toBe(0);
+    expect(result[1].totalSteps).toBe(1);
+  });
+
+  // ── Edge: user has no applications yet ──
+  it('returns an empty array when the user has no applications', async () => {
+    setupUserApplicationsClient({
+      profileResult: PROFILE,
+      applicationsResult: { data: [], error: null },
+    });
+
+    const result = await getUserApplications('user-1', mockLogger as never);
+    expect(result).toEqual([]);
+  });
+
+  // ── Error: profile missing throws NotFoundError ──
+  it('throws NotFoundError when the profile does not exist', async () => {
+    setupUserApplicationsClient({
+      profileResult: { data: null, error: { code: 'PGRST116', message: 'No rows' } },
+    });
+
+    await expect(
+      getUserApplications('user-1', mockLogger as never)
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  // ── Error: applications query failure throws DatabaseError ──
+  it('throws DatabaseError when the applications query fails', async () => {
+    setupUserApplicationsClient({
+      profileResult: PROFILE,
+      applicationsResult: { data: null, error: { message: 'boom' } },
+    });
+
+    await expect(
+      getUserApplications('user-1', mockLogger as never)
     ).rejects.toBeInstanceOf(DatabaseError);
   });
 });

@@ -1,11 +1,15 @@
+import type { NextRequest } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createRequestLogger } from '@/lib/logger';
 import { getApplicationData } from '@/modules/application/service';
 import type { ProfileContext, DashboardDocument } from '@/modules/dashboard/types';
+import { profileRowToCrsInput } from '@/lib/crs-input';
+import { computeCrsEstimate } from '@/lib/crs-estimate';
 
-/** GET /api/application/data — application data for the NavigationPlane ApplicationView. */
-export async function GET(): Promise<Response> {
+/** GET /api/application/data — application data for the NavigationPlane ApplicationView.
+ *  Optional ?slug= param overrides the user's selected_pathway_slug for view-switching. */
+export async function GET(req: NextRequest): Promise<Response> {
   const correlationId = crypto.randomUUID();
   const log = createRequestLogger(correlationId);
   log.info({ action: 'api.application.data.start' });
@@ -20,10 +24,21 @@ export async function GET(): Promise<Response> {
       );
     }
 
+    const slugOverride = new URL(req.url).searchParams.get('slug') ?? null;
+
     const db = supabase as unknown as SupabaseClient;
+
     const { data: profileRow } = await db
       .from('profiles')
-      .select('full_name, occupation, degree_level, degree_field, nationality')
+      .select(
+        'full_name, occupation, degree_level, degree_field, nationality, ' +
+        'date_of_birth, education_level, eca_obtained, clb_speaking, clb_listening, ' +
+        'clb_reading, clb_writing, language_proficiency_self, canadian_work_years, ' +
+        'foreign_work_years, foreign_work_recent, years_experience, noc_teer_category, ' +
+        'noc_code, has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada, ' +
+        'spouse_coming_to_canada, spouse_clb_speaking, spouse_clb_listening, ' +
+        'spouse_clb_reading, spouse_clb_writing, spouse_canadian_work_years',
+      )
       .eq('auth_user_id', user.id)
       .maybeSingle();
 
@@ -33,6 +48,29 @@ export async function GET(): Promise<Response> {
       degree_level: string | null;
       degree_field: string | null;
       nationality: string | null;
+      date_of_birth: string | null;
+      education_level: string | null;
+      eca_obtained: boolean | null;
+      clb_speaking: number | null;
+      clb_listening: number | null;
+      clb_reading: number | null;
+      clb_writing: number | null;
+      language_proficiency_self: string | null;
+      canadian_work_years: number | null;
+      foreign_work_years: number | null;
+      foreign_work_recent: boolean | null;
+      years_experience: number | null;
+      noc_teer_category: number | null;
+      noc_code: string | null;
+      has_provincial_nomination: boolean | null;
+      has_canadian_job_offer: boolean | null;
+      has_sibling_in_canada: boolean | null;
+      spouse_coming_to_canada: boolean | null;
+      spouse_clb_speaking: number | null;
+      spouse_clb_listening: number | null;
+      spouse_clb_reading: number | null;
+      spouse_clb_writing: number | null;
+      spouse_canadian_work_years: number | null;
     };
     const pf = profileRow as ProfileFields | null;
     const profileContext: ProfileContext = {
@@ -41,9 +79,17 @@ export async function GET(): Promise<Response> {
       degreeLevel: pf?.degree_level ?? null,
       degreeField: pf?.degree_field ?? null,
       nationality: pf?.nationality ?? null,
+      nocCode: pf?.noc_code ?? null,
+      pathwayInputJson: null,
     };
 
-    const appData = await getApplicationData(user.id, log);
+    let crsScore: number | null = null;
+    if (pf) {
+      const estimate = computeCrsEstimate(profileRowToCrsInput(pf));
+      if (estimate !== null && estimate.score > 0) crsScore = estimate.score;
+    }
+
+    const appData = await getApplicationData(user.id, log, slugOverride);
 
     if (!appData) {
       log.info({ action: 'api.application.data.noApp' });
@@ -54,7 +100,8 @@ export async function GET(): Promise<Response> {
       id: d.id,
       name: d.name,
       isMandatory: d.isMandatory,
-      status: 'pending',
+      status: d.satisfied ? 'uploaded' : 'pending',
+      documentType: d.documentType,
     }));
 
     log.info({ action: 'api.application.data.complete' });
@@ -71,6 +118,7 @@ export async function GET(): Promise<Response> {
         steps: appData.steps,
         profileContext,
         documents,
+        crsScore,
       },
     });
   } catch (err) {

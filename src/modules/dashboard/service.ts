@@ -426,6 +426,7 @@ export async function getDashboardData(
       name: d.requirement!.name,
       isMandatory: d.requirement!.is_mandatory,
       status: d.status,
+      documentType: null,
     }));
 
   const isSubmitted = state === 'application_submitted';
@@ -535,12 +536,23 @@ export async function getDashboardData(
   const resolvedFullName = profile.full_name ?? voiceFullName;
 
   const profileCtx = profile as Record<string, unknown>;
+  const rawPathwayInputJson = (profileCtx.pathway_input_json as Record<string, unknown> | null) ?? null;
+  const pathwayInputJson: Record<string, string> | null = rawPathwayInputJson
+    ? Object.fromEntries(
+        Object.entries(rawPathwayInputJson)
+          .filter(([, v]) => typeof v === 'string')
+          .map(([k, v]) => [k, v as string]),
+      )
+    : null;
+
   const profileContext: ProfileContext = {
     fullName: resolvedFullName,
     occupation: (profileCtx.occupation as string | null | undefined) ?? null,
     degreeLevel: (profileCtx.degree_level as string | null | undefined) ?? null,
     degreeField: (profileCtx.degree_field as string | null | undefined) ?? null,
     nationality: (profileCtx.nationality as string | null | undefined) ?? null,
+    nocCode: (profileCtx.noc_code as string | null | undefined) ?? null,
+    pathwayInputJson,
   };
 
   const data: DashboardData = {

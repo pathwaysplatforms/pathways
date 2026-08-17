@@ -52,13 +52,10 @@ export function profileToNLSummary(
 ): string {
   const parts: string[] = [];
 
-  // Nationality / location
+  // Nationality / location — use raw DOB for stable embedding across days
   const nationality = profile.nationality ?? "Unknown nationality";
-  const age = profile.date_of_birth
-    ? computeAge(profile.date_of_birth)
-    : null;
-  const ageStr = age != null ? `, ${age} years old` : "";
-  parts.push(`${nationality} national${ageStr}.`);
+  const dobStr = profile.date_of_birth ? `, born ${profile.date_of_birth}` : "";
+  parts.push(`${nationality} national${dobStr}.`);
 
   // Destination / purpose
   const destination = profile.destination_country ?? "Canada";
@@ -188,11 +185,3 @@ export function profileToNLSummary(
   return parts.join(" ");
 }
 
-function computeAge(dob: string): number {
-  const birth = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age;
-}

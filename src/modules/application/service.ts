@@ -11,7 +11,7 @@ import type {
   StepType,
   StepStatus,
 } from '@/modules/pathways/types';
-import type { ApplicationPageData, ApplicationDocument } from './types';
+import type { ApplicationPageData, ApplicationDocument, UserApplicationSummary } from './types';
 
 /** Raw pathway row from DB. */
 interface PathwayRow {
@@ -25,7 +25,7 @@ interface PathwayRow {
   fee_gbp: number;
 }
 
-/** Raw pathway_steps row from DB. */
+/** Raw pathway_steps row from DB (used by getApplicationData). */
 interface PathwayStepRow {
   id: string;
   step_number: number;
@@ -43,6 +43,7 @@ interface DocumentRequirementRow {
   id: string;
   name: string;
   is_mandatory: boolean;
+  document_type: string | null;
 }
 
 /** Raw profile row including id, used for progress lookup. */
@@ -75,7 +76,8 @@ function formatFee(feeGbp: number): string | null {
  */
 export async function getApplicationData(
   userId: string,
-  logger: Logger
+  logger: Logger,
+  slugOverride?: string | null,
 ): Promise<ApplicationPageData | null> {
   logger.info({ action: 'getApplicationData.start', userId });
 
@@ -98,12 +100,12 @@ export async function getApplicationData(
 
   const profile = profileData as ProfileRow;
 
-  if (!profile.selected_pathway_slug) {
+  if (!profile.selected_pathway_slug && !slugOverride) {
     logger.info({ action: 'getApplicationData.noPathway', userId });
     return null;
   }
 
-  const slug = profile.selected_pathway_slug;
+  const slug = slugOverride ?? profile.selected_pathway_slug ?? '';
 
   const { data: pathwayData, error: pathwayError } = await db
     .from('pathways')
@@ -130,7 +132,7 @@ export async function getApplicationData(
       .order('step_number', { ascending: true }),
     db
       .from('document_requirements')
-      .select('id, name, is_mandatory')
+      .select('id, name, is_mandatory, document_type')
       .eq('pathway_id', pathway.id)
       .order('sort_order', { ascending: true }),
   ]);
@@ -151,6 +153,17 @@ export async function getApplicationData(
   if (docsResult.error) {
     logger.warn({ action: 'getApplicationData.docsFetchFailed', pathwayId: pathway.id, error: docsResult.error });
   }
+
+  // Fetch vault: which document_types has the user already uploaded?
+  const { data: vaultData } = await db
+    .from('user_documents')
+    .select('document_type')
+    .eq('user_id', profile.id)
+    .not('document_type', 'is', null);
+
+  const satisfiedTypes = new Set<string>(
+    ((vaultData ?? []) as { document_type: string }[]).map((r) => r.document_type)
+  );
 
   // Load persisted progress for these steps.
   const stepIds = rawSteps.map((s) => s.id);
@@ -194,6 +207,8 @@ export async function getApplicationData(
     name: d.name,
     isMandatory: d.is_mandatory,
     stepId: null,
+    documentType: d.document_type ?? null,
+    satisfied: d.document_type != null ? satisfiedTypes.has(d.document_type) : false,
   }));
 
   const data: ApplicationPageData = {
@@ -219,6 +234,113 @@ export async function getApplicationData(
   return data;
 }
 
+// ─── getUserApplications ────────────────────────────────────────────────────
+
+/** Raw applications row joined with its pathway, for the applications-home list. */
+interface UserApplicationRow {
+  id: string;
+  status: string;
+  pathway_id: string;
+  pathway: {
+    id: string;
+    slug: string;
+    title: string;
+    official_name: string;
+    processing_time_min: string;
+    processing_time_max: string;
+  } | null;
+}
+
+/**
+ * Fetches every application the user has started (one row per pathway they've
+ * selected), each with its step-completion progress, for the applications-home
+ * list. Returns an empty array when the user has no applications yet.
+ */
+export async function getUserApplications(
+  userId: string,
+  logger: Logger,
+): Promise<UserApplicationSummary[]> {
+  logger.info({ action: 'getUserApplications.start', userId });
+
+  const db = await createSupabaseServerClient() as unknown as SupabaseClient;
+
+  const { data: profileData, error: profileError } = await db
+    .from('profiles')
+    .select('id')
+    .eq('auth_user_id', userId)
+    .single();
+
+  if (profileError) {
+    if ((profileError as { code?: string }).code === 'PGRST116') {
+      throw new NotFoundError('Profile not found', { userId });
+    }
+    throw new DatabaseError('Failed to fetch profile', { userId }, profileError);
+  }
+
+  const profile = profileData as { id: string };
+
+  const { data: appsData, error: appsError } = await db
+    .from('applications')
+    .select(`
+      id,
+      status,
+      pathway_id,
+      pathway:pathways ( id, slug, title, official_name, processing_time_min, processing_time_max )
+    `)
+    .eq('profile_id', profile.id);
+
+  if (appsError) {
+    throw new DatabaseError('Failed to fetch applications', { userId }, appsError);
+  }
+
+  const rows = ((appsData ?? []) as unknown as UserApplicationRow[]).filter((r) => r.pathway !== null);
+  if (rows.length === 0) {
+    logger.info({ action: 'getUserApplications.empty', userId });
+    return [];
+  }
+
+  const pathwayIds = rows.map((r) => r.pathway_id);
+  const slugs = rows.map((r) => r.pathway!.slug);
+
+  const [stepsResult, progressResult] = await Promise.all([
+    db.from('pathway_steps').select('id, pathway_id').in('pathway_id', pathwayIds),
+    db.from('pathway_progress').select('pathway_slug, status').eq('profile_id', profile.id).in('pathway_slug', slugs),
+  ]);
+
+  if (stepsResult.error) {
+    throw new DatabaseError('Failed to fetch pathway steps', { userId }, stepsResult.error);
+  }
+  if (progressResult.error) {
+    logger.warn({ action: 'getUserApplications.progressFetchFailed', userId, error: progressResult.error });
+  }
+
+  const totalByPathwayId = new Map<string, number>();
+  for (const s of (stepsResult.data ?? []) as { id: string; pathway_id: string }[]) {
+    totalByPathwayId.set(s.pathway_id, (totalByPathwayId.get(s.pathway_id) ?? 0) + 1);
+  }
+
+  const completedBySlug = new Map<string, number>();
+  for (const p of (progressResult.data ?? []) as { pathway_slug: string; status: string }[]) {
+    if (p.status !== 'complete') continue;
+    completedBySlug.set(p.pathway_slug, (completedBySlug.get(p.pathway_slug) ?? 0) + 1);
+  }
+
+  const summaries: UserApplicationSummary[] = rows.map((r) => ({
+    applicationId: r.id,
+    pathwaySlug: r.pathway!.slug,
+    pathwayTitle: r.pathway!.title,
+    pathwayOfficialName: r.pathway!.official_name,
+    processingTime: formatProcessingTime(r.pathway!.processing_time_min, r.pathway!.processing_time_max),
+    status: r.status,
+    completedSteps: completedBySlug.get(r.pathway!.slug) ?? 0,
+    totalSteps: totalByPathwayId.get(r.pathway_id) ?? 0,
+  }));
+
+  logger.info({ action: 'getUserApplications.complete', userId, count: summaries.length });
+
+  return summaries;
+}
+
 // ─── getApplicationForLayout ────────────────────────────────────────────────
 
 /** Raw application row scoped by id + owner. */
@@ -230,7 +352,7 @@ interface ApplicationRow {
   submitted_at: string | null;
 }
 
-/** Raw pathway_steps row including the step type. */
+/** Raw pathway_steps row including the step type and resources. */
 interface LayoutStepRow {
   id: string;
   step_number: number;
@@ -239,6 +361,7 @@ interface LayoutStepRow {
   estimated_duration: string;
   is_optional: boolean;
   type: string | null;
+  resources: unknown;
 }
 
 /** Raw document_requirements row including its step link and validation rules. */
@@ -358,7 +481,7 @@ export async function getApplicationForLayout(
   const [stepsResult, docsResult] = await Promise.all([
     db
       .from('pathway_steps')
-      .select('id, step_number, title, description, estimated_duration, is_optional, type')
+      .select('id, step_number, title, description, estimated_duration, is_optional, type, resources')
       .eq('pathway_id', pathway.id)
       .order('step_number', { ascending: true }),
     db
@@ -442,6 +565,7 @@ export async function getApplicationForLayout(
     const type = normalizeStepType(s.type);
     const linkedDoc = type === 'document_upload' ? docByStep.get(s.id) : undefined;
 
+    const rawResources = s.resources;
     const step: ApplicationStep = {
       id: s.id,
       step_number: s.step_number,
@@ -452,6 +576,7 @@ export async function getApplicationForLayout(
       estimated_duration: s.estimated_duration,
       is_optional: s.is_optional,
       document_requirement_id: linkedDoc?.id ?? null,
+      resources: Array.isArray(rawResources) ? (rawResources as StepResource[]) : undefined,
     };
     if (linkedDoc) step.document = mapDocumentRequirement(linkedDoc, satisfiedTypes);
     return step;

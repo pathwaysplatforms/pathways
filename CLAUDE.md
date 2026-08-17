@@ -120,10 +120,8 @@ redirected to /onboarding/review. Middleware runs on all routes except
 
 ## Authentication
 Provider: Supabase Auth
-Methods: magic link (primary), Google OAuth (secondary), email+password (guest signup only)
+Methods: magic link (primary), Google OAuth (secondary)
 Session: cookie-based via @supabase/ssr — never use localStorage for tokens
-Password inputs: allowed only in the guest signup modal (SaveResultsModal). Always use
-supabase.auth.signUp — never store, hash, or handle passwords manually.
 
 Admin check: server-side only, using the service role client.
 Pattern: const { data: profile } = await supabaseAdmin
@@ -157,24 +155,14 @@ Branches:
 Claude Code never commits, pushes, switches branches, or runs
 supabase db push. Those are always the developer's responsibility.
 
-## Dependencies
-Adding reasonable, well-maintained npm packages is authorized without asking first,
-provided they are: actively maintained, widely used, appropriately licensed
-(MIT/Apache/BSD or similar), and a good fit for the task. Prefer a small, focused
-dependency over reinventing non-trivial logic (e.g. rate limiting, validation,
-date handling). Still flag — and ask before adding — anything that is heavy,
-unmaintained, security-sensitive at the native level, or that meaningfully
-overlaps with something already in package.json. Always record the new dependency
-in package.json (no global-only installs) and note why it was added.
-
 ## What Claude Code must never do
 - Use any type or type assertions without explaining why
+- Install npm packages without asking first
 - Create database tables not in /specs/database-schema.md
 - Modify existing migration files
 - Run supabase db push
 - Commit or push code
 - Switch git branches
-- Write password inputs or password-based auth
 - Use console.log instead of the logger
 - Leave TODO comments or placeholder implementations
 - Write UI that violates the design system

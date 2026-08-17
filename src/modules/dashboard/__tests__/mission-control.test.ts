@@ -57,6 +57,8 @@ function makeData(overrides: Partial<DashboardData> = {}): DashboardData {
       degreeLevel: null,
       degreeField: null,
       nationality: null,
+      nocCode: null,
+      pathwayInputJson: null,
     },
     nationalityVoice: null,
     latestDraw: null,
@@ -314,7 +316,7 @@ describe('deriveMissionControl — actions', () => {
       makeExecutingData({
         latestDraw: null,
         applicationSteps: [makeStep(1, 'current')],
-        documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending' }],
+        documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending', documentType: null }],
         recommendations: [
           { id: 'eca', label: 'Get your ECA', description: 'Foreign credentials recognised in Canada.', impactLabel: '' },
         ],
@@ -356,7 +358,7 @@ describe('deriveMissionControl — actions', () => {
         incompleteFields: ['clb_speaking'],
         crsScore: 490,
         applicationSteps: [makeStep(1, 'current')],
-        documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending' }],
+        documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending', documentType: null }],
         recommendations: [
           { id: 'eca', label: 'Get your ECA', description: 'Foreign credentials recognised in Canada.', impactLabel: '' },
         ],
@@ -376,8 +378,8 @@ describe('deriveMissionControl — pathway asks', () => {
     const model = deriveMissionControl(
       makeExecutingData({
         documents: [
-          { id: 'd1', name: 'IELTS results', isMandatory: false, status: 'pending' },
-          { id: 'd2', name: 'Passport', isMandatory: true, status: 'pending' },
+          { id: 'd1', name: 'IELTS results', isMandatory: false, status: 'pending', documentType: null },
+          { id: 'd2', name: 'Passport', isMandatory: true, status: 'pending', documentType: null },
         ],
       })
     );
@@ -389,7 +391,7 @@ describe('deriveMissionControl — pathway asks', () => {
 
   it('is empty outside executing', () => {
     const model = deriveMissionControl(
-      makeData({ documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending' }] })
+      makeData({ documents: [{ id: 'd1', name: 'Passport', isMandatory: true, status: 'pending', documentType: null }] })
     );
     expect(model.pathwayAsks).toEqual([]);
   });

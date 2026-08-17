@@ -2,23 +2,29 @@
 
 import { ExternalLink } from 'lucide-react';
 import type { ApplicationStep } from '@/modules/pathways/types';
-import { completeStep } from '@/app/applications/actions';
+import { updateStepProgress } from '@/app/actions/progress';
 
 interface Props {
   step: ApplicationStep;
   applicationId: string;
+  pathwaySlug: string;
   isConfirmed: boolean;
   onConfirm: (confirmed: boolean) => void;
 }
 
 /** Renders instructions for an off-platform action plus a confirmation checkbox. */
-export function ExternalActionStep({ step, applicationId, isConfirmed, onConfirm }: Props) {
+export function ExternalActionStep({ step, applicationId: _applicationId, pathwaySlug, isConfirmed, onConfirm }: Props) {
+  const portalResource = step.resources?.find((r) => r.type === 'official') ?? step.resources?.[0];
+  const portalUrl = portalResource?.url ?? null;
+  const portalLabel = portalResource?.label ?? 'Open official portal';
+
   const handleChange = async (checked: boolean) => {
     onConfirm(checked);
     if (checked) {
-      await completeStep(applicationId, step.id);
+      await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
     }
   };
+
   return (
     <div>
       <p className="label-eyebrow mb-3">What you need to do</p>
@@ -27,16 +33,36 @@ export function ExternalActionStep({ step, applicationId, isConfirmed, onConfirm
         <p className="text-text-secondary" style={{ fontSize: '14px', lineHeight: '1.6' }}>
           {step.description}
         </p>
-        <div className="flex items-center gap-2 mt-3">
-          <ExternalLink size={14} className="text-accent-500 flex-shrink-0" />
-          <a
-            href="#"
-            className="text-accent-600 hover:text-accent-500 transition-colors"
-            style={{ fontSize: '13px', fontWeight: 500 }}
-          >
-            Open external portal →
-          </a>
-        </div>
+        {portalUrl && (
+          <div className="flex items-center gap-2 mt-3">
+            <ExternalLink size={14} className="text-accent-500 flex-shrink-0" />
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-600 hover:text-accent-500 transition-colors"
+              style={{ fontSize: '13px', fontWeight: 500 }}
+            >
+              {portalLabel} →
+            </a>
+          </div>
+        )}
+        {step.resources && step.resources.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-3">
+            {step.resources.slice(1).map((r) => (
+              <a
+                key={r.url}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-text-tertiary hover:text-text-secondary transition-colors"
+                style={{ fontSize: '12px' }}
+              >
+                {r.label} ↗
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Confirmation checkbox */}

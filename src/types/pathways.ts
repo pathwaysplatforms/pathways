@@ -46,7 +46,7 @@ export type PathwayRecommendation = z.infer<typeof PathwayRecommendationSchema>;
 export const PathwayMatchResultSchema = z.object({
   user_id: z.string().uuid(),
   matched_at: z.string(),
-  top_pathways: z.array(PathwayRecommendationSchema).length(3),
+  top_pathways: z.array(PathwayRecommendationSchema).min(1).max(3),
   summary: z.string(),
 });
 export type PathwayMatchResult = z.infer<typeof PathwayMatchResultSchema>;
@@ -105,7 +105,7 @@ export interface ImmigrationChunkRow {
 }
 
 /** Eligibility status after hard-threshold pre-filter. */
-export type EligibilityStatus = "ELIGIBLE" | "LIKELY" | "POSSIBLE" | "INELIGIBLE";
+export type EligibilityStatus = "ELIGIBLE" | "LIKELY" | "INELIGIBLE";
 
 export interface PathwayCandidate {
   pathway_id: string;

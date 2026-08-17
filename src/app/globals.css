@@ -35,6 +35,18 @@
   --color-accent-800:  #0a4750;
   --color-accent-900:  #072f38;
 
+  /* Document accent — clean vivid orange, tuned to sit opposite the platform's blue accent (#1A56DB) */
+  --color-terracotta-50:   #FFF4EC;
+  --color-terracotta-100:  #FFE3C7;
+  --color-terracotta-200:  #FFC58C;
+  --color-terracotta-300:  #FFA254;
+  --color-terracotta-400:  #FA8328;
+  --color-terracotta-500:  #F2760F;
+  --color-terracotta-600:  #D35F08;
+  --color-terracotta-700:  #A84908;
+  --color-terracotta-800:  #7C3607;
+  --color-terracotta-900:  #4F2205;
+
   /* Layout */
   --sidebar-width-collapsed: 64px;
   --sidebar-width-open:      220px;
@@ -55,6 +67,7 @@
   --shadow-card-lg: 0 8px 24px 0 rgba(0,0,0,0.09), 0 4px 8px -2px rgba(0,0,0,0.05);
   --shadow-sidebar: 2px 0 12px 0 rgba(0,0,0,0.05);
   --shadow-accent:  0 4px 20px 0 rgba(20,144,156,0.30), 0 1px 4px 0 rgba(20,144,156,0.20);
+  --shadow-terracotta: 0 4px 20px 0 rgba(242,118,15,0.30), 0 1px 4px 0 rgba(242,118,15,0.20);
 
   /* Sheen gradient for accent surfaces */
   --sheen-gradient: linear-gradient(
@@ -217,6 +230,57 @@ html, body {
 
   .btn-secondary:hover {
     background: var(--color-accent-50);
+  }
+
+  /* Button — primary terracotta (document upload modal accent, no sheen) */
+  .btn-primary-terracotta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-terracotta-500);
+    border: none;
+    border-radius: var(--radius-btn);
+    box-shadow: var(--shadow-terracotta);
+    cursor: pointer;
+    transition: background 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+  }
+
+  .btn-primary-terracotta:hover {
+    background: var(--color-terracotta-600);
+    box-shadow: 0 6px 24px 0 rgba(242,118,15,0.38);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary-terracotta:active {
+    transform: translateY(0);
+  }
+
+  /* Button — secondary terracotta (ghost outline) */
+  .btn-secondary-terracotta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 18px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-terracotta-600);
+    background: transparent;
+    border: 1.5px solid var(--color-terracotta-500);
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .btn-secondary-terracotta:hover {
+    background: var(--color-terracotta-50);
   }
 
   /* Status badge */
@@ -695,7 +759,7 @@ html, body {
 .pw-nav-tab::after {
   content: '';
   position: absolute;
-  bottom: -1px;
+  bottom: 7px;
   left: 0;
   right: 0;
   height: 2px;
@@ -721,6 +785,12 @@ html, body {
 
 .pw-nav-tab.no-transition::after {
   transition: none;
+}
+
+/* Application-page topbar only: underline sits flush with the border-bottom
+   under the bar instead of floating 7px above it. */
+.pw-nav-tab--flush::after {
+  bottom: 0;
 }
 
 /* ─── Step circle ────────────────────────────────────────────────── */
@@ -928,7 +998,18 @@ html, body {
   border-radius: 16px;
 }
 
-/* Application and documents slots — tighter margin, no glass border/shadow. */
+/* Application slot — fills the full main area; shell body provides the grey. */
+.pw-glass-panel--application {
+  margin: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Documents slot — tighter margin, no glass border/shadow. */
 .pw-glass-panel--content {
   margin: 16px 20px;
   border: none;
@@ -992,6 +1073,9 @@ html, body {
   background: rgba(255, 255, 255, 0.97);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+.pw-reduce-motion .pw-glass-panel--application {
+  background: transparent;
 }
 
 /* ─── Profile/Settings modal ─────────────────────────────────────── */

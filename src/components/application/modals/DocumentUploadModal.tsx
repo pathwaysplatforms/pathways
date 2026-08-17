@@ -77,18 +77,27 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
       onClick={(e) => { if (e.target === e.currentTarget && !isUploading) onClose(); }}
     >
       <div
-        className="bg-bg-surface rounded-panel w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        style={{ boxShadow: 'var(--shadow-card-lg)' }}
+        className="bg-bg-surface w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        style={{
+          boxShadow: 'var(--shadow-card-lg)',
+          borderRadius: '0 0 var(--radius-panel) var(--radius-panel)',
+        }}
       >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border-light">
+        <div
+          className="flex items-center justify-between px-6 py-5 border-b"
+          style={{ borderColor: 'var(--color-terracotta-100)' }}
+        >
           <h2 className="text-text-primary font-bold" style={{ fontSize: '18px' }}>
             {document.name}
           </h2>
           <button
             onClick={onClose}
             disabled={isUploading}
-            className="w-8 h-8 rounded-icon flex items-center justify-center text-text-tertiary hover:bg-bg-subtle hover:text-text-secondary transition-colors disabled:opacity-40"
+            className="w-8 h-8 rounded-icon flex items-center justify-center transition-colors disabled:opacity-40"
+            style={{ color: 'var(--color-terracotta-500)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-terracotta-50)'; e.currentTarget.style.color = 'var(--color-terracotta-600)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-terracotta-500)'; }}
             aria-label="Close modal"
           >
             <X size={18} />
@@ -106,16 +115,20 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
             </p>
             {document.validity_period && (
               <span
-                className="inline-flex items-center bg-bg-subtle rounded-badge px-3 py-1 mt-3"
+                className="inline-flex items-center rounded-badge px-3 py-1 mt-3"
+                style={{ background: 'var(--color-terracotta-50)' }}
               >
-                <span className="text-text-secondary" style={{ fontSize: '12px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-terracotta-700)' }}>
                   Valid for: <strong>{document.validity_period}</strong>
                 </span>
               </span>
             )}
             <p className="mt-3" style={{ fontSize: '12px' }}>
               <button
-                className="text-accent-600 hover:text-accent-500 transition-colors"
+                className="transition-colors"
+                style={{ color: 'var(--color-terracotta-600)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-terracotta-700)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-terracotta-600)'; }}
                 onClick={() => {/* stub */}}
               >
                 Not sure what this is? Get help →
@@ -127,13 +140,13 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
           <div
             className="rounded-card p-5"
             style={{
-              background: 'var(--color-accent-50)',
-              border: '1px solid var(--color-accent-100)',
+              background: 'var(--color-terracotta-50)',
+              border: '1px solid var(--color-terracotta-100)',
             }}
           >
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles size={15} className="text-accent-500" />
-              <p className="text-accent-700 font-bold" style={{ fontSize: '14px' }}>
+              <Sparkles size={15} style={{ color: 'var(--color-terracotta-500)' }} />
+              <p className="font-bold" style={{ fontSize: '14px', color: 'var(--color-terracotta-700)' }}>
                 AI Document Support
               </p>
             </div>
@@ -145,8 +158,8 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <span
-                    className="text-accent-400 flex-shrink-0 font-bold"
-                    style={{ fontSize: '14px', lineHeight: '1.5' }}
+                    className="flex-shrink-0 font-bold"
+                    style={{ fontSize: '14px', lineHeight: '1.5', color: 'var(--color-terracotta-400)' }}
                   >
                     ·
                   </span>
@@ -158,14 +171,14 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
             </ul>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                className="btn-secondary"
+                className="btn-secondary-terracotta"
                 style={{ fontSize: '12px', padding: '6px 12px' }}
                 onClick={() => setAiMessage('Coming soon — this feature is being built.')}
               >
                 Ask AI about this document
               </button>
               <button
-                className="btn-secondary"
+                className="btn-secondary-terracotta"
                 style={{ fontSize: '12px', padding: '6px 12px' }}
                 onClick={() => setAiMessage('Coming soon — template generation is in progress.')}
               >
@@ -173,7 +186,7 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
               </button>
             </div>
             {aiMessage && (
-              <p className="text-accent-600 mt-3" style={{ fontSize: '12px', fontWeight: 500 }}>
+              <p className="mt-3" style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-terracotta-600)' }}>
                 {aiMessage}
               </p>
             )}
@@ -206,7 +219,7 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
                 </p>
                 <button
                   onClick={() => { setSelectedFile(null); setModalState('idle'); }}
-                  className="btn-secondary"
+                  className="btn-secondary-terracotta"
                   style={{ fontSize: '13px' }}
                 >
                   Try again
@@ -223,17 +236,28 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
                   className={[
                     'border-2 border-dashed rounded-card transition-colors',
                     isUploading ? 'cursor-default' : 'cursor-pointer',
-                    isDragging
-                      ? 'border-accent-400 bg-accent-50'
-                      : 'border-border hover:border-accent-300 hover:bg-bg-subtle',
                   ].join(' ')}
-                  style={{ padding: '28px 20px' }}
+                  style={{
+                    padding: '28px 20px',
+                    borderColor: isDragging ? 'var(--color-terracotta-400)' : 'var(--color-terracotta-200)',
+                    background: isDragging ? 'var(--color-terracotta-50)' : 'transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isDragging) return;
+                    e.currentTarget.style.borderColor = 'var(--color-terracotta-300)';
+                    e.currentTarget.style.background = 'var(--color-terracotta-50)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isDragging) return;
+                    e.currentTarget.style.borderColor = 'var(--color-terracotta-200)';
+                    e.currentTarget.style.background = 'transparent';
+                  }}
                 >
                   {isUploading ? (
                     <div className="flex flex-col items-center gap-3">
                       <div
-                        className="w-10 h-10 rounded-full border-2 border-border animate-spin"
-                        style={{ borderTopColor: 'var(--color-accent-500)' }}
+                        className="w-10 h-10 rounded-full animate-spin"
+                        style={{ border: '2px solid var(--color-terracotta-100)', borderTopColor: 'var(--color-terracotta-500)' }}
                       />
                       <p className="text-text-secondary" style={{ fontSize: '14px' }}>
                         Uploading…
@@ -246,7 +270,7 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
                       style={{ boxShadow: 'var(--shadow-card)' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FileText size={20} className="text-accent-500 flex-shrink-0" />
+                      <FileText size={20} className="flex-shrink-0" style={{ color: 'var(--color-terracotta-500)' }} />
                       <div className="flex-1 min-w-0">
                         <p
                           className="text-text-primary font-semibold truncate"
@@ -260,7 +284,10 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
-                        className="w-6 h-6 rounded flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-bg-subtle transition-colors flex-shrink-0"
+                        className="w-6 h-6 rounded flex items-center justify-center transition-colors flex-shrink-0"
+                        style={{ color: 'var(--color-terracotta-400)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-terracotta-50)'; e.currentTarget.style.color = 'var(--color-terracotta-600)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-terracotta-400)'; }}
                         aria-label="Remove file"
                       >
                         <X size={14} />
@@ -269,13 +296,13 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
                   ) : (
                     /* Empty drop zone */
                     <div className="flex flex-col items-center gap-2 text-center">
-                      <UploadCloud size={32} className="text-text-disabled" />
+                      <UploadCloud size={32} style={{ color: 'var(--color-terracotta-300)' }} />
                       <p className="text-text-secondary" style={{ fontSize: '14px' }}>
                         Drag and drop your file here
                       </p>
                       <p className="text-text-tertiary" style={{ fontSize: '12px' }}>
                         or{' '}
-                        <span className="text-accent-600 font-semibold">click to browse</span>
+                        <span className="font-semibold" style={{ color: 'var(--color-terracotta-600)' }}>click to browse</span>
                       </p>
                     </div>
                   )}
@@ -303,7 +330,10 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
 
         {/* ── Footer ── */}
         {!isSuccess && (
-          <div className="flex items-center justify-between px-6 py-5 border-t border-border-light">
+          <div
+            className="flex items-center justify-between px-6 py-5 border-t"
+            style={{ borderColor: 'var(--color-terracotta-100)' }}
+          >
             <button
               onClick={onClose}
               disabled={isUploading}
@@ -315,7 +345,7 @@ export function DocumentUploadModal({ document, onClose, onSuccess }: Props) {
             <button
               onClick={handleUpload}
               disabled={!canUpload}
-              className={`btn-primary ${!canUpload ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`btn-primary-terracotta ${!canUpload ? 'opacity-50 cursor-not-allowed' : ''}`}
               style={{ fontSize: '14px' }}
             >
               {isUploading ? 'Uploading…' : 'Upload Document'}

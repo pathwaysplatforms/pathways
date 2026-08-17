@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { ApplicationStep } from '@/modules/pathways/types';
-import { completeStep } from '@/app/applications/actions';
+import { updateStepProgress } from '@/app/actions/progress';
 import { DocumentUploadStep } from './steps/DocumentUploadStep';
 import { InformationStep } from './steps/InformationStep';
 import { ExternalActionStep } from './steps/ExternalActionStep';
@@ -13,6 +13,8 @@ interface Props {
   stepNumber: number;
   totalSteps: number;
   applicationId: string;
+  pathwaySlug: string;
+  allSteps: ApplicationStep[];
   onNext: () => void;
   onBack: () => void;
   canGoBack: boolean;
@@ -30,7 +32,7 @@ const CONTINUE_LABELS: Record<string, string> = {
   document_upload: 'Mark as Done & Continue →',
   information:     'Save & Continue →',
   external_action: "I've Done This — Continue →",
-  review:          'Confirm & Submit →',
+  review:          'Review Complete →',
 };
 
 /** Left-column card rendering the current active step. */
@@ -39,6 +41,8 @@ export function StepCard({
   stepNumber,
   totalSteps,
   applicationId,
+  pathwaySlug,
+  allSteps,
   onNext,
   onBack,
   canGoBack,
@@ -46,7 +50,6 @@ export function StepCard({
 }: Props) {
   const [isExternalConfirmed, setIsExternalConfirmed] = useState(false);
 
-  // Reset confirmation when step changes
   useEffect(() => {
     setIsExternalConfirmed(false);
   }, [step.id]);
@@ -58,8 +61,10 @@ export function StepCard({
 
   const handleContinue = async () => {
     if (!canContinue) return;
-    if (step.type === 'review') {
-      await completeStep(applicationId, step.id);
+    // Persist completion for information and review steps; document_upload and
+    // external_action handle their own persistence via their child components.
+    if (step.type === 'information' || step.type === 'review') {
+      await updateStepProgress({ stepId: step.id, pathwaySlug, status: 'complete' });
     }
     onNext();
   };
@@ -113,6 +118,7 @@ export function StepCard({
           document={step.document}
           applicationId={applicationId}
           stepId={step.id}
+          pathwaySlug={pathwaySlug}
         />
       )}
       {step.type === 'information' && <InformationStep step={step} />}
@@ -120,11 +126,12 @@ export function StepCard({
         <ExternalActionStep
           step={step}
           applicationId={applicationId}
+          pathwaySlug={pathwaySlug}
           isConfirmed={isExternalConfirmed}
           onConfirm={setIsExternalConfirmed}
         />
       )}
-      {step.type === 'review' && <ReviewStep step={step} />}
+      {step.type === 'review' && <ReviewStep step={step} allSteps={allSteps} />}
 
       <div className="border-t border-border-light mt-6 mb-6" />
 

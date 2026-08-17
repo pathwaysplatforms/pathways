@@ -6,6 +6,15 @@
 export const VISA_TYPE_TO_PATHWAY_SLUGS: Record<string, string[]> = {
   express_entry_fsw:  ['canada-express-entry-fsw', 'express-entry-fsw'],
   express_entry_stem: ['canada-express-entry-stem'],
+  // Category-based Express Entry draws
+  ee_french_language: ['canada-ee-french'],
+  ee_healthcare:      ['canada-ee-healthcare'],
+  ee_trades:          ['canada-ee-trades'],
+  // Quebec pathways
+  quebec_skilled_worker: ['canada-qsw'],
+  // Additional PNPs
+  pnp_manitoba:     ['canada-pnp-mb'],
+  pnp_saskatchewan: ['canada-pnp-sk'],
   express_entry: [
     'canada-express-entry-fsw',
     'canada-cec',

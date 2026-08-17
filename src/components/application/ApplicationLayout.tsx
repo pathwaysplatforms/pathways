@@ -74,6 +74,8 @@ export function ApplicationLayout({ application, avatarInitials, firstName }: Pr
                 stepNumber={currentStepIdx + 1}
                 totalSteps={totalSteps}
                 applicationId={application.id}
+                pathwaySlug={application.pathway.slug}
+                allSteps={application.steps}
                 onNext={handleNext}
                 onBack={handleBack}
                 canGoBack={currentStepIdx > 0}

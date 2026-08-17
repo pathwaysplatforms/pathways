@@ -53,10 +53,12 @@ export const TurnResponseSchema = z.object({
     // CRS bonus factors
     has_provincial_nomination: z.boolean().nullable().optional(),
     has_canadian_job_offer: z.boolean().nullable().optional(),
+    has_sibling_in_canada: z.boolean().nullable().optional(),
     // Additional pathway fields
     destination_country: z.string().max(300).nullable().optional(),
     purpose: z.string().max(300).nullable().optional(),
     dependents: z.number().int().min(0).nullable().optional(),
+    has_prior_canadian_study: z.boolean().nullable().optional(),
   }),
   complete: z.boolean(),
   requires_review: z.array(z.string()),
@@ -108,6 +110,8 @@ export const VoiceExtractedProfileSchema = z.object({
   has_sibling_in_canada: z.boolean().nullable().optional(),
   annual_income: z.number().nullable().optional(),
   income_currency: z.string().max(300).nullable().optional(),
+  // Prior Canadian study — collected by voice for PGWP eligibility gating
+  has_prior_canadian_study: z.boolean().nullable().optional(),
   // Additional pathway fields
   destination_country: z.string().max(300).nullable().optional(),
   purpose: z.string().max(300).nullable().optional(),

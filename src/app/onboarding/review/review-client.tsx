@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { EDUCATION_OPTIONS, NOC_TEER_OPTIONS } from "@/modules/voice/types";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 import type { CrsEstimate } from "@/lib/pathway-input";
 
@@ -21,7 +22,62 @@ interface FieldConfig {
   options?: { value: string; label: string }[];
 }
 
+const YES_NO_OPTIONS = [
+  { value: "", label: "Not specified" },
+  { value: "true", label: "Yes" },
+  { value: "false", label: "No" },
+];
+
+// Fields ordered by how directly they drive pathway elimination/scoring
+// (see matcher-engine.ts PATHWAY_RULES and crs-estimate.ts) — the highest-stakes
+// extraction fields are surfaced first so users are most likely to check them.
 const FIELDS: FieldConfig[] = [
+  // ── Matching-critical: occupation / language / education ──────────────────
+  { key: "occupation", label: "Occupation", type: "text" },
+  {
+    key: "noc_teer_category", label: "Occupation skill level (TEER)", type: "select",
+    options: NOC_TEER_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+  },
+  { key: "noc_code", label: "NOC code (if known)", type: "text" },
+  { key: "clb_speaking", label: "CLB — Speaking", type: "number" },
+  { key: "clb_listening", label: "CLB — Listening", type: "number" },
+  { key: "clb_reading", label: "CLB — Reading", type: "number" },
+  { key: "clb_writing", label: "CLB — Writing", type: "number" },
+  {
+    key: "education_level", label: "Highest education (structured)", type: "select",
+    options: EDUCATION_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+  },
+  { key: "education_level_voice", label: "Education — as described", type: "text" },
+  {
+    key: "eca_obtained", label: "Foreign credential assessed (ECA)", type: "boolean",
+    options: YES_NO_OPTIONS,
+  },
+
+  // ── Matching-critical: work experience ─────────────────────────────────────
+  { key: "years_experience", label: "Total years of experience", type: "number" },
+  { key: "canadian_work_years", label: "Years worked in Canada", type: "number" },
+  { key: "foreign_work_years", label: "Years worked outside Canada", type: "number" },
+
+  // ── Matching-critical: hard-eligibility gates ───────────────────────────────
+  {
+    key: "has_family_in_canada", label: "Family in Canada", type: "boolean",
+    options: YES_NO_OPTIONS,
+  },
+  {
+    key: "has_canadian_job_offer", label: "Canadian job offer", type: "boolean",
+    options: YES_NO_OPTIONS,
+  },
+  {
+    key: "has_provincial_nomination", label: "Provincial nomination", type: "boolean",
+    options: YES_NO_OPTIONS,
+  },
+  {
+    key: "has_prior_canadian_study", label: "Studied full-time in Canada", type: "boolean",
+    options: YES_NO_OPTIONS,
+  },
+  { key: "intended_province", label: "Preferred province", type: "text" },
+
+  // ── Identity / context (low matching weight, kept for the record) ─────────
   { key: "full_name", label: "Full name", type: "text" },
   { key: "date_of_birth", label: "Date of birth", type: "date" },
   { key: "nationality", label: "Nationality", type: "text" },
@@ -40,25 +96,10 @@ const FIELDS: FieldConfig[] = [
   },
   {
     key: "spouse_coming_to_canada", label: "Spouse coming to Canada", type: "boolean",
-    options: [
-      { value: "", label: "Not specified" },
-      { value: "true", label: "Yes" },
-      { value: "false", label: "No" },
-    ],
+    options: YES_NO_OPTIONS,
   },
-  { key: "education_level_voice", label: "Education level", type: "text" },
-  { key: "years_experience", label: "Years of experience", type: "number" },
   {
-    key: "has_canadian_experience", label: "Canadian work experience", type: "boolean",
-    options: [
-      { value: "", label: "Not specified" },
-      { value: "true", label: "Yes" },
-      { value: "false", label: "No" },
-    ],
-  },
-  { key: "occupation", label: "Occupation", type: "text" },
-  {
-    key: "language_proficiency_self", label: "Language proficiency", type: "select",
+    key: "language_proficiency_self", label: "Self-rated language proficiency", type: "select",
     options: [
       { value: "", label: "Not specified" },
       { value: "native", label: "Native speaker" },
@@ -68,16 +109,26 @@ const FIELDS: FieldConfig[] = [
       { value: "basic", label: "Basic" },
     ],
   },
-  {
-    key: "has_family_in_canada", label: "Family in Canada", type: "boolean",
-    options: [
-      { value: "", label: "Not specified" },
-      { value: "true", label: "Yes" },
-      { value: "false", label: "No" },
-    ],
-  },
-  { key: "intended_province", label: "Preferred province", type: "text" },
 ];
+
+// Rendered as a "select" (for human-readable labels) but the API expects a number.
+const NUMERIC_SELECT_KEYS = new Set<ProfileFieldKey>(["noc_teer_category"]);
+
+/** Coerce a raw string input to the type the API schema expects (number/boolean/string). */
+function coerceFieldValue(key: string, value: string): string | number | boolean | null {
+  if (value === "") return null;
+  const fieldType = FIELDS.find((f) => f.key === key)?.type;
+  if (fieldType === "number" || NUMERIC_SELECT_KEYS.has(key as ProfileFieldKey)) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (fieldType === "boolean") {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return null;
+  }
+  return value;
+}
 
 // Recent Express Entry draw cutoffs (illustrative — update from IRCC data)
 const RECENT_CUTOFFS = [524, 510, 505, 491, 488];
@@ -136,6 +187,7 @@ export function ReviewClient({ profileId, extracted, voiceSessionId, crsEstimate
   });
   const [pendingSave, setPendingSave] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [matchingPhase, setMatchingPhase] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -144,12 +196,15 @@ export function ReviewClient({ profileId, extracted, voiceSessionId, crsEstimate
   const saveField = useCallback(async (key: string, value: string) => {
     setPendingSave(key);
     try {
-      await fetch("/api/onboarding/profile", {
+      const res = await fetch("/api/onboarding/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: value === "" ? null : value }),
+        body: JSON.stringify({ [key]: coerceFieldValue(key, value) }),
       });
-    } catch { /* silently fail — best-effort save */ }
+      if (!res.ok) {
+        setError("Could not save that change. Please try again.");
+      }
+    } catch { /* network failure — best-effort save */ }
     setPendingSave(null);
     setEditingKey(null);
   }, []);
@@ -167,13 +222,13 @@ export function ReviewClient({ profileId, extracted, voiceSessionId, crsEstimate
         const data = (await res.json()) as { error?: { message?: string } };
         throw new Error(data.error?.message ?? "Confirmation failed");
       }
-      // Fire the pathway match in the background — don't await, don't block navigation.
-      // PathwayRecommendations will poll GET /api/pathways/match until the result lands.
-      fetch("/api/pathways/match", { method: "POST" }).catch(() => undefined);
-      router.push("/pathways/results");
+      setMatchingPhase(true);
+      await fetch("/api/pathways/match", { method: "POST" }).catch(() => undefined);
+      router.push("/onboarding/matches");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSubmitting(false);
+      setMatchingPhase(false);
     }
   };
 
@@ -295,7 +350,11 @@ export function ReviewClient({ profileId, extracted, voiceSessionId, crsEstimate
         disabled={submitting}
         className="btn-primary w-full py-3 disabled:opacity-50"
       >
-        {submitting ? "Saving…" : "This looks right — show me my options"}
+        {submitting
+          ? matchingPhase
+            ? "Finding your matches…"
+            : "Saving your profile…"
+          : "This looks right — show me my options"}
       </button>
 
       <button

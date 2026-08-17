@@ -26,7 +26,8 @@ function handleError(error: unknown, log: Logger): Response {
 }
 
 /**
- * Persist partial profile field updates (used by FormTab and inline editing).
+ * Persist partial profile field updates (used by the form onboarding flow, review-screen
+ * inline editing, and the profile tracker panel).
  * POST /api/onboarding/profile
  */
 export async function POST(req: NextRequest): Promise<Response> {

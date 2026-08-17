@@ -123,6 +123,85 @@ export async function updateProfileFields(fields: ProfileUpdateFields): Promise<
   logger.info({ action: 'updateProfileFields.complete', userId: user.id, profileCompletenessPct });
 }
 
+const NocCodeSchema = z.string().regex(/^\d{5}$/, 'NOC code must be exactly 5 digits');
+const ChecklistInputSchema = z.object({
+  key: z.string().min(1).max(100),
+  value: z.string().max(500).nullable(),
+});
+
+/** Derives the TEER level (0–5) from a 5-digit NOC 2021 code. */
+function nocCodeToTeer(code: string): number | null {
+  const teer = parseInt(code[1] ?? '', 10);
+  return Number.isFinite(teer) && teer >= 0 && teer <= 5 ? teer : null;
+}
+
+/**
+ * Saves a single checklist input captured during a step task.
+ * Routes to the matching profile column for known keys; all others land in pathway_input_json.
+ */
+export async function saveChecklistInput(key: string, value: string | null): Promise<void> {
+  const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/auth/login');
+
+  const correlationId = `checklist-input-${user.id}-${Date.now()}`;
+  const logger = createRequestLogger(correlationId);
+  logger.info({ action: 'saveChecklistInput.start', userId: user.id, key });
+
+  const parsed = ChecklistInputSchema.safeParse({ key, value });
+  if (!parsed.success) {
+    logger.warn({ action: 'saveChecklistInput.invalid', userId: user.id, issues: parsed.error.issues });
+    throw new ValidationError('Invalid input', { issues: parsed.error.issues });
+  }
+
+  let updates: Record<string, unknown>;
+
+  if (key === 'noc_code') {
+    if (value !== null) {
+      const nocParsed = NocCodeSchema.safeParse(value);
+      if (!nocParsed.success) {
+        throw new ValidationError('NOC code must be exactly 5 digits (e.g. 21231)', {});
+      }
+    }
+    updates = {
+      noc_code: value,
+      noc_teer_category: value ? nocCodeToTeer(value) : null,
+    };
+  } else if (key === 'occupation') {
+    updates = { occupation: value };
+  } else if (key === 'annual_income') {
+    const num = value !== null ? parseInt(value, 10) : null;
+    updates = { annual_income: Number.isFinite(num) ? num : null };
+  } else {
+    // Arbitrary key — merge into pathway_input_json
+    const { data: existingData } = await supabase
+      .from('profiles')
+      .select('pathway_input_json')
+      .eq('auth_user_id', user.id)
+      .single() as unknown as { data: { pathway_input_json: Record<string, unknown> | null } | null };
+
+    const existing = (existingData?.pathway_input_json as Record<string, unknown>) ?? {};
+    if (value === null) {
+      delete existing[key];
+    } else {
+      existing[key] = value;
+    }
+    updates = { pathway_input_json: existing };
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('auth_user_id', user.id);
+
+  if (error) {
+    logger.error({ action: 'saveChecklistInput.db_error', userId: user.id, key, error });
+    throw new DatabaseError('Failed to save input', { userId: user.id, key });
+  }
+
+  logger.info({ action: 'saveChecklistInput.complete', userId: user.id, key });
+}
+
 /** Re-computes the CRS estimate from the current profile and persists it into pathway_input_json. */
 export async function recalculateCrsEstimate(): Promise<CrsEstimate | null> {
   const supabase = await createSupabaseServerClient() as unknown as SupabaseClient;

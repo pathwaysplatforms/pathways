@@ -12,6 +12,13 @@ export interface DocumentRequirement {
   satisfied?: boolean;
 }
 
+/** An official link or form associated with a pathway step. */
+export interface StepResource {
+  label: string;
+  url: string;
+  type: 'official' | 'form' | 'external';
+}
+
 export interface ApplicationStep {
   id: string;
   step_number: number;
@@ -23,6 +30,7 @@ export interface ApplicationStep {
   is_optional: boolean;
   document_requirement_id: string | null;
   document?: DocumentRequirement;
+  resources?: StepResource[];
 }
 
 export interface ApplicationPathway {

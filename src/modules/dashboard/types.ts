@@ -39,12 +39,56 @@ export interface StepResource {
   type: 'official' | 'form' | 'external';
 }
 
+/** All AI draft types the checklist system can generate. */
+export type AiActionType =
+  | 'employer_reference_email'
+  | 'eca_inquiry_email'
+  | 'eca_status_email'
+  | 'language_score_email'
+  | 'bank_letter_request_email'
+  | 'cover_letter'
+  | 'employer_support_email'
+  | 'pnp_inquiry_email'
+  | 'trade_cert_inquiry_email'
+  | 'transcript_request_email'
+  | 'designated_org_inquiry_email'
+  | 'commitment_letter_follow_up'
+  | 'community_recommendation_request'
+  | 'sponsorship_support_letter'
+  | 'endorsement_inquiry_email';
+
+/** Describes an AI generation action attached to a checklist task. */
+export interface ChecklistAiAction {
+  /** Which generation function to call. */
+  type: AiActionType;
+  /** Text on the trigger button inside the expanded row. */
+  button_label: string;
+  /** Title shown at the top of the output modal. */
+  modal_title: string;
+}
+
+/** Describes a data-capture field shown inline in a checklist task. */
+export interface ChecklistInputField {
+  /** Visible label above the input. */
+  label: string;
+  placeholder: string;
+  /** Profile column key: 'noc_code' | 'occupation' | 'annual_income', or an arbitrary key stored in pathway_input_json. */
+  key: string;
+  /** Displayed below the input as contextual guidance. */
+  hint?: string;
+  type?: 'text' | 'number';
+}
+
 /** A rich checklist sub-task with inline guidance for the expanded drawer. */
 export interface ChecklistItem {
   label: string;
   detail: string;
   links?: { label: string; url: string }[];
   tips?: string[];
+  /** If set, an input field is rendered so the user can record a value found while completing this task. */
+  input_field?: ChecklistInputField;
+  /** If set, an AI generation button is rendered in the expanded drawer. */
+  ai_action?: ChecklistAiAction;
 }
 
 /** A pre-written email template for a pathway step. */
@@ -78,6 +122,10 @@ export interface ProfileContext {
   degreeLevel: string | null;
   degreeField: string | null;
   nationality: string | null;
+  /** Current value of profiles.noc_code — used to pre-populate checklist input fields. */
+  nocCode: string | null;
+  /** Current value of profiles.pathway_input_json — used to pre-populate arbitrary checklist inputs. */
+  pathwayInputJson: Record<string, string> | null;
 }
 
 export interface DashboardDocument {
@@ -85,6 +133,8 @@ export interface DashboardDocument {
   name: string;
   isMandatory: boolean;
   status: string;
+  /** Vault document_type value (e.g. 'employment_reference') used to tag uploads. Null when unknown. */
+  documentType: string | null;
 }
 
 export interface Recommendation {

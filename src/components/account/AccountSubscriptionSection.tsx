@@ -1,4 +1,19 @@
+"use client";
+
+import { useState, useTransition } from "react";
 import type { SubscriptionStatus } from "@/modules/account/types";
+
+async function startCheckout(): Promise<void> {
+  const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+  if (res.status === 401) {
+    window.location.href = '/auth/login';
+    return;
+  }
+  const json = await res.json() as { url?: string; error?: { code: string; message: string } };
+  if (json.url) {
+    window.location.href = json.url;
+  }
+}
 
 interface Props {
   subscriptionStatus: SubscriptionStatus;
@@ -25,6 +40,19 @@ export function AccountSubscriptionSection({ subscriptionStatus, createdAt }: Pr
   });
 
   const isPaid = subscriptionStatus === "paid";
+  const [isPending, startTransition] = useTransition();
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const handleUpgrade = () => {
+    setCheckoutError(null);
+    startTransition(async () => {
+      try {
+        await startCheckout();
+      } catch {
+        setCheckoutError('Something went wrong. Please try again.');
+      }
+    });
+  };
 
   return (
     <section className="card" style={{ padding: 24 }}>
@@ -68,24 +96,33 @@ export function AccountSubscriptionSection({ subscriptionStatus, createdAt }: Pr
         </div>
 
         {!isPaid && (
-          <a
-            href="/pricing"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "9px 20px",
-              borderRadius: 9999,
-              fontSize: 14,
-              fontWeight: 500,
-              fontFamily: "var(--pw-font-body)",
-              backgroundColor: "var(--pw-ink)",
-              color: "#fff",
-              textDecoration: "none",
-              flexShrink: 0,
-            }}
-          >
-            Upgrade to Pro →
-          </a>
+          <div style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={handleUpgrade}
+              disabled={isPending}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "9px 20px",
+                borderRadius: 9999,
+                fontSize: 14,
+                fontWeight: 500,
+                fontFamily: "var(--pw-font-body)",
+                backgroundColor: isPending ? "rgba(0,0,0,0.35)" : "var(--pw-ink)",
+                color: "#fff",
+                border: "none",
+                cursor: isPending ? "default" : "pointer",
+              }}
+            >
+              {isPending ? "Redirecting…" : "Upgrade to Pro →"}
+            </button>
+            {checkoutError && (
+              <p style={{ fontSize: 12, color: "#D0000C", fontFamily: "var(--pw-font-body)", marginTop: 6 }}>
+                {checkoutError}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </section>

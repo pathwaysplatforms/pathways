@@ -74,6 +74,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     const profileCompletenessPct = computeProfileCompletenessPct(extracted);
 
     const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
+
+    // Invalidate any stale cached pathway match — profile may have changed since last run
+    await adminDb.from("pathway_matches").delete().eq("user_id", profile.id);
+
     const { error } = await adminDb
       .from("profiles")
       .update({

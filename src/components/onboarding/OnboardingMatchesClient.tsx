@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, Clock, Lock, ArrowRight, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Clock, Lock, ArrowRight, X, Loader2 } from "lucide-react";
 import type { PathwayMatchResult, PathwayRecommendation } from "@/types/pathways";
 import { UpgradeModal, usePaywall } from "@/components/paywall/UpgradeModal";
 import type { SubscriptionStatus } from "@/modules/account/types";
+import { selectPathway } from "@/app/actions/pathway";
 
 // ─── Design tokens (website language) ────────────────────────────────────────
 const W = {
@@ -32,10 +34,14 @@ const MATCH_BADGE: Record<PathwayRecommendation["match_label"], { bg: string; co
   "Possible match":  { bg: "#F4F4F4",       color: W.grey },
 };
 
-const ANALYSIS_STEPS = [
+const LOADING_MESSAGES = [
   "Reading your profile",
-  "Matching immigration programs",
-  "Ranking your results",
+  "Assessing eligibility criteria",
+  "Scanning immigration programs",
+  "Calculating match scores",
+  "Weighing your qualifications",
+  "Ranking your pathways",
+  "Preparing your results",
 ] as const;
 
 type Phase = "analyzing" | "done" | "error";
@@ -110,123 +116,108 @@ function UpgradeBanner({ onUpgrade, onDismiss }: { onUpgrade: () => void; onDism
   );
 }
 
-/** Three shimmer skeleton cards shown while matching runs. */
-function SkeletonCards({ stepIndex }: { stepIndex: number }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {[0, 1, 2].map((i) => (
-        <div
-          key={i}
-          style={{
-            backgroundColor: "#fff",
-            border: `1px solid ${W.border}`,
-            borderRadius: 16,
-            padding: 24,
-            opacity: 1 - i * 0.12,
-          }}
-        >
-          {/* Badge + title row */}
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-            <div>
-              <div className="pw-shimmer" style={{ height: 11, width: 120, borderRadius: 6, marginBottom: 8 }} />
-              <div className="pw-shimmer" style={{ height: 22, width: 220, borderRadius: 8 }} />
-            </div>
-            <div className="pw-shimmer" style={{ height: 24, width: 90, borderRadius: 9999, flexShrink: 0 }} />
-          </div>
-          {/* Body text */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-            <div className="pw-shimmer" style={{ height: 13, width: "100%", borderRadius: 6 }} />
-            <div className="pw-shimmer" style={{ height: 13, width: "88%", borderRadius: 6 }} />
-            <div className="pw-shimmer" style={{ height: 13, width: "72%", borderRadius: 6 }} />
-          </div>
-          {/* Requirements */}
-          {[0, 1, 2].map((j) => (
-            <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <div className="pw-shimmer" style={{ width: 16, height: 16, borderRadius: 9999, flexShrink: 0 }} />
-              <div className="pw-shimmer" style={{ height: 13, width: `${75 - j * 10}%`, borderRadius: 6 }} />
-            </div>
-          ))}
-          {/* Footer */}
-          <div style={{ borderTop: `1px solid ${W.border}`, paddingTop: 14, marginTop: 8, display: "flex", justifyContent: "space-between" }}>
-            <div className="pw-shimmer" style={{ height: 12, width: 100, borderRadius: 6 }} />
-            <div className="pw-shimmer" style={{ height: 12, width: 90, borderRadius: 6 }} />
-          </div>
-        </div>
-      ))}
+/** Full-viewport centered loading animation shown while pathway matching runs. */
+function MatchingLoader() {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
 
-      {/* Analysis steps */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 8, paddingLeft: 4 }}>
-        {ANALYSIS_STEPS.map((step, i) => {
-          const isDone = i < stepIndex;
-          const isActive = i === stepIndex;
-          return (
-            <div
-              key={step}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                transition: "opacity 0.3s",
-                opacity: isDone || isActive ? 1 : 0.35,
-              }}
-            >
-              <div
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 9999,
-                  border: isDone ? "none" : `1.5px solid ${isActive ? W.green : "rgba(0,0,0,0.15)"}`,
-                  backgroundColor: isDone ? W.green : "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  transition: "background-color 0.3s",
-                }}
-              >
-                {isDone && <Check size={10} color="#fff" strokeWidth={2.5} />}
-                {isActive && (
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 9999,
-                      backgroundColor: W.green,
-                      animation: "pulse 1.2s ease-in-out infinite",
-                    }}
-                  />
-                )}
-              </div>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontFamily: W.body,
-                  color: isActive ? W.ink : isDone ? W.grey : "rgba(0,0,0,0.3)",
-                  fontWeight: isActive ? 500 : 400,
-                  transition: "color 0.3s",
-                }}
-              >
-                {step}
-              </span>
-            </div>
-          );
-        })}
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+        setVisible(true);
+      }, 320);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 480,
+        padding: "60px 20px",
+        userSelect: "none",
+      }}
+    >
+      {/* Pulsing rings */}
+      <div style={{ position: "relative", width: 88, height: 88, marginBottom: 48 }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              inset: 0,
+              borderRadius: "50%",
+              border: "1.5px solid rgba(0,0,0,0.18)",
+              animation: `pw-ring-pulse 2.8s cubic-bezier(0.2, 0.6, 0.4, 1) ${i * 0.75}s infinite`,
+            }}
+          />
+        ))}
+        {/* Centre dot */}
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            backgroundColor: W.ink,
+            animation: "pw-dot-breathe 2.8s ease-in-out infinite",
+          }}
+        />
       </div>
+
+      {/* Rotating message */}
+      <p
+        style={{
+          fontFamily: W.body,
+          fontSize: 15,
+          color: W.ink,
+          letterSpacing: "-0.01em",
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(6px)",
+          transition: "opacity 0.32s ease, transform 0.32s ease",
+          marginBottom: 10,
+          textAlign: "center",
+        }}
+      >
+        {LOADING_MESSAGES[msgIndex]}
+      </p>
+      <p
+        style={{
+          fontFamily: W.body,
+          fontSize: 13,
+          color: W.grey,
+          textAlign: "center",
+        }}
+      >
+        Finding the best pathways for your profile…
+      </p>
     </div>
   );
 }
 
-/** One pathway match card — clicks trigger the paywall for non-paid users. */
+/** One pathway match card — clicking selects the pathway for any user. */
 function PathwayCard({
   pw,
   rank,
-  onGate,
+  onSelect,
   revealDelay,
+  isPaid,
+  isSelecting,
 }: {
   pw: PathwayRecommendation;
   rank: number;
-  onGate: () => void;
+  onSelect: (slug: string) => void;
   revealDelay: number;
+  isPaid: boolean;
+  isSelecting: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const badge = MATCH_BADGE[pw.match_label];
@@ -235,8 +226,8 @@ function PathwayCard({
     <div
       role="button"
       tabIndex={0}
-      onClick={onGate}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onGate(); }}
+      onClick={() => onSelect(pw.pathway_id)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(pw.pathway_id); }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className="pw-card-reveal"
@@ -367,14 +358,15 @@ function PathwayCard({
             gap: 5,
             fontSize: 13,
             fontFamily: W.body,
-            color: hovered ? W.muted : W.green,
+            color: isSelecting ? W.grey : hovered ? W.muted : W.green,
             fontWeight: 500,
             transition: "color 0.1s",
           }}
         >
-          <Lock size={12} />
-          View full details
-          <ArrowRight size={12} />
+          {isSelecting
+            ? <><Loader2 size={12} style={{ animation: "spin 0.8s linear infinite" }} /> Selecting…</>
+            : <>{isPaid ? "Start with this pathway" : "Select this pathway"} <ArrowRight size={12} /></>
+          }
         </div>
       </div>
     </div>
@@ -390,44 +382,30 @@ interface Props {
 /** Manages pathway matching fetch, loading animation, card display, and paywall. */
 export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
   const [phase, setPhase] = useState<Phase>("analyzing");
-  const [stepIndex, setStepIndex] = useState(0);
   const [results, setResults] = useState<PathwayMatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [selecting, setSelecting] = useState<string | null>(null);
 
   const isPaid = subscriptionStatus === "paid";
+  const router = useRouter();
   const { open: paywallOpen, featureName: paywallFeature, show: showPaywall, hide: hidePaywall } = usePaywall();
 
   useEffect(() => {
-    // Step 0 → 1 after 1.1s, step 1 → 2 after 2.8s. Step 2 stays until API responds.
-    const t1 = setTimeout(() => setStepIndex(1), 1100);
-    const t2 = setTimeout(() => setStepIndex(2), 2800);
-
     fetch("/api/pathways/match", { method: "POST" })
       .then((r) => r.json())
       .then((body: { data: PathwayMatchResult | null; error?: { message: string } }) => {
-        clearTimeout(t1);
-        clearTimeout(t2);
         if (body.error) {
           setError(body.error.message);
           setPhase("error");
           return;
         }
-        setStepIndex(ANALYSIS_STEPS.length); // all complete
-        // Brief pause so user sees all steps complete, then reveal
-        setTimeout(() => setPhase("done"), 600);
+        setTimeout(() => setPhase("done"), 400);
       })
       .catch((err: unknown) => {
-        clearTimeout(t1);
-        clearTimeout(t2);
         setError(err instanceof Error ? err.message : "Could not load your matches.");
         setPhase("error");
       });
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
   }, []);
 
   // Re-fetch results after phase changes to done
@@ -443,9 +421,15 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
       });
   }, [phase]);
 
-  function handleCardClick() {
-    if (isPaid) return; // paid users pass through (future: navigate to pathway)
-    showPaywall("pathway details");
+  async function handleSelect(slug: string) {
+    if (selecting) return;
+    setSelecting(slug);
+    try {
+      await selectPathway(slug);
+      router.push("/dashboard");
+    } catch {
+      setSelecting(null);
+    }
   }
 
   const showBanner = !isPaid && !bannerDismissed;
@@ -484,7 +468,7 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
       </div>
 
       {/* Content area */}
-      {phase === "analyzing" && <SkeletonCards stepIndex={stepIndex} />}
+      {phase === "analyzing" && <MatchingLoader />}
 
       {phase === "error" && (
         <div
@@ -530,8 +514,10 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
               key={pw.pathway_id}
               pw={pw}
               rank={i + 1}
-              onGate={handleCardClick}
+              onSelect={(slug) => void handleSelect(slug)}
               revealDelay={i * 120}
+              isPaid={isPaid}
+              isSelecting={selecting === pw.pathway_id}
             />
           ))}
 
@@ -578,13 +564,12 @@ export function OnboardingMatchesClient({ subscriptionStatus }: Props) {
             </button>
           </div>
 
-          {/* Dashboard fallback link */}
+          {/* Skip link */}
           <p style={{ textAlign: "center", fontSize: 13, fontFamily: W.body, color: W.grey }}>
-            Or{" "}
+            Not sure yet?{" "}
             <a href="/dashboard" style={{ color: W.ink, textDecoration: "underline", textUnderlineOffset: 3 }}>
-              continue to your dashboard
-            </a>{" "}
-            — your results are saved there.
+              Browse on your dashboard →
+            </a>
           </p>
         </div>
       )}
