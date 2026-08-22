@@ -180,13 +180,14 @@ function StatusHero({
           )}
         </div>
       ) : (
-        // No live cutoff: the CRS card already owns the number, so the hero
-        // frames the realistic route instead of repeating the score.
+        // No live cutoff to compare against: state that plainly instead of
+        // asserting a comparison result the code never actually computed.
         crsScore !== null && (
-          <p style={{ ...segment, lineHeight: 1.6, margin: 0 }}>
-            Your score sits below recent general cutoffs — your realistic routes are a
-            provincial nomination or a category-based draw.
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={segment}>CRS <span style={value}>{crsScore}</span></span>
+            <HeroSeparator />
+            <span style={segment}>No live cutoff for this stream right now</span>
+          </div>
         )
       )}
     </header>
@@ -241,18 +242,24 @@ function ExecutingLayout({ model }: { model: MissionControlModel }) {
           <NextBestActionCard actions={model.actions} />
         </div>
         <div style={{ flex: '1 1 280px', minWidth: 0, display: 'flex' }}>
-          {model.isFswPathway && model.fswEstimate !== null ? (
-            <FswEligibilityCard estimate={model.fswEstimate} />
-          ) : (
-            <CrsGaugeCard
-              crsScore={model.crsScore}
-              latestDraw={model.latestDraw}
-              crsGap={model.crsGap}
-              levers={model.levers}
-            />
-          )}
+          <CrsGaugeCard
+            crsScore={model.crsScore}
+            latestDraw={model.latestDraw}
+            crsGap={model.crsGap}
+            levers={model.levers}
+          />
         </div>
       </div>
+      {/* FSW-family pathways carry a second, independent eligibility gate (the
+          67-point selection grid) alongside CRS ranking. Shown as an addendum
+          below the CRS card — never swapped in for it — so a pass here can
+          never read as contradicting the CRS position above. Absent for every
+          other pathway family, which has no equivalent grid. */}
+      {model.isFswPathway && model.fswEstimate !== null && (
+        <div className="pw-entry pw-entry-delay-1">
+          <FswEligibilityCard estimate={model.fswEstimate} />
+        </div>
+      )}
       <div className="pw-entry pw-entry-delay-2">
         <JourneyPhaseStrip
           phase={model.journeyPhase}

@@ -8,72 +8,21 @@ const CARD: React.CSSProperties = {
   background: '#FFFFFF',
   border: '1px solid rgba(0,0,0,0.08)',
   borderRadius: 16,
-  padding: '24px',
+  padding: '20px 24px',
   width: '100%',
 };
-
-function FactorRow({
-  label,
-  score,
-  cap,
-}: {
-  label: string;
-  score: number;
-  cap: number;
-}) {
-  const pct = Math.min(100, (score / cap) * 100);
-  return (
-    <li style={{ padding: '7px 0', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-        <span
-          style={{
-            fontFamily: 'var(--pw-font-body)',
-            fontSize: 12,
-            color: 'var(--pw-muted)',
-          }}
-        >
-          {label}
-        </span>
-        <span
-          style={{
-            fontFamily: 'var(--pw-font-ui)',
-            fontSize: 11,
-            fontWeight: 500,
-            color: score > 0 ? 'var(--pw-ink)' : 'var(--pw-muted)',
-          }}
-        >
-          {score} / {cap}
-        </span>
-      </div>
-      <div
-        style={{
-          height: 4,
-          borderRadius: 9999,
-          background: '#E5E7EB',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            height: '100%',
-            width: `${pct}%`,
-            borderRadius: 9999,
-            background: score > 0 ? 'var(--pw-accent)' : 'transparent',
-            transition: 'width 0.4s ease',
-          }}
-        />
-      </div>
-    </li>
-  );
-}
 
 interface FswEligibilityCardProps {
   estimate: FswEstimate;
 }
 
 /**
- * Dashboard card showing the FSW 67-point selection factor score.
- * Rendered in place of the CRS gauge card when the user's pathway is FSW-family.
+ * Compact addendum strip showing the FSW 67-point selection-grid result.
+ * Rendered alongside — never instead of — the CRS position card: FSW
+ * eligibility is a one-time pass/fail gate on applying under the category,
+ * while CRS is the ongoing ranking that actually determines invitations.
+ * The two numbers measure different things, so the card says so explicitly
+ * rather than leaving a reader to infer whether they agree or conflict.
  */
 export function FswEligibilityCard({ estimate }: FswEligibilityCardProps) {
   const { score, breakdown, eligible, ineligibleReason } = estimate;
@@ -86,37 +35,55 @@ export function FswEligibilityCard({ estimate }: FswEligibilityCardProps) {
 
   return (
     <section style={CARD} aria-label="FSW eligibility">
-      <p className="pw-eyebrow" style={{ marginBottom: 10 }}>FSW eligibility</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ flex: '0 0 auto' }}>
+          <p className="pw-eyebrow" style={{ marginBottom: 8 }}>FSW eligibility (67-point grid)</p>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                fontFamily: 'var(--pw-font-display)',
+                fontSize: 28,
+                fontWeight: 400,
+                color: 'var(--pw-ink)',
+                lineHeight: 1,
+              }}
+            >
+              {score}
+            </span>
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: 9999,
+                fontFamily: 'var(--pw-font-ui)',
+                fontSize: 11,
+                fontWeight: 500,
+                background: statusBg,
+                color: statusColor,
+              }}
+            >
+              {statusLabel}
+            </span>
+          </div>
+        </div>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <span
+        <p
           style={{
-            fontFamily: 'var(--pw-font-display)',
-            fontSize: 36,
-            fontWeight: 400,
-            color: 'var(--pw-ink)',
-            lineHeight: 1,
+            flex: '1 1 260px',
+            fontFamily: 'var(--pw-font-body)',
+            fontSize: 12,
+            color: 'var(--pw-muted)',
+            lineHeight: 1.6,
+            margin: 0,
+            maxWidth: 420,
           }}
         >
-          {score}
-        </span>
-        <span
-          style={{
-            padding: '2px 8px',
-            borderRadius: 9999,
-            fontFamily: 'var(--pw-font-ui)',
-            fontSize: 11,
-            fontWeight: 500,
-            background: statusBg,
-            color: statusColor,
-          }}
-        >
-          {statusLabel}
-        </span>
+          Confirms you qualify to apply under FSW. Your CRS score above is what determines
+          whether you actually receive an invitation.
+        </p>
       </div>
 
       {/* Score bar with 67-pt threshold marker */}
-      <div style={{ position: 'relative', paddingTop: 18, marginBottom: 4 }}>
+      <div style={{ position: 'relative', paddingTop: 16, marginTop: 14 }}>
         <span
           style={{
             position: 'absolute',
@@ -182,20 +149,35 @@ export function FswEligibilityCard({ estimate }: FswEligibilityCardProps) {
         </p>
       )}
 
-      {/* Per-factor breakdown */}
-      <div style={{ marginTop: 16 }}>
-        <p className="pw-eyebrow" style={{ marginBottom: 4 }}>Score breakdown</p>
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {(Object.keys(FSW_FACTOR_LABELS) as (keyof typeof FSW_FACTOR_LABELS)[]).map((key) => (
-            <FactorRow
-              key={key}
-              label={FSW_FACTOR_LABELS[key]}
-              score={breakdown[key]}
-              cap={FSW_FACTOR_CAPS[key]}
-            />
-          ))}
-        </ul>
-      </div>
+      {/* Per-factor breakdown, condensed to a single wrapping line rather
+          than the vertical list a full-width column card could afford. */}
+      <ul
+        style={{
+          listStyle: 'none',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '4px 16px',
+          margin: '14px 0 0',
+          padding: '12px 0 0',
+          borderTop: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
+        {(Object.keys(FSW_FACTOR_LABELS) as (keyof typeof FSW_FACTOR_LABELS)[]).map((key) => (
+          <li
+            key={key}
+            style={{
+              fontFamily: 'var(--pw-font-body)',
+              fontSize: 12,
+              color: 'var(--pw-muted)',
+            }}
+          >
+            {FSW_FACTOR_LABELS[key]}{' '}
+            <span style={{ color: breakdown[key] > 0 ? 'var(--pw-ink)' : 'var(--pw-muted)', fontWeight: 500 }}>
+              {breakdown[key]}/{FSW_FACTOR_CAPS[key]}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
