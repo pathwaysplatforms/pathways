@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { TopNav } from './TopNav';
 import { NavigationPlane, PLANE_PATHS, pathToIndex } from './NavigationPlane';
 import { ProfileSettingsModal } from './ProfileSettingsModal';
@@ -27,6 +27,7 @@ export function DashboardShell({
   subscriptionStatus = 'free',
 }: DashboardShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const isPlane = PLANE_PATH_SET.has(pathname);
   const shouldReduceMotion = useShouldReduceMotion();
 
@@ -34,6 +35,13 @@ export function DashboardShell({
   const [modalOpen, setModalOpen] = useState(false);
 
   const handleNavigate = useCallback((targetIndex: number) => {
+    // NavigationPlane only exists while on a plane route — from a non-plane page
+    // (e.g. /dashboard/ask) there's nothing mounted to react to activeIndex, so a
+    // real route change is required instead of just flipping local state.
+    if (!isPlane) {
+      router.push(PLANE_PATHS[targetIndex]);
+      return;
+    }
     setActiveIndex((prev) => {
       // Flush checklist debounces when leaving the Application view (index 1).
       if (prev === 1 && targetIndex !== 1) {
@@ -41,7 +49,16 @@ export function DashboardShell({
       }
       return targetIndex;
     });
-  }, []);
+  }, [isPlane, router]);
+
+  // Re-sync activeIndex whenever a route change lands back on a plane path from
+  // outside it (router.push above, a Link, or browser back/forward) — the state
+  // set on mount can otherwise go stale while a non-plane page was showing.
+  useEffect(() => {
+    if (isPlane) {
+      setActiveIndex(pathToIndex(pathname));
+    }
+  }, [pathname, isPlane]);
 
   const handlePopState = useCallback((index: number) => {
     setActiveIndex((prev) => {
@@ -56,7 +73,6 @@ export function DashboardShell({
   const handleCloseModal = useCallback(() => setModalOpen(false), []);
 
   const showBackground = !isPlane || (activeIndex !== 1 && activeIndex !== 2);
-  const isApplicationPage = isPlane && activeIndex === 1;
 
   return (
     <div
@@ -71,7 +87,6 @@ export function DashboardShell({
         activeIndex={isPlane ? activeIndex : -1}
         onNavigate={handleNavigate}
         onOpenModal={handleOpenModal}
-        flat={isApplicationPage}
       />
       <main className="flex-1 overflow-hidden flex flex-col relative">
         {isPlane ? (

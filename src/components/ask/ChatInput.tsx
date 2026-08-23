@@ -88,7 +88,7 @@ export function ChatInput({ onSubmit, isLoading, placeholder, disabled }: ChatIn
           className="pw-pill-container"
           style={{
             display: 'flex',
-            alignItems: 'flex-end',
+            alignItems: 'center',
             padding: '12px 12px 12px 20px',
             gap: 8,
           }}

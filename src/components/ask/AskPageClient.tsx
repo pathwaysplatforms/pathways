@@ -185,11 +185,10 @@ export function AskPageClient() {
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
         {/* ── Left column (desktop only) ── */}
         <aside
-          className="hidden lg:flex flex-col"
+          className="hidden lg:flex flex-col pw-glass-panel pw-glass-panel--sidebar"
           style={{
             width: 300,
             flexShrink: 0,
-            borderRight: '1px solid #E5E7EB',
             overflowY: 'auto',
           }}
         >
