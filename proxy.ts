@@ -37,7 +37,7 @@ function requiredRouteForStep(step: Profile["onboarding_step"]): string | null {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   let response = NextResponse.next({

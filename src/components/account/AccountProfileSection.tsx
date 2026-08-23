@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useFormStatus } from "react-dom";
+import { useActionState } from "react";
 import { updateProfileAction } from "@/app/account/actions";
 import type { AccountProfile } from "@/modules/account/types";
 
@@ -21,7 +22,7 @@ interface Props {
 
 /** Section A: editable display name, language, phone, and country. */
 export function AccountProfileSection({ profile }: Props) {
-  const [state, action] = useFormState(updateProfileAction, {});
+  const [state, action] = useActionState(updateProfileAction, {});
 
   return (
     <section className="card" style={{ padding: 24 }}>
