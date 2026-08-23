@@ -14,7 +14,7 @@ vi.mock('next/headers', () => ({
 }));
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getDashboardData, getDrawTypesForPathway, LATEST_DRAW_MAX_AGE_MONTHS } from '../service';
+import { getDashboardData, getDrawTypesForPathway, getFallbackDrawTypesForPathway, LATEST_DRAW_MAX_AGE_MONTHS } from '../service';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,12 @@ interface MockSetup {
   docsResult?: QueryResult;
   pathwaysResult?: QueryResult;
   progressResult?: QueryResult;
-  drawsResult?: QueryResult;
+  /**
+   * Result(s) for immigration_draws queries, consumed in call order. A single
+   * value serves every call; an array lets a test give the primary-stream
+   * query and a subsequent fallback-stream query different results.
+   */
+  drawsResult?: QueryResult | QueryResult[];
 }
 
 function setupClient(setup: MockSetup) {
@@ -125,6 +130,9 @@ function setupClient(setup: MockSetup) {
     drawsResult = { data: null, error: null },
   } = setup;
 
+  const drawsResults = Array.isArray(drawsResult) ? drawsResult : [drawsResult];
+  let drawsCallIndex = 0;
+
   const fromFn = vi.fn().mockImplementation((table: string) => {
     if (table === 'profiles') return makeChain(profileResult);
     if (table === 'applications') return makeChain(applicationResult);
@@ -132,7 +140,11 @@ function setupClient(setup: MockSetup) {
     if (table === 'application_documents') return makeChain(docsResult);
     if (table === 'pathways') return makeChain(pathwaysResult);
     if (table === 'pathway_progress') return makeChain(progressResult);
-    if (table === 'immigration_draws') return makeChain(drawsResult);
+    if (table === 'immigration_draws') {
+      const result = drawsResults[drawsCallIndex] ?? drawsResults[drawsResults.length - 1];
+      drawsCallIndex += 1;
+      return makeChain(result);
+    }
     return makeChain({ data: null, error: null });
   });
 
@@ -575,6 +587,104 @@ describe('getDashboardData', () => {
     const result = await getDashboardData('user-1', mockLogger as never);
     expect(result.latestDraw?.cutoffScore).toBe(500);
   });
+
+  it('falls back to the nearest comparable stream when the pathway stream has no live cutoff', async () => {
+    const staleDate = new Date();
+    staleDate.setMonth(staleDate.getMonth() - (LATEST_DRAW_MAX_AGE_MONTHS + 2));
+    const recentDate = new Date();
+    recentDate.setMonth(recentDate.getMonth() - 1);
+
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: {
+        data: makeApplication({
+          pathway: {
+            id: 'pathway-1',
+            slug: 'canada-express-entry-fsw',
+            title: 'Federal Skilled Worker',
+            official_name: 'Federal Skilled Worker Program',
+            processing_time_min: '6 months',
+            processing_time_max: '12 months',
+          },
+        }),
+        error: null,
+      },
+      drawsResult: [
+        // Primary (fsw/general) query: stale.
+        {
+          data: { cutoff_score: 529, draw_date: staleDate.toISOString().slice(0, 10), draw_type: 'general', invitations_issued: 2095 },
+          error: null,
+        },
+        // Fallback (cec) query: fresh.
+        {
+          data: { cutoff_score: 516, draw_date: recentDate.toISOString().slice(0, 10), draw_type: 'cec', invitations_issued: 4000 },
+          error: null,
+        },
+      ],
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.latestDraw).not.toBeNull();
+    expect(result.latestDraw?.drawType).toBe('cec');
+    expect(result.latestDraw?.cutoffScore).toBe(516);
+    expect(result.latestDraw?.isFallback).toBe(true);
+  });
+
+  it('null-degrades when both the primary and fallback streams have no live cutoff', async () => {
+    const staleDate = new Date();
+    staleDate.setMonth(staleDate.getMonth() - (LATEST_DRAW_MAX_AGE_MONTHS + 2));
+    const drawDate = staleDate.toISOString().slice(0, 10);
+
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: {
+        data: makeApplication({
+          pathway: {
+            id: 'pathway-1',
+            slug: 'canada-express-entry-fsw',
+            title: 'Federal Skilled Worker',
+            official_name: 'Federal Skilled Worker Program',
+            processing_time_min: '6 months',
+            processing_time_max: '12 months',
+          },
+        }),
+        error: null,
+      },
+      drawsResult: [
+        { data: { cutoff_score: 529, draw_date: drawDate, draw_type: 'general', invitations_issued: 2095 }, error: null },
+        { data: { cutoff_score: 502, draw_date: drawDate, draw_type: 'cec', invitations_issued: 3000 }, error: null },
+      ],
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.latestDraw).toBeNull();
+  });
+
+  it('never falls back for a stream that already has its own live draws', async () => {
+    const recentDate = new Date();
+    recentDate.setMonth(recentDate.getMonth() - 1);
+
+    setupClient({
+      profileResult: { data: makeProfile(), error: null },
+      applicationResult: {
+        data: makeApplication({
+          pathway: {
+            id: 'pathway-1',
+            slug: 'canadian-experience-class',
+            title: 'Canadian Experience Class',
+            official_name: 'Canadian Experience Class',
+            processing_time_min: '6 months',
+            processing_time_max: '12 months',
+          },
+        }),
+        error: null,
+      },
+      drawsResult: { data: null, error: null },
+    });
+
+    const result = await getDashboardData('user-1', mockLogger as never);
+    expect(result.latestDraw).toBeNull();
+  });
 });
 
 describe('getDrawTypesForPathway', () => {
@@ -595,5 +705,23 @@ describe('getDrawTypesForPathway', () => {
   it('falls back to general and fsw for unknown or missing slugs', () => {
     expect(getDrawTypesForPathway('express-entry')).toEqual(['general', 'fsw']);
     expect(getDrawTypesForPathway(null)).toEqual(['general', 'fsw']);
+  });
+});
+
+describe('getFallbackDrawTypesForPathway', () => {
+  it('falls back to CEC for FSW slugs, since it ranks the same CRS pool without a nomination bonus', () => {
+    expect(getFallbackDrawTypesForPathway('canada-express-entry-fsw')).toEqual(['cec']);
+    expect(getFallbackDrawTypesForPathway('federal-skilled-worker')).toEqual(['cec']);
+  });
+
+  it('falls back to CEC for unknown or missing slugs, matching their general/fsw primary default', () => {
+    expect(getFallbackDrawTypesForPathway('express-entry')).toEqual(['cec']);
+    expect(getFallbackDrawTypesForPathway(null)).toEqual(['cec']);
+  });
+
+  it('has no fallback for streams that already have their own live draws', () => {
+    expect(getFallbackDrawTypesForPathway('canadian-experience-class')).toEqual([]);
+    expect(getFallbackDrawTypesForPathway('federal-skilled-trades')).toEqual([]);
+    expect(getFallbackDrawTypesForPathway('ontario-pnp')).toEqual([]);
   });
 });

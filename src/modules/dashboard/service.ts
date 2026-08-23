@@ -51,6 +51,30 @@ export function getDrawTypesForPathway(slug: string | null): string[] {
 }
 
 /**
+ * Fallback draw_type(s) to compare against when a pathway's own stream
+ * (getDrawTypesForPathway) has no live cutoff — e.g. general/FSW rounds
+ * have been dormant since Apr 2024 while category-based draws continue.
+ * CEC is the nearest relevant category: it ranks the same CRS-scored
+ * all-program pool (just gated on Canadian work experience), so its
+ * cutoff tracks close to where 'general' last sat. PNP is not used here —
+ * its cutoff carries a flat +600 nomination bonus and would misrepresent
+ * the gap. Narrow category draws (French language, healthcare, …) aren't
+ * used either — they select from a different, criteria-gated sub-pool.
+ * Streams with their own currently-active draws (CEC, FST, PNP) need no
+ * fallback.
+ */
+export function getFallbackDrawTypesForPathway(slug: string | null): string[] {
+  if (!slug) return ['cec'];
+  const s = slug.toLowerCase();
+  // Streams with their own currently-active draws need no fallback.
+  if (s.includes('canadian-experience') || s.includes('cec')) return [];
+  if (s.includes('federal-skilled-trades') || s.includes('fst')) return [];
+  if (s.includes('pnp') || s.includes('provincial')) return [];
+  // FSW slugs and any unrecognized slug both primary-default to ['general', 'fsw'].
+  return ['cec'];
+}
+
+/**
  * Draws older than this many months carry no live cutoff signal and are
  * treated exactly like a missing draw — a defunct number must never render
  * as a gap, marker, or target.
@@ -501,23 +525,43 @@ export async function getDashboardData(
   const effectivePathwaySlug =
     (appWithPathway?.pathway as PathwaySnapshot | null)?.slug ?? selectedPathwaySlug ?? null;
   const drawTypes = getDrawTypesForPathway(effectivePathwaySlug);
+  const now = new Date();
 
-  const { data: drawData } = await db
-    .from('immigration_draws')
-    .select('cutoff_score, draw_date, draw_type, invitations_issued')
-    .eq('program', 'express_entry')
-    .in('draw_type', drawTypes)
-    .order('draw_date', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  /** Latest fresh (non-stale) draw among the given types, or null if none qualifies. */
+  async function fetchFreshDraw(types: string[]) {
+    if (types.length === 0) return null;
+    const { data } = await db
+      .from('immigration_draws')
+      .select('cutoff_score, draw_date, draw_type, invitations_issued')
+      .eq('program', 'express_entry')
+      .in('draw_type', types)
+      .order('draw_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    const row = data as {
+      cutoff_score: number;
+      draw_date: string;
+      draw_type: string | null;
+      invitations_issued: number | null;
+    };
+    return isDrawStale(row.draw_date, now) ? null : row;
+  }
 
-  const latestDraw: LatestDraw | null =
-    drawData && !isDrawStale((drawData as { draw_date: string }).draw_date, new Date())
+  let drawRow = await fetchFreshDraw(drawTypes);
+  let drawIsFallback = false;
+  if (drawRow === null) {
+    drawRow = await fetchFreshDraw(getFallbackDrawTypesForPathway(effectivePathwaySlug));
+    drawIsFallback = drawRow !== null;
+  }
+
+  const latestDraw: LatestDraw | null = drawRow
     ? {
-        cutoffScore: (drawData as { cutoff_score: number }).cutoff_score,
-        drawDate: (drawData as { draw_date: string }).draw_date,
-        drawType: (drawData as { draw_type: string | null }).draw_type,
-        invitationsIssued: (drawData as { invitations_issued: number | null }).invitations_issued,
+        cutoffScore: drawRow.cutoff_score,
+        drawDate: drawRow.draw_date,
+        drawType: drawRow.draw_type,
+        invitationsIssued: drawRow.invitations_issued,
+        isFallback: drawIsFallback,
       }
     : null;
 

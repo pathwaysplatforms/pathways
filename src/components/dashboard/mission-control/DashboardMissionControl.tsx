@@ -8,7 +8,6 @@ import { NextBestActionCard } from './NextBestActionCard';
 import { CrsGaugeCard, CrsNumberCard } from './CrsGaugeCard';
 import { FswEligibilityCard } from './FswEligibilityCard';
 import { JourneyPhaseStrip } from './JourneyPhaseStrip';
-import { AskPathwaysBar } from './AskPathwaysBar';
 
 /** Formats an ISO date string as "D Mon YYYY". */
 function formatDrawDate(iso: string): string {
@@ -157,23 +156,13 @@ function StatusHero({
             </>
           )}
           <span style={segment}>
-            Last cutoff <span style={value}>{latestDraw.cutoffScore}</span>
+            {latestDraw.isFallback ? 'Nearest comparable cutoff' : 'Last cutoff'} <span style={value}>{latestDraw.cutoffScore}</span>
             {' '}({latestDraw.drawType ?? 'Express Entry'}, {formatDrawDate(latestDraw.drawDate)})
           </span>
           {crsGap !== null && (
             <>
               <HeroSeparator />
-              <span
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: 9999,
-                  fontFamily: 'var(--pw-font-ui)',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  background: crsGap >= 0 ? '#F0FDF4' : '#FEF3C7',
-                  color: crsGap >= 0 ? '#16A34A' : '#D97706',
-                }}
-              >
+              <span className={`badge ${crsGap >= 0 ? 'badge-success' : 'badge-warning'}`}>
                 Gap {crsGap >= 0 ? `+${crsGap}` : `${crsGap}`}
               </span>
             </>
@@ -286,10 +275,6 @@ export function DashboardMissionControl({ data }: { data: DashboardData }) {
       {model.state === 'onboarding' && <FinishProfileCta firstName={model.firstName} />}
       {model.state === 'discovering' && <DiscoveringLayout model={model} />}
       {model.state === 'executing' && <ExecutingLayout model={model} />}
-
-      <div className="pw-entry pw-entry-delay-3">
-        <AskPathwaysBar />
-      </div>
     </div>
   );
 }

@@ -81,6 +81,7 @@ function makeExecutingData(overrides: Partial<DashboardData> = {}): DashboardDat
       drawDate: '2026-06-20',
       drawType: 'FSW',
       invitationsIssued: 3000,
+      isFallback: false,
     },
     crsBreakdown: {
       age: 100,
@@ -172,7 +173,7 @@ describe('deriveMissionControl — CRS gap', () => {
   it('never leaks a gap or draw into discovering, even when both exist upstream', () => {
     const model = deriveMissionControl(
       makeData({
-        latestDraw: { cutoffScore: 510, drawDate: '2026-06-20', drawType: 'FSW', invitationsIssued: 3000 },
+        latestDraw: { cutoffScore: 510, drawDate: '2026-06-20', drawType: 'FSW', invitationsIssued: 3000, isFallback: false },
       })
     );
     expect(model.state).toBe('discovering');

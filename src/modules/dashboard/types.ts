@@ -150,6 +150,8 @@ export interface LatestDraw {
   drawDate: string;
   drawType: string | null;
   invitationsIssued: number | null;
+  /** True when this came from the fallback stream because the pathway's own stream has no live cutoff. */
+  isFallback: boolean;
 }
 
 export interface DashboardData {

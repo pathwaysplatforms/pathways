@@ -167,17 +167,7 @@ export function CrsGaugeCard({ crsScore, latestDraw, crsGap, levers }: CrsGaugeC
               {crsScore}
             </span>
             {crsGap !== null && (
-              <span
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: 9999,
-                  fontFamily: 'var(--pw-font-ui)',
-                  fontSize: 11,
-                  fontWeight: 500,
-                  background: crsGap >= 0 ? '#F0FDF4' : '#FEF3C7',
-                  color: crsGap >= 0 ? '#16A34A' : '#D97706',
-                }}
-              >
+              <span className={`badge ${crsGap >= 0 ? 'badge-success' : 'badge-warning'}`}>
                 {crsGap >= 0 ? `+${crsGap} above cutoff` : `${crsGap} to cutoff`}
               </span>
             )}
@@ -193,7 +183,9 @@ export function CrsGaugeCard({ crsScore, latestDraw, crsGap, levers }: CrsGaugeC
                   margin: '8px 0 0',
                 }}
               >
-                Latest {latestDraw.drawType ?? 'Express Entry'} draw · {formatDrawDate(latestDraw.drawDate)}
+                {latestDraw.isFallback
+                  ? `No live cutoff for your stream — nearest comparable: ${latestDraw.drawType ?? 'Express Entry'} draw · ${formatDrawDate(latestDraw.drawDate)}`
+                  : `Latest ${latestDraw.drawType ?? 'Express Entry'} draw · ${formatDrawDate(latestDraw.drawDate)}`}
               </p>
             </>
           ) : (
