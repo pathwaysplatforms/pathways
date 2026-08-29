@@ -152,17 +152,16 @@ Branches:
 - develop: integration branch. All feature branches merge here via PR.
 - feat/[name]: one branch per module/session. Short-lived.
 
-Claude Code never commits, pushes, switches branches, or runs
-supabase db push. Those are always the developer's responsibility.
+Claude Code may commit, push, switch branches, and run supabase db push
+when asked or when it's the natural next step, following the safety and
+confirmation practices in its system instructions (e.g. confirming before
+force-pushes or history-rewriting operations).
 
 ## What Claude Code must never do
 - Use any type or type assertions without explaining why
 - Install npm packages without asking first
 - Create database tables not in /specs/database-schema.md
 - Modify existing migration files
-- Run supabase db push
-- Commit or push code
-- Switch git branches
 - Use console.log instead of the logger
 - Leave TODO comments or placeholder implementations
 - Write UI that violates the design system
