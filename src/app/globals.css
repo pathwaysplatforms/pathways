@@ -1,0 +1,1204 @@
+@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties ─────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --color-bg-base:      #FFFFFF;
+  --color-bg-surface:   #FFFFFF;
+  --color-bg-subtle:    #F1F3F4;
+  --color-bg-muted:     #E8EAED;
+
+  /* Borders */
+  --color-border-light:  #EAEDF0;
+  --color-border:        #D8DCE1;
+  --color-border-strong: #BDC4CC;
+
+  /* Text */
+  --color-text-primary:   #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-tertiary:  #9CA3AF;
+  --color-text-disabled:  #D1D5DB;
+
+  /* Accent — teal */
+  --color-accent-50:   #ebfafb;
+  --color-accent-100:  #cdf3f5;
+  --color-accent-200:  #9de8ec;
+  --color-accent-300:  #5cd4db;
+  --color-accent-400:  #1ab8c4;
+  --color-accent-500:  #14909c;
+  --color-accent-600:  #107581;
+  --color-accent-700:  #0d5d68;
+  --color-accent-800:  #0a4750;
+  --color-accent-900:  #072f38;
+
+  /* Document accent — clean vivid orange, tuned to sit opposite the platform's blue accent (#1A56DB) */
+  --color-terracotta-50:   #FFF4EC;
+  --color-terracotta-100:  #FFE3C7;
+  --color-terracotta-200:  #FFC58C;
+  --color-terracotta-300:  #FFA254;
+  --color-terracotta-400:  #FA8328;
+  --color-terracotta-500:  #F2760F;
+  --color-terracotta-600:  #D35F08;
+  --color-terracotta-700:  #A84908;
+  --color-terracotta-800:  #7C3607;
+  --color-terracotta-900:  #4F2205;
+
+  /* Layout */
+  --sidebar-width-collapsed: 64px;
+  --sidebar-width-open:      220px;
+  --dashboard-gutter:        20px;
+  --dashboard-gutter-lg:     28px;
+
+  /* Radii */
+  --radius-card:  16px;
+  --radius-panel: 20px;
+  --radius-btn:   10px;
+  --radius-input: 10px;
+  --radius-badge: 8px;
+  --radius-icon:  12px;
+
+  /* Shadows */
+  --shadow-card:    0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04);
+  --shadow-card-md: 0 4px 12px 0 rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+  --shadow-card-lg: 0 8px 24px 0 rgba(0,0,0,0.09), 0 4px 8px -2px rgba(0,0,0,0.05);
+  --shadow-sidebar: 2px 0 12px 0 rgba(0,0,0,0.05);
+  --shadow-accent:  0 4px 20px 0 rgba(20,144,156,0.30), 0 1px 4px 0 rgba(20,144,156,0.20);
+  --shadow-terracotta: 0 4px 20px 0 rgba(242,118,15,0.30), 0 1px 4px 0 rgba(242,118,15,0.20);
+
+  /* Sheen gradient for accent surfaces */
+  --sheen-gradient: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.18) 48%,
+    rgba(255,255,255,0.30) 52%,
+    transparent 70%
+  );
+
+  /* ─── Swiss Particle Brutalism tokens ────────────────────────── */
+  --pw-bg:       #FFFFFF;
+  --pw-ink:      #0D0D0D;
+  --pw-muted:    #6B6B6B;
+  --pw-rule:     rgba(0, 0, 0, 0.08);
+  --pw-accent:   #1A56DB;
+  --pw-particle: #1A1A1A;
+  --pw-surface:  #F7F7F5;
+
+  --pw-font-display: 'Urbanist', sans-serif;
+  --pw-font-body:    var(--font-dm-sans, 'DM Sans', system-ui, sans-serif);
+  --pw-font-ui:      var(--font-dm-sans, 'DM Sans', system-ui, sans-serif);
+
+  /* Motion */
+  --pw-ease-calm:  cubic-bezier(0.16, 1, 0.3, 1);
+  --pw-dur-press:  100ms;
+  --pw-dur-hover:  150ms;
+  --pw-dur-enter:  320ms;
+
+  /* Canvas particle accent */
+  --pw-particle-accent: #1A56DB;
+}
+
+/* ─── Base Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: var(--pw-font-body);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Component Layer ────────────────────────────────────────────── */
+@layer components {
+
+  /* Card — base */
+  .card {
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card-md);
+    padding: 20px;
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+
+  .card:hover {
+    box-shadow: var(--shadow-card-md);
+  }
+
+  /* Card — clickable / expandable (used for future card expansion) */
+  .card-interactive {
+    cursor: pointer;
+  }
+
+  .card-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-card-lg);
+  }
+
+  .card-interactive:active {
+    transform: translateY(0);
+  }
+
+  /* Card — accent (dark aquamarine, with sheen) */
+  .card-accent {
+    background: var(--color-accent-600);
+    border-radius: var(--radius-card);
+    border: none;
+    box-shadow: var(--shadow-accent);
+    padding: 20px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Sheen sweep on accent card */
+  .card-accent::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--sheen-gradient);
+    background-size: 200% 100%;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: sheen 3s ease-in-out infinite;
+  }
+
+  /* Button — primary (accent + sheen) */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-accent-500);
+    border: none;
+    border-radius: var(--radius-btn);
+    box-shadow: var(--shadow-accent);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+  }
+
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--sheen-gradient);
+    background-size: 200% 100%;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: sheen 2.6s ease-in-out infinite;
+  }
+
+  .btn-primary:hover {
+    background: var(--color-accent-600);
+    box-shadow: 0 6px 24px 0 rgba(15,168,150,0.38);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* Button — secondary (ghost outline) */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 18px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-accent-600);
+    background: transparent;
+    border: 1.5px solid var(--color-accent-500);
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .btn-secondary:hover {
+    background: var(--color-accent-50);
+  }
+
+  /* Button — primary terracotta (document upload modal accent, no sheen) */
+  .btn-primary-terracotta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-terracotta-500);
+    border: none;
+    border-radius: var(--radius-btn);
+    box-shadow: var(--shadow-terracotta);
+    cursor: pointer;
+    transition: background 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+  }
+
+  .btn-primary-terracotta:hover {
+    background: var(--color-terracotta-600);
+    box-shadow: 0 6px 24px 0 rgba(242,118,15,0.38);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary-terracotta:active {
+    transform: translateY(0);
+  }
+
+  /* Button — secondary terracotta (ghost outline) */
+  .btn-secondary-terracotta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 18px;
+    font-family: 'Urbanist', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-terracotta-600);
+    background: transparent;
+    border: 1.5px solid var(--color-terracotta-500);
+    border-radius: var(--radius-btn);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+
+  .btn-secondary-terracotta:hover {
+    background: var(--color-terracotta-50);
+  }
+
+  /* Status badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius-badge);
+    letter-spacing: 0.02em;
+  }
+
+  .badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Dashboard state badges */
+  .badge-warning  { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+  .badge-warning::before  { background: #F59E0B; }
+
+  .badge-info     { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
+  .badge-info::before     { background: #3B82F6; }
+
+  .badge-progress { background: #ebfafb; color: #0d5d68; border: 1px solid #9de8ec; }
+  .badge-progress::before { background: #14909c; }
+
+  .badge-success  { background: #F0FDF4; color: #14532D; border: 1px solid #BBF7D0; }
+  .badge-success::before  { background: #22C55E; }
+
+  /* Sidebar */
+  .sidebar {
+    width: var(--sidebar-width-collapsed);
+    background: var(--color-bg-surface);
+    border-right: 1px solid var(--color-border-light);
+    box-shadow: var(--shadow-sidebar);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    gap: 4px;
+    flex-shrink: 0;
+    transition: width 250ms cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .sidebar.open {
+    width: var(--sidebar-width-open);
+    align-items: flex-start;
+    padding: 20px 12px;
+  }
+
+  /* Sidebar nav icon button */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-icon);
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+    flex-shrink: 0;
+  }
+
+  .nav-item:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+  }
+
+  .nav-item.active {
+    background: var(--color-accent-50);
+    color: var(--color-accent-600);
+  }
+
+  /* Dashboard grid layout */
+  .dashboard-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--color-bg-base);
+  }
+
+  .dashboard-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--dashboard-gutter-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--dashboard-gutter);
+  }
+
+  /* Bento card grid — 3 column default */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--dashboard-gutter);
+  }
+
+  .card-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--dashboard-gutter);
+  }
+
+  /* Card spans for bento layouts */
+  .col-span-2 { grid-column: span 2; }
+  .col-span-3 { grid-column: span 3; }
+  .row-span-2 { grid-row: span 2; }
+
+  /* Document vault — individual file card */
+  .doc-card {
+    background: var(--color-bg-surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    border: 1.5px solid var(--color-border-light);
+    padding: 20px;
+    transform: rotate(-1deg);
+    transition:
+      transform 400ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 300ms ease,
+      border-color 200ms ease;
+  }
+
+  .doc-card:hover {
+    transform: rotate(0deg) translateY(-5px);
+    box-shadow: var(--shadow-card-lg);
+    border-color: var(--color-accent-200);
+  }
+
+  /* Upload zone */
+  .doc-upload-zone {
+    background: rgba(235, 250, 251, 0.55);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    border: 2px dashed var(--color-accent-200);
+    padding: 56px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  }
+
+  .doc-upload-zone:hover {
+    border-color: var(--color-accent-300);
+    background: var(--color-accent-50);
+    box-shadow: var(--shadow-card-md);
+  }
+
+  .doc-upload-zone.dragging {
+    border-color: var(--color-accent-500);
+    background: var(--color-accent-50);
+    box-shadow: var(--shadow-accent);
+  }
+
+  /* Document icon buttons (Google Drive / Finder style) */
+  .doc-icon-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 6px 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 10px;
+    width: 100%;
+    transition: background 110ms ease;
+    text-align: center;
+    font-family: var(--pw-font-body);
+  }
+
+  .doc-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .doc-icon-btn:active {
+    background: rgba(0, 0, 0, 0.09);
+  }
+
+  .doc-icon-page {
+    width: 68px;
+    height: 86px;
+    background: #ffffff;
+    border: 1.5px solid #dddfe4;
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 3px 8px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+  }
+
+  .doc-icon-fold {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    background: #f0f2f5;
+    border-bottom-left-radius: 4px;
+    border-left: 1.5px solid #dddfe4;
+    border-bottom: 1.5px solid #dddfe4;
+  }
+
+  /* DisplayCards stacked layout */
+  .dc-grid {
+    display: grid;
+    grid-template-areas: 'stack';
+    place-items: center;
+  }
+
+  .dc-stack {
+    grid-area: stack;
+  }
+
+  /* Vault card stack — positional classes that bake translate + skew into one transform
+     so the skew is never overridden by Tailwind's translate utilities.
+     Y stagger: 32px per step (middle ground between flat-current and exaggerated-reference).
+     Hover: all cards lift 40px from their baseline for a consistent, satisfying forward motion. */
+  .dc-vault-back  { transform: translateX(0)     translateY(0)    skewY(-8deg); }
+  .dc-vault-back:hover  { transform: translateX(0)     translateY(-40px) skewY(-8deg); }
+  .dc-vault-mid   { transform: translateX(64px)  translateY(32px) skewY(-8deg); }
+  .dc-vault-mid:hover   { transform: translateX(64px)  translateY(-8px)  skewY(-8deg); }
+  .dc-vault-front { transform: translateX(128px) translateY(64px) skewY(-8deg); }
+  .dc-vault-front:hover { transform: translateX(128px) translateY(24px)  skewY(-8deg); }
+
+  /* Vault document card — transition for hover effects (used by VaultCard in DocumentsClient) */
+  .dc-display-card {
+    transition:
+      border-color 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow   700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform    700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dc-display-card:hover {
+    border-color: var(--color-border);
+  }
+
+}
+
+/* ─── Utilities ──────────────────────────────────────────────────── */
+@layer utilities {
+
+  /* Section label — small all-caps eyebrow */
+  .label-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
+
+  /* Card title */
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1.3;
+  }
+
+  /* Subtle divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--color-border-light);
+    margin: 16px 0;
+  }
+
+  /* Swiss Particle Brutalism — font utilities */
+  .font-display {
+    font-family: var(--pw-font-display);
+  }
+
+  .font-body {
+    font-family: var(--pw-font-body);
+  }
+
+  /* Swiss eyebrow label — canonical section-label style */
+  .pw-eyebrow {
+    font-family: var(--pw-font-ui);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--pw-muted);
+  }
+
+  /* Swiss hairline rule — static (used on landing, pathways, onboarding) */
+  .pw-rule {
+    border: none;
+    border-top: 1px solid var(--pw-rule);
+  }
+
+  /* Swiss card — border only, no shadow */
+  .pw-card {
+    border: 1px solid var(--pw-rule);
+    border-radius: 12px;
+    background: var(--pw-bg);
+    padding: 28px;
+    transition: border-color 150ms ease;
+  }
+
+  .pw-card:hover {
+    border-color: rgba(0, 0, 0, 0.18);
+  }
+
+}
+
+/* ─── Sheen keyframe ─────────────────────────────────────────────── */
+@keyframes sheen {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ─── Document vault — expanded card overlay ────────────────────── */
+@keyframes vault-card-in {
+  from { opacity: 0; transform: scale(0.86) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+@keyframes vault-card-out {
+  from { opacity: 1; transform: scale(1)    translateY(0); }
+  to   { opacity: 0; transform: scale(0.92) translateY(10px); }
+}
+@keyframes vault-backdrop-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vault-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+
+.vault-card-in      { animation: vault-card-in      0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.vault-card-out     { animation: vault-card-out     0.22s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.vault-backdrop-in  { animation: vault-backdrop-in  0.20s ease both; }
+.vault-backdrop-out { animation: vault-backdrop-out 0.18s ease both; }
+
+/* ─── Card expand transition (future use) ────────────────────────── */
+.card-expanding {
+  position: fixed;
+  z-index: 50;
+  transition:
+    top    350ms cubic-bezier(0.4, 0, 0.2, 1),
+    left   350ms cubic-bezier(0.4, 0, 0.2, 1),
+    width  350ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 350ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-expanded {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+}
+
+/* ─── Dot grid ───────────────────────────────────────────────────── */
+/* ─── Grain overlay ──────────────────────────────────────────────── */
+.pw-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ─── Entry animations ───────────────────────────────────────────── */
+@keyframes pw-entry {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pw-entry {
+  animation: pw-entry 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Transition kept for JS-triggered is-visible path (dashboard components) */
+  transition: opacity 500ms ease, transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-entry-delay-1 { animation-delay: 55ms; }
+.pw-entry-delay-2 { animation-delay: 110ms; }
+.pw-entry-delay-3 { animation-delay: 165ms; }
+.pw-entry-delay-4 { animation-delay: 220ms; }
+.pw-entry-delay-5 { animation-delay: 275ms; }
+
+.pw-entry-right {
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 600ms ease, transform 620ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-entry.is-visible,
+.pw-entry-right.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ─── Animated hairline rule (Swiss content pages) ──────────────── */
+@keyframes pw-rule-reveal {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.pw-rule-line {
+  height: 1px;
+  background: var(--pw-rule);
+  transform-origin: left;
+  animation: pw-rule-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 80ms;
+}
+
+/* ─── Rule reveal (dashboard greeting only) ──────────────────────── */
+.pw-rule-reveal {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pw-rule-reveal.is-visible {
+  transform: scaleX(1);
+}
+
+/* ─── Swiss buttons ──────────────────────────────────────────────── */
+.pw-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-family: var(--pw-font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--pw-ink);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms ease, transform 120ms ease;
+}
+
+.pw-btn-primary:hover  { background: var(--pw-accent); }
+.pw-btn-primary:active { transform: scale(0.97); }
+
+.pw-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-family: var(--pw-font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pw-ink);
+  background: transparent;
+  border: 1px solid var(--pw-ink);
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.pw-btn-secondary:hover  { background: var(--pw-ink); color: #fff; }
+.pw-btn-secondary:active { transform: scale(0.97); }
+
+/* ─── Nav tab indicator ──────────────────────────────────────────── */
+.pw-nav-tab {
+  position: relative;
+  font-family: var(--pw-font-ui);
+  transition: color 100ms ease;
+}
+
+.pw-nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 7px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--pw-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 80ms ease, opacity 80ms ease;
+  opacity: 0.45;
+}
+
+.pw-nav-tab:hover {
+  color: var(--pw-ink);
+}
+
+.pw-nav-tab:hover::after {
+  transform: scaleX(1);
+}
+
+.pw-nav-tab.active::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+.pw-nav-tab.no-transition::after {
+  transition: none;
+}
+
+/* Application-page topbar only: underline sits flush with the border-bottom
+   under the bar instead of floating 7px above it. */
+.pw-nav-tab--flush::after {
+  bottom: 0;
+}
+
+/* ─── Step circle ────────────────────────────────────────────────── */
+.pw-step-num {
+  transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+}
+
+/* ─── Redo link ──────────────────────────────────────────────────── */
+.pw-redo-link {
+  opacity: 0.5;
+  transition: color 150ms ease, opacity 150ms ease;
+}
+
+.pw-redo-link:hover {
+  opacity: 1;
+  color: #0D0D0D;
+}
+
+/* ─── Shimmer skeleton loading ───────────────────────────────────── */
+@keyframes pw-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.pw-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 800px 100%;
+  animation: pw-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── Pathway card reveal ────────────────────────────────────────── */
+@keyframes pw-card-reveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pw-card-reveal {
+  animation: pw-card-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Form step slide animations ────────────────────────────────── */
+@keyframes step-slide-from-right {
+  from { opacity: 0; transform: translateX(52px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes step-slide-from-left {
+  from { opacity: 0; transform: translateX(-52px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.step-slide-forward {
+  animation: step-slide-from-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.step-slide-backward {
+  animation: step-slide-from-left 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Interactive micro-states (hover hairline, press dip, focus ring) ── */
+.pw-interactive {
+  transition:
+    border-color var(--pw-dur-hover) var(--pw-ease-calm),
+    box-shadow var(--pw-dur-hover) var(--pw-ease-calm),
+    background var(--pw-dur-hover) ease,
+    color var(--pw-dur-hover) ease,
+    opacity var(--pw-dur-press) ease;
+}
+
+.pw-interactive:hover {
+  border-color: var(--pw-accent);
+  box-shadow: 2px 2px 0 0 rgba(26, 86, 219, 0.15);
+}
+
+.pw-interactive:active {
+  opacity: 0.85;
+}
+
+.pw-focus:focus-visible,
+.pw-interactive:focus-visible {
+  outline: 2px solid var(--pw-accent);
+  outline-offset: 2px;
+}
+
+/* ─── Page enter transition (root template) ──────────────────────── */
+@keyframes pw-page-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pw-page-enter {
+  animation: pw-page-enter var(--pw-dur-enter) var(--pw-ease-calm) both;
+}
+
+/* ─── Skeleton blocks (hairline border, slow opacity pulse) ──────── */
+@keyframes pw-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 0.7; }
+}
+
+.pw-skeleton {
+  border: 1px solid var(--pw-rule);
+  background: var(--pw-surface);
+  animation: pw-skeleton-pulse 1.8s var(--pw-ease-calm) infinite;
+}
+
+/* ─── Checkmark draw-in ──────────────────────────────────────────── */
+@keyframes pw-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ─── Matching loading overlay animations ───────────────────────── */
+@keyframes pw-load-breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.90; }
+  50%       { transform: scale(1.07); opacity: 1;    }
+}
+@keyframes pw-load-ring {
+  0%   { transform: scale(1);   opacity: 0.45; }
+  100% { transform: scale(2.6); opacity: 0;    }
+}
+.pw-load-breathe {
+  animation: pw-load-breathe 2.2s ease-in-out infinite;
+}
+.pw-load-ring {
+  animation: pw-load-ring 2.2s ease-out infinite;
+}
+.pw-load-ring-2 {
+  animation: pw-load-ring 2.2s ease-out 0.73s infinite;
+}
+.pw-load-ring-3 {
+  animation: pw-load-ring 2.2s ease-out 1.46s infinite;
+}
+
+/* ─── Semantic state tokens ─────────────────────────────────────── */
+:root {
+  --pw-success: #15803d;   /* green-700 — success indicators only */
+  --pw-error:   #b91c1c;   /* red-700   — error indicators only   */
+}
+
+/* ─── Profile section expand/collapse ───────────────────────────── */
+.pw-section-actions {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-height 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity    150ms ease;
+}
+
+.pw-section-actions.is-open {
+  max-height: 120px;
+  opacity: 1;
+}
+
+/* ─── Custom scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* ─── Spinner (used in plane view loading states) ────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Plane navigation track ─────────────────────────────────────── */
+.pw-plane-track {
+  transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* will-change is applied only during the slide so the track establishes no
+   stacking context at rest — lets panel backdrop-filters see the fixed shader. */
+.pw-plane-track--animating {
+  will-change: transform;
+}
+
+/* ─── Glass surfaces ─────────────────────────────────────────────── */
+.pw-glass-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 32px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+}
+
+/* Application slot — fills the full main area; shell body provides the grey. */
+.pw-glass-panel--application {
+  margin: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  border-radius: 0;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Documents slot — tighter margin, no glass border/shadow. */
+.pw-glass-panel--content {
+  margin: 16px 20px;
+  border: none;
+  box-shadow: none;
+  background: #FFFFFF;
+}
+
+/* Floating sidebar (Ask page left column) — same glass recipe as the
+   floating panel above, lifted off the left edge with a small gap so it
+   reads as its own card rather than a docked sidebar; stays flush to the
+   nav above and the viewport below. All four corners round at the panel
+   radius token, a step up from the base card radius, and a higher opacity
+   keeps text legible over the animated background wherever it scrolls to
+   deep blue. */
+.pw-glass-panel--sidebar {
+  flex: none;
+  margin: 0 0 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px; /* matches the `panel` radius token in tailwind.config.ts */
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Scroll containers inside the glass panel ───────────────────── */
+/* Thin, minimal scrollbar — no native default chrome. */
+.pw-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+.pw-scroll::-webkit-scrollbar { width: 4px; }
+.pw-scroll::-webkit-scrollbar-track { background: transparent; }
+.pw-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+.pw-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Non-scrolling wrapper that paints a bottom fade over its scroll child,
+   signalling more content below. Anchored to the visible bottom edge so it
+   stays put while the child scrolls. */
+.pw-scroll-fade {
+  position: relative;
+}
+.pw-scroll-fade::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.6));
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+/* Painted only when the scroll child actually overflows below the fold
+   (toggled by useScrollFade). Always in the DOM — no layout shift. */
+.pw-scroll-fade[data-faded='true']::after {
+  opacity: 1;
+}
+
+.pw-topnav-glass {
+  position: relative;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.50);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.30);
+}
+
+/* Deep fallback: opaque surfaces, no blur, when the device reports low memory. */
+.pw-reduce-motion .pw-glass-panel,
+.pw-reduce-motion .pw-topnav-glass {
+  background: rgba(255, 255, 255, 0.97);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.pw-reduce-motion .pw-glass-panel--application {
+  background: transparent;
+}
+
+/* ─── Profile/Settings modal ─────────────────────────────────────── */
+@keyframes pw-modal-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pw-modal-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes pw-modal-panel-in {
+  from { opacity: 0; transform: scale(0.94) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+@keyframes pw-modal-panel-out {
+  from { opacity: 1; transform: scale(1)    translateY(0);    }
+  to   { opacity: 0; transform: scale(0.94) translateY(-6px); }
+}
+
+.pw-modal-backdrop {
+  animation: pw-modal-backdrop-in 180ms ease forwards;
+}
+
+.pw-modal-backdrop.is-closing {
+  animation: pw-modal-backdrop-out 150ms ease forwards;
+}
+
+.pw-modal-panel {
+  animation: pw-modal-panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top right;
+}
+
+.pw-modal-panel.is-closing {
+  animation: pw-modal-panel-out 160ms ease forwards;
+  transform-origin: top right;
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pw-entry,
+  .pw-entry-right,
+  .pw-rule-reveal,
+  .pw-rule-line,
+  .step-slide-forward,
+  .step-slide-backward,
+  .pw-shimmer,
+  .pw-card-reveal,
+  .pw-page-enter {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1;
+    transform: none;
+  }
+
+  .pw-btn-primary,
+  .pw-btn-secondary,
+  .pw-interactive {
+    transition: none !important;
+  }
+
+  .pw-skeleton {
+    animation: none !important;
+    opacity: 0.55;
+  }
+
+  /* Plane: instant switch, no slide */
+  .pw-plane-track {
+    transition: none !important;
+  }
+
+  /* Glass surfaces: opaque, no blur */
+  .pw-glass-panel,
+  .pw-topnav-glass {
+    background: rgba(255, 255, 255, 0.97);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* Modal: simple fade, no scale */
+  .pw-modal-panel,
+  .pw-modal-panel.is-closing {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1;
+  }
+
+  .pw-modal-backdrop {
+    animation: none !important;
+    opacity: 1;
+  }
+
+  .pw-modal-backdrop.is-closing {
+    animation: none !important;
+    opacity: 0;
+  }
+}
+
+@keyframes pw-ring-pulse {
+  0%   { transform: scale(0.55); opacity: 0.7; }
+  100% { transform: scale(2.6);  opacity: 0; }
+}
+
+@keyframes pw-dot-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+  50%       { transform: translate(-50%, -50%) scale(1.35); opacity: 0.6; }
+}

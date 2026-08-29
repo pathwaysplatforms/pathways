@@ -1,1 +1,0 @@
--- Dev seed data. Safe to reset locally; do not put production secrets here.
