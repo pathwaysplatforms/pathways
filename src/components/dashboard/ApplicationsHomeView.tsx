@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Plus, Loader2 } from 'lucide-react';
+import { ChevronRight, Plus, Loader2, X, UserPlus, Repeat } from 'lucide-react';
+import { addCoApplicant } from '@/app/actions/co-applicant';
 
 // ── Local design tokens — mirrors ApplicationPageClient.tsx's palette so the
 // applications-home screen (no sidebar) reads as the same page family. ──────
@@ -25,22 +27,24 @@ export interface ApplicationSummary {
   status: string;
   completedSteps: number;
   totalSteps: number;
+  profileId: string;
+  personName: string;
 }
 
 interface ApplicationsHomeViewProps {
   status: 'loading' | 'ok' | 'error';
   applications: ApplicationSummary[];
-  onSelect: (slug: string) => void;
+  onSelect: (applicationId: string) => void;
   onRetry: () => void;
 }
 
 /** One application card — pathway name, status, and a mini progress bar. */
-function ApplicationCard({ app, onSelect }: { app: ApplicationSummary; onSelect: (slug: string) => void }) {
+function ApplicationCard({ app, onSelect }: { app: ApplicationSummary; onSelect: (applicationId: string) => void }) {
   const pct = app.totalSteps > 0 ? Math.round((app.completedSteps / app.totalSteps) * 100) : 0;
   return (
     <button
       type="button"
-      onClick={() => onSelect(app.pathwaySlug)}
+      onClick={() => onSelect(app.applicationId)}
       className="pw-app-card"
       style={{
         display: 'flex', alignItems: 'center', gap: 20, width: '100%',
@@ -61,6 +65,15 @@ function ApplicationCard({ app, onSelect }: { app: ApplicationSummary; onSelect:
           }}>
             {app.status}
           </span>
+          {app.personName !== 'You' && (
+            <span style={{
+              display: 'inline-block', padding: '3px 10px', borderRadius: PILL,
+              background: ACCENT_TINT, color: ACCENT, fontFamily: font.body, fontSize: 10,
+              fontWeight: 600, letterSpacing: '0.02em', flexShrink: 0,
+            }}>
+              {app.personName}
+            </span>
+          )}
         </div>
         {app.pathwayOfficialName && (
           <p style={{ fontFamily: font.body, fontSize: 13, color: MUTED, margin: '0 0 14px' }}>
@@ -85,8 +98,216 @@ function ApplicationCard({ app, onSelect }: { app: ApplicationSummary; onSelect:
   );
 }
 
+type ChooserView = 'choice' | 'co-applicant-form' | 'co-applicant-success';
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', height: 42, padding: '0 14px', borderRadius: 10,
+  border: '1px solid rgba(0,0,0,0.18)', fontFamily: font.body, fontSize: 14,
+  color: INK, outline: 'none',
+};
+
+/** Modal offering the two "add another application" paths: same profile, or a new co-applicant. */
+function AddApplicationChooser({ onClose }: { onClose: () => void }) {
+  const [view, setView] = useState<ChooserView>('choice');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [createdName, setCreatedName] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!fullName.trim() || !email.trim()) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await addCoApplicant({ fullName: fullName.trim(), email: email.trim() });
+      setCreatedName(result.fullName ?? fullName.trim());
+      setView('co-applicant-success');
+    } catch {
+      setError("We couldn't add that person. Please check the details and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50, display: 'flex',
+        alignItems: 'center', justifyContent: 'center', padding: 16,
+        background: 'rgba(10,10,10,0.45)',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          position: 'relative', width: '100%', maxWidth: 440, background: '#FFFFFF',
+          borderRadius: CARD_RADIUS, padding: 32, border: BORDER,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          style={{
+            position: 'absolute', top: 18, right: 18, border: 'none', background: 'none',
+            cursor: 'pointer', color: TEXT_TERTIARY, display: 'flex',
+          }}
+        >
+          <X size={18} />
+        </button>
+
+        {view === 'choice' && (
+          <>
+            <h2 style={{ fontFamily: font.display, fontSize: 22, fontWeight: 500, color: INK, margin: '0 0 6px' }}>
+              Add another application
+            </h2>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: MUTED, margin: '0 0 24px' }}>
+              Who is this application for?
+            </p>
+
+            <Link
+              href="/onboarding/matches"
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 14, width: '100%',
+                padding: '16px 18px', textAlign: 'left', textDecoration: 'none',
+                border: BORDER, borderRadius: 12, marginBottom: 12,
+              }}
+            >
+              <Repeat size={18} color={ACCENT} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>
+                <span style={{ display: 'block', fontFamily: font.body, fontSize: 14, fontWeight: 600, color: INK }}>
+                  Apply with my own profile
+                </span>
+                <span style={{ display: 'block', fontFamily: font.body, fontSize: 13, color: MUTED, marginTop: 2 }}>
+                  Start a new pathway using the details you already gave us.
+                </span>
+              </span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setView('co-applicant-form')}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 14, width: '100%',
+                padding: '16px 18px', textAlign: 'left', cursor: 'pointer',
+                border: BORDER, borderRadius: 12, background: 'none',
+              }}
+            >
+              <UserPlus size={18} color={ACCENT} style={{ flexShrink: 0, marginTop: 2 }} />
+              <span>
+                <span style={{ display: 'block', fontFamily: font.body, fontSize: 14, fontWeight: 600, color: INK }}>
+                  Add a co-applicant
+                </span>
+                <span style={{ display: 'block', fontFamily: font.body, fontSize: 13, color: MUTED, marginTop: 2 }}>
+                  Apply on behalf of family or a friend, from your account.
+                </span>
+              </span>
+            </button>
+          </>
+        )}
+
+        {view === 'co-applicant-form' && (
+          <>
+            <button
+              type="button"
+              onClick={() => setView('choice')}
+              style={{
+                border: 'none', background: 'none', cursor: 'pointer', padding: 0,
+                fontFamily: font.body, fontSize: 12, color: MUTED, marginBottom: 16,
+              }}
+            >
+              ← Back
+            </button>
+            <h2 style={{ fontFamily: font.display, fontSize: 22, fontWeight: 500, color: INK, margin: '0 0 6px' }}>
+              Add a co-applicant
+            </h2>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: MUTED, margin: '0 0 20px' }}>
+              We&apos;ll create their profile. You&apos;ll manage their application from your account.
+            </p>
+
+            {error && (
+              <p style={{ fontFamily: font.body, fontSize: 13, color: '#B91C1C', margin: '0 0 14px' }}>
+                {error}
+              </p>
+            )}
+
+            <form onSubmit={(e) => void handleSubmit(e)}>
+              <label style={{ display: 'block', fontFamily: font.body, fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 6 }}>
+                Full name
+              </label>
+              <input
+                type="text"
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Jamie Lee"
+                style={{ ...inputStyle, marginBottom: 16 }}
+              />
+
+              <label style={{ display: 'block', fontFamily: font.body, fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 6 }}>
+                Contact email
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="jamie@example.com"
+                style={{ ...inputStyle, marginBottom: 24 }}
+              />
+
+              <button
+                type="submit"
+                disabled={submitting || !fullName.trim() || !email.trim()}
+                style={{
+                  width: '100%', padding: '12px 0', fontFamily: font.body, fontSize: 14,
+                  fontWeight: 600, color: '#fff', background: INK, borderRadius: PILL,
+                  border: 'none', cursor: submitting ? 'default' : 'pointer',
+                  opacity: submitting ? 0.6 : 1,
+                }}
+              >
+                {submitting ? 'Adding…' : 'Add co-applicant'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {view === 'co-applicant-success' && (
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <h2 style={{ fontFamily: font.display, fontSize: 22, fontWeight: 500, color: INK, margin: '0 0 8px' }}>
+              {createdName} has been added
+            </h2>
+            <p style={{ fontFamily: font.body, fontSize: 14, color: MUTED, margin: '0 0 24px' }}>
+              Their profile is saved to your account. Starting their onboarding and pathway match is coming soon —
+              we&apos;ll let you know as soon as it&apos;s ready.
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                display: 'inline-flex', alignItems: 'center', padding: '10px 24px',
+                fontFamily: font.body, fontSize: 13, fontWeight: 600, color: '#fff',
+                background: INK, borderRadius: PILL, border: 'none', cursor: 'pointer',
+              }}
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Applications home — every pathway the user has started, plus a way to add another. */
 export function ApplicationsHomeView({ status, applications, onSelect, onRetry }: ApplicationsHomeViewProps) {
+  const [chooserOpen, setChooserOpen] = useState(false);
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FFFFFF' }}>
       <style>{`
@@ -134,14 +355,15 @@ export function ApplicationsHomeView({ status, applications, onSelect, onRetry }
                 <ApplicationCard key={app.applicationId} app={app} onSelect={onSelect} />
               ))}
 
-              <Link
-                href="/onboarding/matches"
+              <button
+                type="button"
+                onClick={() => setChooserOpen(true)}
                 className="pw-add-app-card"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 14, width: '100%',
-                  padding: '22px 24px', textAlign: 'left', textDecoration: 'none',
+                  padding: '22px 24px', textAlign: 'left', cursor: 'pointer',
                   border: `1.5px dashed rgba(26,86,219,0.35)`, borderRadius: CARD_RADIUS,
-                  transition: 'background 120ms ease',
+                  background: 'none', transition: 'background 120ms ease',
                 }}
               >
                 <div style={{
@@ -153,11 +375,13 @@ export function ApplicationsHomeView({ status, applications, onSelect, onRetry }
                 <span style={{ fontFamily: font.body, fontSize: 15, fontWeight: 600, color: ACCENT }}>
                   Add another application
                 </span>
-              </Link>
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {chooserOpen && <AddApplicationChooser onClose={() => setChooserOpen(false)} />}
     </div>
   );
 }

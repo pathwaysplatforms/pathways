@@ -70,59 +70,119 @@ function formatFee(feeGbp: number): string | null {
 }
 
 /**
- * Fetches full pathway detail, steps, and document requirements for the
- * user's selected pathway. Returns null if no pathway slug is set on the
- * profile or if the slug doesn't match any active pathway.
+ * Every profile id the given auth user may act as — their own profile, plus
+ * any co-applicant profiles they own. Relies on RLS (accessible_profile_ids)
+ * to scope the underlying query; no explicit filter is applied here.
+ */
+async function getAccessibleProfileIds(db: SupabaseClient, userId: string): Promise<Set<string>> {
+  const { data, error } = await db.from('profiles').select('id');
+
+  if (error) {
+    throw new DatabaseError('Failed to fetch accessible profiles', { userId }, error);
+  }
+
+  return new Set(((data ?? []) as { id: string }[]).map((p) => p.id));
+}
+
+/**
+ * Fetches full pathway detail, steps, and document requirements either for a
+ * specific application (any profile accessible to the user — their own or a
+ * co-applicant's) or, when applicationId is omitted, for the user's own
+ * selected pathway. Returns null if no application/pathway can be resolved.
  */
 export async function getApplicationData(
   userId: string,
   logger: Logger,
   slugOverride?: string | null,
+  applicationId?: string | null,
 ): Promise<ApplicationPageData | null> {
-  logger.info({ action: 'getApplicationData.start', userId });
+  logger.info({ action: 'getApplicationData.start', userId, applicationId: applicationId ?? undefined });
 
   // The typed Supabase client produces `never` for query data — cast to untyped,
   // assert result types manually (mirrors dashboard/service.ts pattern).
   const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
-  const { data: profileData, error: profileError } = await db
-    .from('profiles')
-    .select('id, selected_pathway_slug')
-    .eq('auth_user_id', userId)
-    .single();
+  let profileId: string;
+  let pathway: PathwayRow;
 
-  if (profileError) {
-    if ((profileError as { code?: string }).code === 'PGRST116') {
-      throw new NotFoundError('Profile not found', { userId });
+  if (applicationId) {
+    const accessibleProfileIds = await getAccessibleProfileIds(db, userId);
+
+    const { data: appRow, error: appError } = await db
+      .from('applications')
+      .select('id, profile_id, pathway_id')
+      .eq('id', applicationId)
+      .maybeSingle();
+
+    if (appError) {
+      throw new DatabaseError('Failed to fetch application', { userId, applicationId }, appError);
     }
-    throw new DatabaseError('Failed to fetch profile', { userId }, profileError);
+
+    const app = appRow as { id: string; profile_id: string; pathway_id: string } | null;
+
+    if (!app || !accessibleProfileIds.has(app.profile_id)) {
+      logger.info({ action: 'getApplicationData.applicationNotAccessible', userId, applicationId });
+      return null;
+    }
+
+    profileId = app.profile_id;
+
+    const { data: pathwayData, error: pathwayError } = await db
+      .from('pathways')
+      .select('id, slug, title, official_name, description, processing_time_min, processing_time_max, fee_gbp')
+      .eq('id', app.pathway_id)
+      .maybeSingle();
+
+    if (pathwayError) {
+      throw new DatabaseError('Failed to fetch pathway', { userId, applicationId }, pathwayError);
+    }
+    if (!pathwayData) {
+      logger.info({ action: 'getApplicationData.pathwayNotFound', userId, applicationId });
+      return null;
+    }
+
+    pathway = pathwayData as PathwayRow;
+  } else {
+    const { data: profileData, error: profileError } = await db
+      .from('profiles')
+      .select('id, selected_pathway_slug')
+      .eq('auth_user_id', userId)
+      .single();
+
+    if (profileError) {
+      if ((profileError as { code?: string }).code === 'PGRST116') {
+        throw new NotFoundError('Profile not found', { userId });
+      }
+      throw new DatabaseError('Failed to fetch profile', { userId }, profileError);
+    }
+
+    const profile = profileData as ProfileRow;
+    profileId = profile.id;
+
+    if (!profile.selected_pathway_slug && !slugOverride) {
+      logger.info({ action: 'getApplicationData.noPathway', userId });
+      return null;
+    }
+
+    const slug = slugOverride ?? profile.selected_pathway_slug ?? '';
+
+    const { data: pathwayData, error: pathwayError } = await db
+      .from('pathways')
+      .select('id, slug, title, official_name, description, processing_time_min, processing_time_max, fee_gbp')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (pathwayError) {
+      throw new DatabaseError('Failed to fetch pathway', { userId, slug }, pathwayError);
+    }
+
+    if (!pathwayData) {
+      logger.info({ action: 'getApplicationData.pathwayNotFound', userId, slug });
+      return null;
+    }
+
+    pathway = pathwayData as PathwayRow;
   }
-
-  const profile = profileData as ProfileRow;
-
-  if (!profile.selected_pathway_slug && !slugOverride) {
-    logger.info({ action: 'getApplicationData.noPathway', userId });
-    return null;
-  }
-
-  const slug = slugOverride ?? profile.selected_pathway_slug ?? '';
-
-  const { data: pathwayData, error: pathwayError } = await db
-    .from('pathways')
-    .select('id, slug, title, official_name, description, processing_time_min, processing_time_max, fee_gbp')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (pathwayError) {
-    throw new DatabaseError('Failed to fetch pathway', { userId, slug }, pathwayError);
-  }
-
-  if (!pathwayData) {
-    logger.info({ action: 'getApplicationData.pathwayNotFound', userId, slug });
-    return null;
-  }
-
-  const pathway = pathwayData as PathwayRow;
 
   const [stepsResult, docsResult] = await Promise.all([
     db
@@ -158,7 +218,7 @@ export async function getApplicationData(
   const { data: vaultData } = await db
     .from('user_documents')
     .select('document_type')
-    .eq('user_id', profile.id)
+    .eq('user_id', profileId)
     .not('document_type', 'is', null);
 
   const satisfiedTypes = new Set<string>(
@@ -170,8 +230,8 @@ export async function getApplicationData(
   const { data: progressData, error: progressError } = await db
     .from('pathway_progress')
     .select('step_id, status')
-    .eq('profile_id', profile.id)
-    .eq('pathway_slug', slug)
+    .eq('profile_id', profileId)
+    .eq('pathway_slug', pathway.slug)
     .in('step_id', stepIds);
 
   if (progressError) {
@@ -226,7 +286,7 @@ export async function getApplicationData(
   logger.info({
     action: 'getApplicationData.complete',
     userId,
-    pathwaySlug: slug,
+    pathwaySlug: pathway.slug,
     stepCount: steps.length,
     documentCount: documents.length,
   });
@@ -241,6 +301,7 @@ interface UserApplicationRow {
   id: string;
   status: string;
   pathway_id: string;
+  profile_id: string;
   pathway: {
     id: string;
     slug: string;
@@ -251,10 +312,18 @@ interface UserApplicationRow {
   } | null;
 }
 
+/** Raw profiles row for every profile the caller may act as (self + co-applicants). */
+interface AccessibleProfileRow {
+  id: string;
+  full_name: string | null;
+  auth_user_id: string | null;
+}
+
 /**
- * Fetches every application the user has started (one row per pathway they've
- * selected), each with its step-completion progress, for the applications-home
- * list. Returns an empty array when the user has no applications yet.
+ * Fetches every application across every profile the user can act as — their
+ * own and any co-applicants they manage — each with its step-completion
+ * progress, for the applications-home list. Returns an empty array when none
+ * of those profiles have started an application yet.
  */
 export async function getUserApplications(
   userId: string,
@@ -264,20 +333,24 @@ export async function getUserApplications(
 
   const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
-  const { data: profileData, error: profileError } = await db
+  // RLS scopes this to exactly the profiles the caller may act as: their own,
+  // plus any co-applicant profiles they own.
+  const { data: profilesData, error: profilesError } = await db
     .from('profiles')
-    .select('id')
-    .eq('auth_user_id', userId)
-    .single();
+    .select('id, full_name, auth_user_id');
 
-  if (profileError) {
-    if ((profileError as { code?: string }).code === 'PGRST116') {
-      throw new NotFoundError('Profile not found', { userId });
-    }
-    throw new DatabaseError('Failed to fetch profile', { userId }, profileError);
+  if (profilesError) {
+    throw new DatabaseError('Failed to fetch accessible profiles', { userId }, profilesError);
   }
 
-  const profile = profileData as { id: string };
+  const accessibleProfiles = (profilesData ?? []) as AccessibleProfileRow[];
+  const ownProfile = accessibleProfiles.find((p) => p.auth_user_id === userId);
+  if (!ownProfile) {
+    throw new NotFoundError('Profile not found', { userId });
+  }
+
+  const nameByProfileId = new Map(accessibleProfiles.map((p) => [p.id, p.full_name]));
+  const profileIds = accessibleProfiles.map((p) => p.id);
 
   const { data: appsData, error: appsError } = await db
     .from('applications')
@@ -285,9 +358,10 @@ export async function getUserApplications(
       id,
       status,
       pathway_id,
+      profile_id,
       pathway:pathways ( id, slug, title, official_name, processing_time_min, processing_time_max )
     `)
-    .eq('profile_id', profile.id);
+    .in('profile_id', profileIds);
 
   if (appsError) {
     throw new DatabaseError('Failed to fetch applications', { userId }, appsError);
@@ -304,7 +378,11 @@ export async function getUserApplications(
 
   const [stepsResult, progressResult] = await Promise.all([
     db.from('pathway_steps').select('id, pathway_id').in('pathway_id', pathwayIds),
-    db.from('pathway_progress').select('pathway_slug, status').eq('profile_id', profile.id).in('pathway_slug', slugs),
+    db
+      .from('pathway_progress')
+      .select('profile_id, pathway_slug, status')
+      .in('profile_id', profileIds)
+      .in('pathway_slug', slugs),
   ]);
 
   if (stepsResult.error) {
@@ -319,22 +397,31 @@ export async function getUserApplications(
     totalByPathwayId.set(s.pathway_id, (totalByPathwayId.get(s.pathway_id) ?? 0) + 1);
   }
 
-  const completedBySlug = new Map<string, number>();
-  for (const p of (progressResult.data ?? []) as { pathway_slug: string; status: string }[]) {
+  // Keyed by profile + pathway slug — two different profiles can both apply
+  // to the same pathway with independent progress.
+  const completedByKey = new Map<string, number>();
+  for (const p of (progressResult.data ?? []) as { profile_id: string; pathway_slug: string; status: string }[]) {
     if (p.status !== 'complete') continue;
-    completedBySlug.set(p.pathway_slug, (completedBySlug.get(p.pathway_slug) ?? 0) + 1);
+    const key = `${p.profile_id}|${p.pathway_slug}`;
+    completedByKey.set(key, (completedByKey.get(key) ?? 0) + 1);
   }
 
-  const summaries: UserApplicationSummary[] = rows.map((r) => ({
-    applicationId: r.id,
-    pathwaySlug: r.pathway!.slug,
-    pathwayTitle: r.pathway!.title,
-    pathwayOfficialName: r.pathway!.official_name,
-    processingTime: formatProcessingTime(r.pathway!.processing_time_min, r.pathway!.processing_time_max),
-    status: r.status,
-    completedSteps: completedBySlug.get(r.pathway!.slug) ?? 0,
-    totalSteps: totalByPathwayId.get(r.pathway_id) ?? 0,
-  }));
+  const summaries: UserApplicationSummary[] = rows.map((r) => {
+    const isOwner = r.profile_id === ownProfile.id;
+    const key = `${r.profile_id}|${r.pathway!.slug}`;
+    return {
+      applicationId: r.id,
+      pathwaySlug: r.pathway!.slug,
+      pathwayTitle: r.pathway!.title,
+      pathwayOfficialName: r.pathway!.official_name,
+      processingTime: formatProcessingTime(r.pathway!.processing_time_min, r.pathway!.processing_time_max),
+      status: r.status,
+      completedSteps: completedByKey.get(key) ?? 0,
+      totalSteps: totalByPathwayId.get(r.pathway_id) ?? 0,
+      profileId: r.profile_id,
+      personName: isOwner ? 'You' : (nameByProfileId.get(r.profile_id) ?? 'Co-applicant'),
+    };
+  });
 
   logger.info({ action: 'getUserApplications.complete', userId, count: summaries.length });
 
@@ -422,39 +509,27 @@ export async function getApplicationForLayout(
 
   const db = await createSupabaseServerClient() as unknown as SupabaseClient;
 
-  const { data: profileData, error: profileError } = await db
-    .from('profiles')
-    .select('id')
-    .eq('auth_user_id', userId)
-    .single();
+  const accessibleProfileIds = await getAccessibleProfileIds(db, userId);
 
-  if (profileError) {
-    if ((profileError as { code?: string }).code === 'PGRST116') {
-      throw new NotFoundError('Profile not found', { userId });
-    }
-    throw new DatabaseError('Failed to fetch profile', { userId }, profileError);
-  }
-
-  const profile = profileData as { id: string };
-
-  // Scope by both id and profile_id so a user can never load another user's application.
   const { data: appData, error: appError } = await db
     .from('applications')
     .select('id, profile_id, pathway_id, status, submitted_at')
     .eq('id', applicationId)
-    .eq('profile_id', profile.id)
     .maybeSingle();
 
   if (appError) {
     throw new DatabaseError('Failed to fetch application', { userId, applicationId }, appError);
   }
 
-  if (!appData) {
+  // Scope by the caller's accessible profiles (their own, or a co-applicant's
+  // they own) so a user can never load another user's application.
+  if (!appData || !accessibleProfileIds.has((appData as { profile_id: string }).profile_id)) {
     logger.info({ action: 'getApplicationForLayout.notFound', userId, applicationId });
     return null;
   }
 
   const application = appData as ApplicationRow;
+  const profile = { id: application.profile_id };
 
   const { data: pathwayData, error: pathwayError } = await db
     .from('pathways')

@@ -8,7 +8,9 @@ import { profileRowToCrsInput } from '@/lib/crs-input';
 import { computeCrsEstimate } from '@/lib/crs-estimate';
 
 /** GET /api/application/data — application data for the NavigationPlane ApplicationView.
- *  Optional ?slug= param overrides the user's selected_pathway_slug for view-switching. */
+ *  Optional ?slug= param overrides the user's selected_pathway_slug for view-switching.
+ *  Optional ?applicationId= loads a specific application — the caller's own or a
+ *  co-applicant's they manage — instead of the caller's own selected pathway. */
 export async function GET(req: NextRequest): Promise<Response> {
   const correlationId = crypto.randomUUID();
   const log = createRequestLogger(correlationId);
@@ -24,23 +26,39 @@ export async function GET(req: NextRequest): Promise<Response> {
       );
     }
 
-    const slugOverride = new URL(req.url).searchParams.get('slug') ?? null;
+    const url = new URL(req.url);
+    const slugOverride = url.searchParams.get('slug') ?? null;
+    const applicationId = url.searchParams.get('applicationId') ?? null;
 
     const db = supabase as unknown as SupabaseClient;
 
-    const { data: profileRow } = await db
-      .from('profiles')
-      .select(
-        'full_name, occupation, degree_level, degree_field, nationality, ' +
-        'date_of_birth, education_level, eca_obtained, clb_speaking, clb_listening, ' +
-        'clb_reading, clb_writing, language_proficiency_self, canadian_work_years, ' +
-        'foreign_work_years, foreign_work_recent, years_experience, noc_teer_category, ' +
-        'noc_code, has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada, ' +
-        'spouse_coming_to_canada, spouse_clb_speaking, spouse_clb_listening, ' +
-        'spouse_clb_reading, spouse_clb_writing, spouse_canadian_work_years',
-      )
-      .eq('auth_user_id', user.id)
-      .maybeSingle();
+    // When loading a specific application, profile context (occupation, CRS
+    // inputs, etc.) must reflect whoever that application belongs to — the
+    // caller's own profile, or a co-applicant's — not always the caller.
+    let contextProfileId: string | null = null;
+    if (applicationId) {
+      const { data: appRow } = await db
+        .from('applications')
+        .select('profile_id')
+        .eq('id', applicationId)
+        .maybeSingle();
+      contextProfileId = (appRow as { profile_id: string } | null)?.profile_id ?? null;
+    }
+
+    const profileFields =
+      'full_name, occupation, degree_level, degree_field, nationality, ' +
+      'date_of_birth, education_level, eca_obtained, clb_speaking, clb_listening, ' +
+      'clb_reading, clb_writing, language_proficiency_self, canadian_work_years, ' +
+      'foreign_work_years, foreign_work_recent, years_experience, noc_teer_category, ' +
+      'noc_code, has_provincial_nomination, has_canadian_job_offer, has_sibling_in_canada, ' +
+      'spouse_coming_to_canada, spouse_clb_speaking, spouse_clb_listening, ' +
+      'spouse_clb_reading, spouse_clb_writing, spouse_canadian_work_years';
+
+    // RLS scopes both branches to profiles the caller may act as — a
+    // co-applicant id belonging to someone else simply resolves to null.
+    const { data: profileRow } = contextProfileId
+      ? await db.from('profiles').select(profileFields).eq('id', contextProfileId).maybeSingle()
+      : await db.from('profiles').select(profileFields).eq('auth_user_id', user.id).maybeSingle();
 
     type ProfileFields = {
       full_name: string | null;
@@ -89,7 +107,7 @@ export async function GET(req: NextRequest): Promise<Response> {
       if (estimate !== null && estimate.score > 0) crsScore = estimate.score;
     }
 
-    const appData = await getApplicationData(user.id, log, slugOverride);
+    const appData = await getApplicationData(user.id, log, slugOverride, applicationId);
 
     if (!appData) {
       log.info({ action: 'api.application.data.noApp' });

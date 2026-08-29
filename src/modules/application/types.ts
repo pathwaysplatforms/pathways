@@ -32,4 +32,8 @@ export interface UserApplicationSummary {
   status: string;
   completedSteps: number;
   totalSteps: number;
+  /** The profile this application belongs to — the owner's own, or a co-applicant's. */
+  profileId: string;
+  /** Display label for the applicant: "You" for the owner, the co-applicant's name otherwise. */
+  personName: string;
 }

@@ -44,7 +44,7 @@ export function ApplicationView({ isActive }: ApplicationViewProps) {
 
   const hasFetchedDetailRef = useRef(false);
   const [detailState, setDetailState] = useState<DetailFetchState>({ status: 'idle' });
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
 
   const loadHome = useCallback(async () => {
     setHomeState({ status: 'loading' });
@@ -58,10 +58,10 @@ export function ApplicationView({ isActive }: ApplicationViewProps) {
     }
   }, []);
 
-  const loadDetail = useCallback(async (slug: string) => {
+  const loadDetail = useCallback(async (applicationId: string) => {
     setDetailState({ status: 'loading' });
     try {
-      const res = await fetch(`/api/application/data?slug=${encodeURIComponent(slug)}`);
+      const res = await fetch(`/api/application/data?applicationId=${encodeURIComponent(applicationId)}`);
       if (!res.ok) { setDetailState({ status: 'error' }); return; }
       const json = (await res.json()) as {
         data: ApplicationApiData | null;
@@ -80,11 +80,11 @@ export function ApplicationView({ isActive }: ApplicationViewProps) {
     void loadHome();
   }, [isActive, loadHome]);
 
-  const handleSelectApplication = useCallback((slug: string) => {
-    setSelectedSlug(slug);
+  const handleSelectApplication = useCallback((applicationId: string) => {
+    setSelectedApplicationId(applicationId);
     setView('detail');
     hasFetchedDetailRef.current = true;
-    void loadDetail(slug);
+    void loadDetail(applicationId);
   }, [loadDetail]);
 
   const handleBackToHome = useCallback(() => {
@@ -131,7 +131,7 @@ export function ApplicationView({ isActive }: ApplicationViewProps) {
           </p>
           <button
             type="button"
-            onClick={() => { if (selectedSlug) void loadDetail(selectedSlug); }}
+            onClick={() => { if (selectedApplicationId) void loadDetail(selectedApplicationId); }}
             style={{
               display: 'inline-flex', alignItems: 'center', padding: '9px 20px',
               fontFamily: 'var(--pw-font-body)', fontSize: 14, fontWeight: 500,

@@ -195,6 +195,8 @@ describe('getApplicationData', () => {
   });
 });
 
+const ACCESSIBLE_PROFILE_IDS = { data: [{ id: 'profile-1' }], error: null };
+
 describe('getApplicationForLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -203,7 +205,7 @@ describe('getApplicationForLayout', () => {
   // ── Happy path ──
   it('maps a real application with typed steps and a step-linked document', async () => {
     setupClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILE_IDS,
       applicationResult: APPLICATION,
       pathwayResult: PATHWAY,
       stepsResult: {
@@ -256,7 +258,7 @@ describe('getApplicationForLayout', () => {
   // ── Edge: unknown step type defaults, missing validation_rules defaults ──
   it('defaults unknown step types to information and supplies document fallbacks', async () => {
     setupClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILE_IDS,
       applicationResult: APPLICATION,
       pathwayResult: PATHWAY,
       stepsResult: {
@@ -296,7 +298,7 @@ describe('getApplicationForLayout', () => {
   // ── Edge: application not found / not owned returns null ──
   it('returns null when the application is missing or not owned by the user', async () => {
     setupClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILE_IDS,
       applicationResult: { data: null, error: null },
     });
 
@@ -304,21 +306,35 @@ describe('getApplicationForLayout', () => {
     expect(result).toBeNull();
   });
 
-  // ── Error: profile missing throws NotFoundError ──
-  it('throws NotFoundError when the profile does not exist', async () => {
+  // ── Edge: application belongs to a profile outside the caller's accessible set ──
+  it('returns null when the application belongs to an inaccessible profile', async () => {
     setupClient({
-      profileResult: { data: null, error: { code: 'PGRST116', message: 'No rows' } },
+      profileResult: ACCESSIBLE_PROFILE_IDS,
+      applicationResult: {
+        data: { id: 'app-1', profile_id: 'someone-elses-profile', pathway_id: 'pathway-1', status: 'draft', submitted_at: null },
+        error: null,
+      },
+    });
+
+    const result = await getApplicationForLayout('app-1', 'user-1', mockLogger as never);
+    expect(result).toBeNull();
+  });
+
+  // ── Error: accessible-profiles query failure throws DatabaseError ──
+  it('throws DatabaseError when the accessible-profiles query fails', async () => {
+    setupClient({
+      profileResult: { data: null, error: { message: 'boom' } },
     });
 
     await expect(
       getApplicationForLayout('app-1', 'user-1', mockLogger as never)
-    ).rejects.toBeInstanceOf(NotFoundError);
+    ).rejects.toBeInstanceOf(DatabaseError);
   });
 
   // ── Error: application query failure throws DatabaseError ──
   it('throws DatabaseError when the application query fails', async () => {
     setupClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILE_IDS,
       applicationResult: { data: null, error: { message: 'boom' } },
     });
 
@@ -356,21 +372,34 @@ function setupUserApplicationsClient(setup: {
   );
 }
 
+const ACCESSIBLE_PROFILES: QueryResult = {
+  data: [{ id: 'profile-1', full_name: 'Alex Owner', auth_user_id: 'user-1' }],
+  error: null,
+};
+
+const ACCESSIBLE_PROFILES_WITH_CO_APPLICANT: QueryResult = {
+  data: [
+    { id: 'profile-1', full_name: 'Alex Owner', auth_user_id: 'user-1' },
+    { id: 'profile-2', full_name: 'Jamie Lee', auth_user_id: null },
+  ],
+  error: null,
+};
+
 describe('getUserApplications', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   // ── Happy path ──
   it('returns each application with its completed/total step counts', async () => {
     setupUserApplicationsClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILES,
       applicationsResult: {
         data: [
           {
-            id: 'app-1', status: 'draft', pathway_id: 'pathway-1',
+            id: 'app-1', status: 'draft', pathway_id: 'pathway-1', profile_id: 'profile-1',
             pathway: { id: 'pathway-1', slug: 'express-entry-fsw', title: 'Skilled Worker', official_name: 'FSW Program', processing_time_min: '6 months', processing_time_max: '12 months' },
           },
           {
-            id: 'app-2', status: 'draft', pathway_id: 'pathway-2',
+            id: 'app-2', status: 'draft', pathway_id: 'pathway-2', profile_id: 'profile-1',
             pathway: { id: 'pathway-2', slug: 'provincial-nominee', title: 'PNP', official_name: 'Provincial Nominee Program', processing_time_min: '12 months', processing_time_max: '18 months' },
           },
         ],
@@ -386,8 +415,8 @@ describe('getUserApplications', () => {
       },
       progressResult: {
         data: [
-          { pathway_slug: 'express-entry-fsw', status: 'complete' },
-          { pathway_slug: 'provincial-nominee', status: 'in_progress' },
+          { profile_id: 'profile-1', pathway_slug: 'express-entry-fsw', status: 'complete' },
+          { profile_id: 'profile-1', pathway_slug: 'provincial-nominee', status: 'in_progress' },
         ],
         error: null,
       },
@@ -405,15 +434,39 @@ describe('getUserApplications', () => {
       status: 'draft',
       completedSteps: 1,
       totalSteps: 2,
+      profileId: 'profile-1',
+      personName: 'You',
     });
     expect(result[1].completedSteps).toBe(0);
     expect(result[1].totalSteps).toBe(1);
   });
 
+  // ── Happy path: co-applicant's application is labeled with their name ──
+  it('labels a co-applicant\'s application with their name, not "You"', async () => {
+    setupUserApplicationsClient({
+      profileResult: ACCESSIBLE_PROFILES_WITH_CO_APPLICANT,
+      applicationsResult: {
+        data: [
+          {
+            id: 'app-3', status: 'draft', pathway_id: 'pathway-1', profile_id: 'profile-2',
+            pathway: { id: 'pathway-1', slug: 'express-entry-fsw', title: 'Skilled Worker', official_name: 'FSW Program', processing_time_min: '6 months', processing_time_max: '12 months' },
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const result = await getUserApplications('user-1', mockLogger as never);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].profileId).toBe('profile-2');
+    expect(result[0].personName).toBe('Jamie Lee');
+  });
+
   // ── Edge: user has no applications yet ──
   it('returns an empty array when the user has no applications', async () => {
     setupUserApplicationsClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILES,
       applicationsResult: { data: [], error: null },
     });
 
@@ -422,9 +475,9 @@ describe('getUserApplications', () => {
   });
 
   // ── Error: profile missing throws NotFoundError ──
-  it('throws NotFoundError when the profile does not exist', async () => {
+  it('throws NotFoundError when the caller has no profile', async () => {
     setupUserApplicationsClient({
-      profileResult: { data: null, error: { code: 'PGRST116', message: 'No rows' } },
+      profileResult: { data: [], error: null },
     });
 
     await expect(
@@ -435,7 +488,7 @@ describe('getUserApplications', () => {
   // ── Error: applications query failure throws DatabaseError ──
   it('throws DatabaseError when the applications query fails', async () => {
     setupUserApplicationsClient({
-      profileResult: PROFILE,
+      profileResult: ACCESSIBLE_PROFILES,
       applicationsResult: { data: null, error: { message: 'boom' } },
     });
 

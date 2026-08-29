@@ -36,6 +36,8 @@ let userBId: string;
 let profileAId: string;
 let profileBId: string;
 let applicationAId: string;
+let coApplicantProfileId: string;
+let coApplicantApplicationId: string;
 
 beforeAll(async () => {
   const { data: ua, error: uaErr } = await adminClient.auth.admin.createUser({
@@ -81,11 +83,30 @@ beforeAll(async () => {
     .single();
   if (appErr) throw appErr;
   applicationAId = app!.id;
+
+  // A co-applicant profile owned by user A — no auth_user_id of its own.
+  const { data: coApplicant, error: coApplicantErr } = await adminClient
+    .from("profiles")
+    .insert({ owner_profile_id: profileAId, full_name: "Co-Applicant A", onboarding_status: "not_started" })
+    .select("id")
+    .single();
+  if (coApplicantErr) throw coApplicantErr;
+  coApplicantProfileId = coApplicant!.id;
+
+  const { data: coApplicantApp, error: coApplicantAppErr } = await adminClient
+    .from("applications")
+    .insert({ profile_id: coApplicantProfileId, pathway_id: pathway!.id, status: "draft" })
+    .select("id")
+    .single();
+  if (coApplicantAppErr) throw coApplicantAppErr;
+  coApplicantApplicationId = coApplicantApp!.id;
 });
 
 afterAll(async () => {
-  // Delete in FK-safe order: application → profiles → auth users
+  // Delete in FK-safe order: applications → profiles (co-applicant before owner) → auth users
+  if (coApplicantApplicationId) await adminClient.from("applications").delete().eq("id", coApplicantApplicationId);
   if (applicationAId) await adminClient.from("applications").delete().eq("id", applicationAId);
+  if (coApplicantProfileId) await adminClient.from("profiles").delete().eq("id", coApplicantProfileId);
   if (profileAId) await adminClient.from("profiles").delete().eq("id", profileAId);
   if (profileBId) await adminClient.from("profiles").delete().eq("id", profileBId);
   if (userAId) await adminClient.auth.admin.deleteUser(userAId);
@@ -225,6 +246,55 @@ describe("pathways access control", () => {
       processing_time_max: "1 day",
       fee_gbp: 0,
     });
+    expect(error).not.toBeNull();
+  });
+});
+
+describe("co-applicant profiles isolation", () => {
+  it("an owner can read their co-applicant's profile", async () => {
+    const client = await signInAs(emailA);
+    const { data, error } = await client
+      .from("profiles")
+      .select("id")
+      .eq("id", coApplicantProfileId);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+  });
+
+  it("an owner can read their co-applicant's application", async () => {
+    const client = await signInAs(emailA);
+    const { data, error } = await client
+      .from("applications")
+      .select("id")
+      .eq("id", coApplicantApplicationId);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(1);
+  });
+
+  it("an unrelated user cannot read someone else's co-applicant profile", async () => {
+    const client = await signInAs(emailB);
+    const { data, error } = await client
+      .from("profiles")
+      .select("id")
+      .eq("id", coApplicantProfileId);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(0);
+  });
+
+  it("an unrelated user cannot read someone else's co-applicant application", async () => {
+    const client = await signInAs(emailB);
+    const { data, error } = await client
+      .from("applications")
+      .select("id")
+      .eq("id", coApplicantApplicationId);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(0);
+  });
+
+  it("a co-applicant profile cannot itself own further co-applicants", async () => {
+    const { error } = await adminClient
+      .from("profiles")
+      .insert({ owner_profile_id: coApplicantProfileId, full_name: "Nested", onboarding_status: "not_started" });
     expect(error).not.toBeNull();
   });
 });
