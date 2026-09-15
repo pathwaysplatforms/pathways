@@ -1,4 +1,5 @@
 import type { VoiceExtractedProfile } from '@/modules/voice/types';
+import type { CrsInput } from '@/lib/crs-estimate';
 
 /**
  * Column subset of a profiles row needed to build a CRS estimation input.
@@ -23,7 +24,9 @@ export interface CrsProfileSource {
   has_provincial_nomination?: boolean | null;
   has_canadian_job_offer?: boolean | null;
   has_sibling_in_canada?: boolean | null;
+  canadian_education_years?: number | null;
   spouse_coming_to_canada?: boolean | null;
+  spouse_education_level?: string | null;
   spouse_clb_speaking?: number | null;
   spouse_clb_listening?: number | null;
   spouse_clb_reading?: number | null;
@@ -32,11 +35,11 @@ export interface CrsProfileSource {
 }
 
 /**
- * Maps a profiles row to the Partial<VoiceExtractedProfile> input that
- * computeCrsEstimate expects. Single source for the column → estimator
- * mapping (used by the dashboard service and the CRS recalculation action).
+ * Maps a profiles row to the CrsInput that computeCrsEstimate expects.
+ * Single source for the column → estimator mapping (used by the dashboard
+ * service and the CRS recalculation action).
  */
-export function profileRowToCrsInput(row: CrsProfileSource): Partial<VoiceExtractedProfile> {
+export function profileRowToCrsInput(row: CrsProfileSource): CrsInput {
   return {
     date_of_birth: row.date_of_birth ?? null,
     // Columns store free-form strings; the estimator only scores values that
@@ -58,7 +61,11 @@ export function profileRowToCrsInput(row: CrsProfileSource): Partial<VoiceExtrac
     has_provincial_nomination: row.has_provincial_nomination ?? undefined,
     has_canadian_job_offer: row.has_canadian_job_offer ?? undefined,
     has_sibling_in_canada: row.has_sibling_in_canada ?? undefined,
+    canadian_education_years: row.canadian_education_years ?? undefined,
     spouse_coming_to_canada: row.spouse_coming_to_canada ?? undefined,
+    // Same free-form column narrowing as education_level above.
+    spouse_education_level:
+      (row.spouse_education_level as VoiceExtractedProfile['spouse_education_level']) ?? undefined,
     spouse_clb_speaking: row.spouse_clb_speaking ?? undefined,
     spouse_clb_listening: row.spouse_clb_listening ?? undefined,
     spouse_clb_reading: row.spouse_clb_reading ?? undefined,

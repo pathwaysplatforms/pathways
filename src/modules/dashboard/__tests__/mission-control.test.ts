@@ -45,6 +45,7 @@ function makeData(overrides: Partial<DashboardData> = {}): DashboardData {
     crsRangeHigh: 500,
     crsConfidence: null,
     crsBreakdown: null,
+    crsWithSpouse: false,
     crsClbPlusOneDelta: null,
     selectedPathwaySlug: null,
     selectedPathwayTitle: null,
@@ -88,6 +89,7 @@ function makeExecutingData(overrides: Partial<DashboardData> = {}): DashboardDat
       education: 120,
       language: 80,
       experience: 40,
+      spouse: 0,
       transferability: 50,
       additional: 0,
     },
@@ -200,7 +202,7 @@ describe('deriveMissionControl — levers', () => {
   it('omits provincial nomination when additional points already include one', () => {
     const levers = deriveMissionControl(
       makeExecutingData({
-        crsBreakdown: { age: 100, education: 120, language: 80, experience: 40, transferability: 50, additional: 600 },
+        crsBreakdown: { age: 100, education: 120, language: 80, experience: 40, spouse: 0, transferability: 50, additional: 600 },
       })
     ).levers;
     expect(levers.some((l) => l.id === 'provincial-nomination')).toBe(false);
@@ -224,7 +226,7 @@ describe('deriveMissionControl — levers', () => {
     // and education (25) — but its computed +12 delta must still surface.
     const levers = deriveMissionControl(
       makeExecutingData({
-        crsBreakdown: { age: 100, education: 125, language: 124, experience: 8, transferability: 75, additional: 0 },
+        crsBreakdown: { age: 100, education: 125, language: 124, experience: 8, spouse: 0, transferability: 75, additional: 0 },
         crsClbPlusOneDelta: 12,
       })
     ).levers;
@@ -236,12 +238,22 @@ describe('deriveMissionControl — levers', () => {
   it('lets pure headroom ranking drop a language lever with no computable delta', () => {
     const levers = deriveMissionControl(
       makeExecutingData({
-        crsBreakdown: { age: 100, education: 125, language: 124, experience: 8, transferability: 75, additional: 0 },
+        crsBreakdown: { age: 100, education: 125, language: 124, experience: 8, spouse: 0, transferability: 75, additional: 0 },
         crsClbPlusOneDelta: null,
       })
     ).levers;
     expect(levers).toHaveLength(3);
     expect(levers.some((l) => l.id === 'language')).toBe(false);
+  });
+
+  it('measures lever headroom against the with-spouse caps when a spouse is accompanying', () => {
+    // Maxed under the with-spouse columns (education 140, language 128, experience 70),
+    // but 10/8/10 short of the single-applicant caps.
+    const breakdown = { age: 100, education: 140, language: 128, experience: 70, spouse: 40, transferability: 100, additional: 0 };
+    const withSpouse = deriveMissionControl(makeExecutingData({ crsWithSpouse: true, crsBreakdown: breakdown })).levers;
+    const single = deriveMissionControl(makeExecutingData({ crsWithSpouse: false, crsBreakdown: breakdown })).levers;
+    expect(withSpouse.map((l) => l.id)).toEqual(['provincial-nomination']);
+    expect(single.some((l) => l.id === 'education')).toBe(true);
   });
 
   it('only ever labels deltas that are computed or documented', () => {

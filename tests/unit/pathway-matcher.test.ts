@@ -304,6 +304,49 @@ describe("matchPathways", () => {
   });
 });
 
+describe("matchPathways CEC language minimum", () => {
+  const CEC_ROW = { ...PATHWAY_ROWS[0], id: "pathway-cec", slug: "canada-cec", title: "Canadian Experience Class" };
+  const CEC_PROFILE = { ...completeProfile, canadian_work_years: 1, canadian_work_recent: true };
+  const clbAll = (level: number) => ({
+    clb_speaking: level, clb_listening: level, clb_reading: level, clb_writing: level,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+    process.env.OPENAI_API_KEY = "sk-test";
+    setupSuccessfulDbMocks();
+    const base = mockFrom.getMockImplementation();
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "pathways") {
+        const eq2 = vi.fn().mockResolvedValue({ data: [...PATHWAY_ROWS, CEC_ROW], error: null });
+        const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+        return { select: vi.fn().mockReturnValue({ eq: eq1 }) };
+      }
+      return base?.(table);
+    });
+  });
+
+  /** Runs the matcher for a profile and reports whether CEC survived the hard filter into the Claude prompt. */
+  async function cecIsCandidate(overrides: Record<string, unknown>): Promise<boolean> {
+    mockSingle.mockResolvedValueOnce({ data: { ...CEC_PROFILE, ...overrides }, error: null });
+    await matchPathways(USER_ID);
+    return JSON.stringify(mockCreate.mock.calls[0]?.[0]).includes("(canada-cec)");
+  }
+
+  it("keeps CEC for a TEER 2 occupation at CLB 5", async () => {
+    expect(await cecIsCandidate({ noc_teer_category: 2, ...clbAll(5) })).toBe(true);
+  });
+
+  it("eliminates CEC for a TEER 1 occupation below CLB 7", async () => {
+    expect(await cecIsCandidate({ noc_teer_category: 1, ...clbAll(6) })).toBe(false);
+  });
+
+  it("keeps CEC for a TEER 1 occupation at CLB 7", async () => {
+    expect(await cecIsCandidate({ noc_teer_category: 1, ...clbAll(7) })).toBe(true);
+  });
+});
+
 describe("getCachedMatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();

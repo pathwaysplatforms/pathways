@@ -504,6 +504,7 @@ describe('getDashboardData', () => {
     const result = await getDashboardData('user-1', mockLogger as never);
     expect(result.crsBreakdown).not.toBeNull();
     expect(result.crsBreakdown?.education).toBe(120);
+    expect(result.crsWithSpouse).toBe(false);
     expect(result.crsClbPlusOneDelta).toBeGreaterThan(0);
   });
 

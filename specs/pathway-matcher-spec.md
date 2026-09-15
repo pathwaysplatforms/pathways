@@ -1,6 +1,12 @@
 # Pathway Matcher Spec
 ## `feat/pathway-matcher` branch
 
+> **Status (2026-09-14): superseded.** The `src/modules/pathways/service.ts`
+> described here was never wired into the product and has been deleted.
+> Matching lives in `src/lib/pathway-matcher.ts`. CRS scoring lives only in
+> `src/lib/crs-estimate.ts`, which follows the official IRCC grid. The point
+> tables in §2b below are not IRCC-accurate — do not implement from them.
+
 > **Read first:** `tailwind.config.ts`, `specs/design-system.md`,
 > `supabase/migrations/20260521081846_expand_profiles.sql`,
 > `supabase/migrations/20260521083246_expand_profiles_v2.sql`,

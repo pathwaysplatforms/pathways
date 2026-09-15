@@ -18,6 +18,9 @@ describe("profileRowToCrsInput", () => {
       noc_teer_category: 1,
       has_provincial_nomination: false,
       has_sibling_in_canada: true,
+      canadian_education_years: 3,
+      spouse_coming_to_canada: true,
+      spouse_education_level: "bachelors",
     });
 
     expect(input.date_of_birth).toBe("1992-03-10");
@@ -25,6 +28,27 @@ describe("profileRowToCrsInput", () => {
     expect(input.clb_listening).toBe(8);
     expect(input.foreign_work_recent).toBe(true);
     expect(input.has_sibling_in_canada).toBe(true);
+    expect(input.canadian_education_years).toBe(3);
+    expect(input.spouse_education_level).toBe("bachelors");
+  });
+
+  it("carries Canadian education and spouse education through to the score", () => {
+    const base = {
+      date_of_birth: "1994-01-01",
+      education_level: "bachelors",
+      clb_speaking: 9,
+      clb_listening: 9,
+      clb_reading: 9,
+      clb_writing: 9,
+      spouse_coming_to_canada: true,
+    };
+    const without = computeCrsEstimate(profileRowToCrsInput(base));
+    const withBoth = computeCrsEstimate(
+      profileRowToCrsInput({ ...base, canadian_education_years: 3, spouse_education_level: "masters" })
+    );
+
+    // +30 Canadian post-secondary (3+ years) and +10 spouse master's
+    expect(withBoth!.score - without!.score).toBe(40);
   });
 
   it("converts null columns to undefined so the estimator's null checks behave", () => {

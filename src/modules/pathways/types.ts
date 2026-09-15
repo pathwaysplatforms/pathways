@@ -41,41 +41,6 @@ export interface ApplicationPathway {
 
 // ─── Pathway Matcher types ──────────────────────────────────────────────────
 
-/** Profile shape the matcher receives — maps directly to profiles table columns. */
-export interface MatcherProfile {
-  id: string;
-  // Core eligibility
-  has_degree: boolean | null;
-  years_experience: number | null;
-  education_level: string | null;
-  eca_obtained: boolean | null;
-  // Language
-  clb_speaking: number | null;
-  clb_listening: number | null;
-  clb_reading: number | null;
-  clb_writing: number | null;
-  // Work split
-  canadian_work_years: number | null;
-  foreign_work_years: number | null;
-  canadian_work_recent: boolean | null;
-  foreign_work_recent: boolean | null;
-  noc_teer_category: number | null;
-  // Spouse
-  spouse_coming_to_canada: boolean | null;
-  spouse_education_level: string | null;
-  spouse_clb_speaking: number | null;
-  spouse_clb_listening: number | null;
-  spouse_clb_reading: number | null;
-  spouse_clb_writing: number | null;
-  spouse_canadian_work_years: number | null;
-  // CRS bonus factors
-  has_provincial_nomination: boolean | null;
-  has_canadian_job_offer: boolean | null;
-  has_sibling_in_canada: boolean | null;
-  // Age (IRCC CRS section A — up to 110 pts for single, 100 for with-spouse)
-  date_of_birth: string | null;
-}
-
 /** A single ranked pathway match result — computed on demand, never stored. */
 export interface MatchResult {
   pathway: {
@@ -104,9 +69,4 @@ export interface Application {
   pathway: ApplicationPathway;
   status: string;
   steps: ApplicationStep[];
-}
-
-/** Database-sourced application record. Extends Application with submission metadata. */
-export interface ApplicationData extends Application {
-  submitted_at: string | null;
 }

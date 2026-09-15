@@ -342,6 +342,7 @@ export async function getDashboardData(
   const crsInput = profileRowToCrsInput(profile);
   const liveCrsEstimate = computeCrsEstimate(crsInput);
   const crsBreakdown = liveCrsEstimate?.breakdown ?? null;
+  const crsWithSpouse = liveCrsEstimate?.withSpouse ?? false;
   const crsClbPlusOneDelta = computeClbPlusOneDelta(crsInput);
 
   // FSW 67-point estimate is computed here from the same profile data and
@@ -627,6 +628,7 @@ export async function getDashboardData(
     crsRangeHigh,
     crsConfidence,
     crsBreakdown,
+    crsWithSpouse,
     crsClbPlusOneDelta,
     fswEstimate,
     selectedPathwaySlug,

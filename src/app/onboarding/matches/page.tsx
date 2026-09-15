@@ -116,7 +116,11 @@ export default async function MatchesPage() {
                 )}
                 <SummaryRow
                   label="CRS estimate"
-                  value={`${pathwayInput.crs_estimate.range_low}–${pathwayInput.crs_estimate.range_high}`}
+                  value={
+                    pathwayInput.crs_estimate.range_high > 0
+                      ? `${pathwayInput.crs_estimate.range_low}–${pathwayInput.crs_estimate.range_high}`
+                      : "Not enough information yet"
+                  }
                   accent
                 />
                 <SummaryRow

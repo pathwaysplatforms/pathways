@@ -221,8 +221,9 @@ export async function recalculateCrsEstimate(): Promise<CrsEstimate | null> {
       'date_of_birth,education_level,eca_obtained,clb_speaking,clb_listening,clb_reading,clb_writing,' +
       'language_proficiency_self,canadian_work_years,foreign_work_years,foreign_work_recent,' +
       'years_experience,noc_teer_category,noc_code,has_provincial_nomination,has_canadian_job_offer,' +
-      'has_sibling_in_canada,spouse_coming_to_canada,spouse_clb_speaking,spouse_clb_listening,' +
-      'spouse_clb_reading,spouse_clb_writing,spouse_canadian_work_years,pathway_input_json'
+      'has_sibling_in_canada,canadian_education_years,spouse_coming_to_canada,spouse_education_level,' +
+      'spouse_clb_speaking,spouse_clb_listening,spouse_clb_reading,spouse_clb_writing,' +
+      'spouse_canadian_work_years,pathway_input_json'
     )
     .eq('auth_user_id', user.id)
     .single();
@@ -250,7 +251,9 @@ export async function recalculateCrsEstimate(): Promise<CrsEstimate | null> {
     has_provincial_nomination: boolean | null;
     has_canadian_job_offer: boolean | null;
     has_sibling_in_canada: boolean | null;
+    canadian_education_years: number | null;
     spouse_coming_to_canada: boolean | null;
+    spouse_education_level: string | null;
     spouse_clb_speaking: number | null;
     spouse_clb_listening: number | null;
     spouse_clb_reading: number | null;

@@ -128,6 +128,12 @@ function CrsHero({
                   {estimate.cutoffReason}
                 </p>
               )}
+              {estimate.ecaPending && (
+                <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 12, color: '#6B6B6B', marginTop: 10 }}>
+                  Your education points count once you have an Educational Credential Assessment (ECA).
+                  Without one, IRCC scores foreign education at 0.
+                </p>
+              )}
             </>
           ) : (
             <p style={{ fontFamily: 'var(--pw-font-body)', fontSize: 14, color: '#9B9B9B', marginTop: 4 }}>
@@ -191,6 +197,7 @@ function CrsHero({
               ['Education', estimate.breakdown.education],
               ['Language', estimate.breakdown.language],
               ['Experience', estimate.breakdown.experience],
+              ...(estimate.withSpouse ? [['Spouse', estimate.breakdown.spouse] as [string, number]] : []),
               ['Transferability', estimate.breakdown.transferability],
               ['Additional', estimate.breakdown.additional],
             ] as [string, number][]
