@@ -52,8 +52,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       throw new ValidationError("Invalid profile update body");
     }
 
-    // Keys with no profiles column (destination_country and friends) survive in
-    // voice_session_data only, so PostgREST never sees them on the update.
+    // Keys with no profiles column survive in voice_session_data only, so PostgREST
+    // never sees them on the update.
     const { columns, extras } = partitionProfilePayload(updates, log);
 
     const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;

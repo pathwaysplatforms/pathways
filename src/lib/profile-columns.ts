@@ -24,6 +24,8 @@ type ProfileColumn = keyof Database["public"]["Tables"]["profiles"]["Row"];
  *    or server-incremented tracking fields (20260521081846_expand_profiles.sql).
  *  - `selected_pathway_slug` — set by the pathway selection action, not by onboarding
  *    (20260609000001_add_selected_pathway_slug.sql).
+ *  - `owner_profile_id` — links a co-applicant to its owning profile; set only by the
+ *    co-applicant flow, never by a payload (20260817000001_co_applicant_profiles.sql).
  */
 export const SYSTEM_MANAGED_COLUMNS = [
   "auth_user_id",
@@ -35,6 +37,7 @@ export const SYSTEM_MANAGED_COLUMNS = [
   "onboarding_method",
   "onboarding_status",
   "onboarding_step",
+  "owner_profile_id",
   "pathway_input_json",
   "profile_completeness_pct",
   "selected_pathway_slug",
@@ -64,6 +67,8 @@ export const WRITABLE_PROFILE_COLUMNS = [
   "date_of_birth",
   "degree_field",
   "degree_level",
+  "dependents",
+  "destination_country",
   "eca_obtained",
   "education_level",
   "education_level_voice",
@@ -77,6 +82,7 @@ export const WRITABLE_PROFILE_COLUMNS = [
   "has_degree",
   "has_dependents",
   "has_family_in_canada",
+  "has_prior_canadian_study",
   "has_provincial_nomination",
   "has_sibling_in_canada",
   "has_trade_certificate",
@@ -94,6 +100,7 @@ export const WRITABLE_PROFILE_COLUMNS = [
   "occupation",
   "phone",
   "preferred_language",
+  "purpose",
   "second_lang_listening",
   "second_lang_reading",
   "second_lang_speaking",
@@ -113,13 +120,11 @@ export const WRITABLE_PROFILE_COLUMNS = [
  * JSONB (`voice_session_data`) instead of being written as columns, so they must never
  * reach a PostgREST update. Adding a column for one of these is a schema change and needs
  * a proposed migration — do not widen this list to paper over a missing column.
+ *
+ * Currently empty: the last four extras became columns in
+ * 20260914000001_add_onboarding_profile_columns.sql.
  */
-export const INTENTIONAL_EXTRAS = [
-  "dependents",
-  "destination_country",
-  "has_prior_canadian_study",
-  "purpose",
-] as const;
+export const INTENTIONAL_EXTRAS = [] as const satisfies readonly string[];
 
 export type SystemManagedColumn = (typeof SYSTEM_MANAGED_COLUMNS)[number];
 export type WritableProfileColumn = (typeof WRITABLE_PROFILE_COLUMNS)[number];
@@ -163,19 +168,19 @@ export function partitionProfilePayload(
   log: Logger = defaultLogger
 ): PartitionedProfilePayload {
   const columns: Partial<Record<WritableProfileColumn, unknown>> = {};
-  const extras: Partial<Record<IntentionalExtra, unknown>> = {};
+  const extraEntries: [string, unknown][] = [];
   const rejected: string[] = [];
 
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
     log.warn({ action: "profile.payload.partition.not_an_object", received: typeof input });
-    return { columns, extras, rejected };
+    return { columns, extras: {}, rejected };
   }
 
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     if (WRITABLE_LOOKUP.has(key)) {
       columns[key as WritableProfileColumn] = value;
     } else if (EXTRAS_LOOKUP.has(key)) {
-      extras[key as IntentionalExtra] = value;
+      extraEntries.push([key, value]);
     } else {
       rejected.push(key);
     }
@@ -185,5 +190,5 @@ export function partitionProfilePayload(
     log.warn({ action: "profile.payload.partition.rejected", keys: rejected });
   }
 
-  return { columns, extras, rejected };
+  return { columns, extras: Object.fromEntries(extraEntries), rejected };
 }

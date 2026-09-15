@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -678,7 +683,9 @@ export type Database = {
       }
       pathway_steps: {
         Row: {
+          applicant_portal: string | null
           checklist_items: Json | null
+          common_mistakes: Json | null
           description: string
           document_requirement_id: string | null
           estimated_days_max: number | null
@@ -696,9 +703,13 @@ export type Database = {
           step_number: number
           title: string
           type: string
+          validity_period: string | null
+          what_happens_next: string | null
         }
         Insert: {
+          applicant_portal?: string | null
           checklist_items?: Json | null
+          common_mistakes?: Json | null
           description: string
           document_requirement_id?: string | null
           estimated_days_max?: number | null
@@ -716,9 +727,13 @@ export type Database = {
           step_number: number
           title: string
           type?: string
+          validity_period?: string | null
+          what_happens_next?: string | null
         }
         Update: {
+          applicant_portal?: string | null
           checklist_items?: Json | null
+          common_mistakes?: Json | null
           description?: string
           document_requirement_id?: string | null
           estimated_days_max?: number | null
@@ -736,6 +751,8 @@ export type Database = {
           step_number?: number
           title?: string
           type?: string
+          validity_period?: string | null
+          what_happens_next?: string | null
         }
         Relationships: [
           {
@@ -766,16 +783,33 @@ export type Database = {
           fee_gbp: number
           id: string
           is_active: boolean
+          max_teer_level: number | null
+          min_clb_listening: number | null
+          min_clb_listening_teer23: number | null
+          min_clb_reading: number | null
+          min_clb_reading_teer23: number | null
+          min_clb_speaking: number | null
+          min_clb_speaking_teer23: number | null
+          min_clb_writing: number | null
+          min_clb_writing_teer23: number | null
+          min_fsw_points: number | null
           min_salary_gbp: number
           min_years_experience: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
           program_type: string | null
+          requires_canadian_experience: boolean | null
           requires_degree: boolean
+          requires_eca: boolean | null
           requires_english_test: boolean
+          requires_proof_of_funds: boolean | null
+          requires_stem_occupation: boolean | null
+          settlement_funds_cad: number | null
           slug: string
           title: string
+          typical_crs_max: number | null
+          typical_crs_min: number | null
           updated_at: string
         }
         Insert: {
@@ -789,16 +823,33 @@ export type Database = {
           fee_gbp: number
           id?: string
           is_active?: boolean
+          max_teer_level?: number | null
+          min_clb_listening?: number | null
+          min_clb_listening_teer23?: number | null
+          min_clb_reading?: number | null
+          min_clb_reading_teer23?: number | null
+          min_clb_speaking?: number | null
+          min_clb_speaking_teer23?: number | null
+          min_clb_writing?: number | null
+          min_clb_writing_teer23?: number | null
+          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name: string
           processing_time_max: string
           processing_time_min: string
           program_type?: string | null
+          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
+          requires_eca?: boolean | null
           requires_english_test?: boolean
+          requires_proof_of_funds?: boolean | null
+          requires_stem_occupation?: boolean | null
+          settlement_funds_cad?: number | null
           slug: string
           title: string
+          typical_crs_max?: number | null
+          typical_crs_min?: number | null
           updated_at?: string
         }
         Update: {
@@ -812,16 +863,33 @@ export type Database = {
           fee_gbp?: number
           id?: string
           is_active?: boolean
+          max_teer_level?: number | null
+          min_clb_listening?: number | null
+          min_clb_listening_teer23?: number | null
+          min_clb_reading?: number | null
+          min_clb_reading_teer23?: number | null
+          min_clb_speaking?: number | null
+          min_clb_speaking_teer23?: number | null
+          min_clb_writing?: number | null
+          min_clb_writing_teer23?: number | null
+          min_fsw_points?: number | null
           min_salary_gbp?: number
           min_years_experience?: number
           official_name?: string
           processing_time_max?: string
           processing_time_min?: string
           program_type?: string | null
+          requires_canadian_experience?: boolean | null
           requires_degree?: boolean
+          requires_eca?: boolean | null
           requires_english_test?: boolean
+          requires_proof_of_funds?: boolean | null
+          requires_stem_occupation?: boolean | null
+          settlement_funds_cad?: number | null
           slug?: string
           title?: string
+          typical_crs_max?: number | null
+          typical_crs_min?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -901,7 +969,7 @@ export type Database = {
       profiles: {
         Row: {
           annual_income: number | null
-          auth_user_id: string
+          auth_user_id: string | null
           avatar_url: string | null
           canadian_education_years: number | null
           canadian_work_recent: boolean | null
@@ -916,6 +984,8 @@ export type Database = {
           date_of_birth: string | null
           degree_field: string | null
           degree_level: string | null
+          dependents: number | null
+          destination_country: string | null
           eca_obtained: boolean | null
           education_level: string | null
           education_level_voice: string | null
@@ -930,6 +1000,7 @@ export type Database = {
           has_degree: boolean | null
           has_dependents: boolean | null
           has_family_in_canada: boolean | null
+          has_prior_canadian_study: boolean | null
           has_provincial_nomination: boolean | null
           has_sibling_in_canada: boolean | null
           has_trade_certificate: boolean | null
@@ -951,10 +1022,12 @@ export type Database = {
           onboarding_method: string | null
           onboarding_status: string
           onboarding_step: string | null
+          owner_profile_id: string | null
           pathway_input_json: Json | null
           phone: string | null
           preferred_language: string
           profile_completeness_pct: number | null
+          purpose: string | null
           second_lang_listening: number | null
           second_lang_reading: number | null
           second_lang_speaking: number | null
@@ -975,7 +1048,7 @@ export type Database = {
         }
         Insert: {
           annual_income?: number | null
-          auth_user_id: string
+          auth_user_id?: string | null
           avatar_url?: string | null
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
@@ -990,6 +1063,8 @@ export type Database = {
           date_of_birth?: string | null
           degree_field?: string | null
           degree_level?: string | null
+          dependents?: number | null
+          destination_country?: string | null
           eca_obtained?: boolean | null
           education_level?: string | null
           education_level_voice?: string | null
@@ -1004,6 +1079,7 @@ export type Database = {
           has_degree?: boolean | null
           has_dependents?: boolean | null
           has_family_in_canada?: boolean | null
+          has_prior_canadian_study?: boolean | null
           has_provincial_nomination?: boolean | null
           has_sibling_in_canada?: boolean | null
           has_trade_certificate?: boolean | null
@@ -1025,10 +1101,12 @@ export type Database = {
           onboarding_method?: string | null
           onboarding_status?: string
           onboarding_step?: string | null
+          owner_profile_id?: string | null
           pathway_input_json?: Json | null
           phone?: string | null
           preferred_language?: string
           profile_completeness_pct?: number | null
+          purpose?: string | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
           second_lang_speaking?: number | null
@@ -1049,7 +1127,7 @@ export type Database = {
         }
         Update: {
           annual_income?: number | null
-          auth_user_id?: string
+          auth_user_id?: string | null
           avatar_url?: string | null
           canadian_education_years?: number | null
           canadian_work_recent?: boolean | null
@@ -1064,6 +1142,8 @@ export type Database = {
           date_of_birth?: string | null
           degree_field?: string | null
           degree_level?: string | null
+          dependents?: number | null
+          destination_country?: string | null
           eca_obtained?: boolean | null
           education_level?: string | null
           education_level_voice?: string | null
@@ -1078,6 +1158,7 @@ export type Database = {
           has_degree?: boolean | null
           has_dependents?: boolean | null
           has_family_in_canada?: boolean | null
+          has_prior_canadian_study?: boolean | null
           has_provincial_nomination?: boolean | null
           has_sibling_in_canada?: boolean | null
           has_trade_certificate?: boolean | null
@@ -1099,10 +1180,12 @@ export type Database = {
           onboarding_method?: string | null
           onboarding_status?: string
           onboarding_step?: string | null
+          owner_profile_id?: string | null
           pathway_input_json?: Json | null
           phone?: string | null
           preferred_language?: string
           profile_completeness_pct?: number | null
+          purpose?: string | null
           second_lang_listening?: number | null
           second_lang_reading?: number | null
           second_lang_speaking?: number | null
@@ -1121,7 +1204,15 @@ export type Database = {
           voice_session_data?: Json | null
           years_experience?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_owner_profile_id_fkey"
+            columns: ["owner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       step_checklist_progress: {
         Row: {
@@ -1148,6 +1239,13 @@ export type Database = {
             columns: ["step_id"]
             isOneToOne: false
             referencedRelation: "pathway_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "step_checklist_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1281,6 +1379,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accessible_profile_ids: { Args: never; Returns: string[] }
       match_immigration_chunks: {
         Args: {
           filter_country?: string
@@ -1333,12 +1432,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1362,11 +1461,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1387,11 +1486,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1412,11 +1511,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1429,11 +1528,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1450,4 +1549,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

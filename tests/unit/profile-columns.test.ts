@@ -45,7 +45,7 @@ describe("profile column lists", () => {
 });
 
 describe("partitionProfilePayload", () => {
-  it("routes columns, extras, and unknown keys to their own buckets", () => {
+  it("routes columns and unknown keys to their own buckets", () => {
     const log = stubLogger();
     const result = partitionProfilePayload(
       {
@@ -57,8 +57,12 @@ describe("partitionProfilePayload", () => {
       log
     );
 
-    expect(result.columns).toEqual({ full_name: "Amara Okafor", clb_speaking: 9 });
-    expect(result.extras).toEqual({ destination_country: "Canada" });
+    expect(result.columns).toEqual({
+      full_name: "Amara Okafor",
+      clb_speaking: 9,
+      destination_country: "Canada",
+    });
+    expect(result.extras).toEqual({});
     expect(result.rejected).toEqual(["favourite_colour"]);
     expect(log.warn).toHaveBeenCalledTimes(1);
   });
