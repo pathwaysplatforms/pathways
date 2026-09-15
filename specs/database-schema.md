@@ -27,6 +27,10 @@ Extends Supabase auth.users. Created automatically on signup via trigger.
 | english_level | text | 'native','fluent','b2','b1','below_b1' |
 | marital_status | text | |
 | has_dependents | boolean | |
+| dependents | int | count of dependents, check >= 0 |
+| destination_country | text | defaults to Canada in onboarding |
+| purpose | text | free text immigration goal |
+| has_prior_canadian_study | boolean | full-time study at a Canadian DLI |
 | voice_session_data | jsonb | raw extracted data from voice session |
 | onboarding_status | text | 'not_started','voice_complete','complete' |
 | is_admin | boolean | default false |
