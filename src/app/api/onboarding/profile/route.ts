@@ -6,6 +6,7 @@ import { requireAuth, getProfile } from "@/modules/auth/service";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { VoiceExtractedProfileSchema } from "@/modules/voice/types";
 import { PathwaysError, AuthError, ValidationError, DatabaseError } from "@/lib/errors";
+import { partitionProfilePayload } from "@/lib/profile-columns";
 import type { Logger } from "pino";
 
 const ProfileUpdateSchema = VoiceExtractedProfileSchema.omit({ requires_review: true }).partial();
@@ -51,19 +52,20 @@ export async function POST(req: NextRequest): Promise<Response> {
       throw new ValidationError("Invalid profile update body");
     }
 
-    // destination_country is in the voice schema but not a DB column — keep it in
-    // voice_session_data only so PostgREST doesn't reject the update.
-    const { destination_country: _dc, ...dbSafeUpdates } = updates as typeof updates & { destination_country?: unknown };
+    // Keys with no profiles column (destination_country and friends) survive in
+    // voice_session_data only, so PostgREST never sees them on the update.
+    const { columns, extras } = partitionProfilePayload(updates, log);
 
     const adminDb = createSupabaseAdminClient() as unknown as SupabaseClient;
     const { error } = await adminDb
       .from("profiles")
       .update({
-        ...dbSafeUpdates,
+        ...columns,
         onboarding_step: "voice_in_progress",
         voice_session_data: {
           ...(profile.voice_session_data ?? {}),
-          ...updates,
+          ...columns,
+          ...extras,
         },
       })
       .eq("id", profile.id);
