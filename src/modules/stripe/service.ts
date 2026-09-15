@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type Stripe from 'stripe';
 import type { Logger } from 'pino';
-import { DatabaseError } from '@/lib/errors';
+import { DatabaseError, NotFoundError } from '@/lib/errors';
 
 /** Stripe subscription statuses that map to the `paid` tier. */
 export const ACTIVE_STATUSES = new Set(['active', 'trialing']);
@@ -102,4 +102,35 @@ export async function getSubscriptionForUser(
 
   log.info({ action: 'stripe.getSubscription.done', userId, found: data !== null });
   return data as SubscriptionRow | null;
+}
+
+/**
+ * Creates a Stripe Billing Portal session so the user can update their payment
+ * method, view invoices, or cancel. Returns the portal URL the client redirects to.
+ * Throws NotFoundError when the user has no Stripe customer on record.
+ */
+export async function createBillingPortalSession(
+  stripe: Stripe,
+  admin: SupabaseClient,
+  userId: string,
+  returnUrl: string,
+  log: Logger,
+): Promise<string> {
+  log.info({ action: 'stripe.portal.start', userId });
+
+  const subscription = await getSubscriptionForUser(admin, userId, log);
+  const customerId = subscription?.stripe_customer_id ?? null;
+
+  if (!customerId) {
+    log.warn({ action: 'stripe.portal.no_customer', userId });
+    throw new NotFoundError('No Stripe customer on record for this user', { userId });
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: returnUrl,
+  });
+
+  log.info({ action: 'stripe.portal.done', userId, sessionId: session.id });
+  return session.url;
 }

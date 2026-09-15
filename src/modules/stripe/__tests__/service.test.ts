@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DatabaseError } from '@/lib/errors';
+import { DatabaseError, NotFoundError } from '@/lib/errors';
 
 vi.mock('@/lib/logger', () => ({
   createRequestLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
 }));
 
-import { syncSubscription, getSubscriptionForUser, ACTIVE_STATUSES } from '../service';
+import {
+  syncSubscription,
+  getSubscriptionForUser,
+  createBillingPortalSession,
+  ACTIVE_STATUSES,
+} from '../service';
 
 const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -131,6 +136,69 @@ describe('getSubscriptionForUser', () => {
     const admin = makeAdmin(undefined, undefined, { data: null, error: { message: 'fail' } });
     await expect(
       getSubscriptionForUser(admin as never, 'user-1', mockLog as never),
+    ).rejects.toThrow(DatabaseError);
+  });
+});
+
+// ── createBillingPortalSession ────────────────────────────────────────────────
+
+function makeStripe(url = 'https://billing.stripe.com/p/session/test123') {
+  const create = vi.fn().mockResolvedValue({ id: 'bps_test', url });
+  return {
+    stripe: { billingPortal: { sessions: { create } } } as unknown as import('stripe').default,
+    _create: create,
+  };
+}
+
+describe('createBillingPortalSession', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns the portal URL for a user with a Stripe customer', async () => {
+    const admin = makeAdmin(undefined, undefined, {
+      data: { stripe_customer_id: 'cus_abc123' },
+      error: null,
+    });
+    const { stripe, _create } = makeStripe();
+
+    const url = await createBillingPortalSession(
+      stripe, admin as never, 'user-1', 'https://app.test/account', mockLog as never,
+    );
+
+    expect(url).toBe('https://billing.stripe.com/p/session/test123');
+    expect(_create).toHaveBeenCalledWith({
+      customer: 'cus_abc123',
+      return_url: 'https://app.test/account',
+    });
+  });
+
+  it('throws NotFoundError when the user has no subscription row', async () => {
+    const admin = makeAdmin(undefined, undefined, { data: null, error: null });
+    const { stripe, _create } = makeStripe();
+
+    await expect(
+      createBillingPortalSession(stripe, admin as never, 'user-2', 'https://app.test/account', mockLog as never),
+    ).rejects.toThrow(NotFoundError);
+    expect(_create).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundError when the subscription row has no stripe_customer_id', async () => {
+    const admin = makeAdmin(undefined, undefined, {
+      data: { stripe_customer_id: null },
+      error: null,
+    });
+    const { stripe } = makeStripe();
+
+    await expect(
+      createBillingPortalSession(stripe, admin as never, 'user-3', 'https://app.test/account', mockLog as never),
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('propagates a DatabaseError when the subscription lookup fails', async () => {
+    const admin = makeAdmin(undefined, undefined, { data: null, error: { message: 'fail' } });
+    const { stripe } = makeStripe();
+
+    await expect(
+      createBillingPortalSession(stripe, admin as never, 'user-4', 'https://app.test/account', mockLog as never),
     ).rejects.toThrow(DatabaseError);
   });
 });

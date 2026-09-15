@@ -15,6 +15,18 @@ async function startCheckout(): Promise<void> {
   }
 }
 
+async function openBillingPortal(): Promise<void> {
+  const res = await fetch('/api/stripe/portal', { method: 'POST' });
+  if (res.status === 401) {
+    window.location.href = '/auth/login';
+    return;
+  }
+  const json = await res.json() as { url?: string; error?: { code: string; message: string } };
+  if (json.url) {
+    window.location.href = json.url;
+  }
+}
+
 interface Props {
   subscriptionStatus: SubscriptionStatus;
   createdAt: string;
@@ -42,6 +54,8 @@ export function AccountSubscriptionSection({ subscriptionStatus, createdAt }: Pr
   const isPaid = subscriptionStatus === "paid";
   const [isPending, startTransition] = useTransition();
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isPortalPending, startPortalTransition] = useTransition();
+  const [portalError, setPortalError] = useState<string | null>(null);
 
   const handleUpgrade = () => {
     setCheckoutError(null);
@@ -50,6 +64,17 @@ export function AccountSubscriptionSection({ subscriptionStatus, createdAt }: Pr
         await startCheckout();
       } catch {
         setCheckoutError('Something went wrong. Please try again.');
+      }
+    });
+  };
+
+  const handleManage = () => {
+    setPortalError(null);
+    startPortalTransition(async () => {
+      try {
+        await openBillingPortal();
+      } catch {
+        setPortalError('Something went wrong. Please try again.');
       }
     });
   };
@@ -120,6 +145,36 @@ export function AccountSubscriptionSection({ subscriptionStatus, createdAt }: Pr
             {checkoutError && (
               <p style={{ fontSize: 12, color: "#D0000C", fontFamily: "var(--pw-font-body)", marginTop: 6 }}>
                 {checkoutError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {isPaid && (
+          <div style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={handleManage}
+              disabled={isPortalPending}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "9px 20px",
+                borderRadius: 9999,
+                fontSize: 14,
+                fontWeight: 500,
+                fontFamily: "var(--pw-font-body)",
+                backgroundColor: "transparent",
+                color: isPortalPending ? "var(--pw-muted)" : "var(--pw-ink)",
+                border: "1px solid rgba(0,0,0,0.15)",
+                cursor: isPortalPending ? "default" : "pointer",
+              }}
+            >
+              {isPortalPending ? "Opening…" : "Manage subscription"}
+            </button>
+            {portalError && (
+              <p style={{ fontSize: 12, color: "#D0000C", fontFamily: "var(--pw-font-body)", marginTop: 6 }}>
+                {portalError}
               </p>
             )}
           </div>

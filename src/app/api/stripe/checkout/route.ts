@@ -68,6 +68,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       client_reference_id: user.id,
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/dashboard?checkout=canceled`,
+      // Skip card entry entirely when nothing is due now (e.g. a 100%-off promo
+      // brings the total to $0.00). Real paid signups still collect a card.
+      payment_method_collection: 'if_required',
       ...(promoCodeId
         ? { discounts: [{ promotion_code: promoCodeId }] }
         : { allow_promotion_codes: true }),
