@@ -190,6 +190,8 @@ export interface DashboardData {
   crsConfidence: string | null;
   /** Per-factor CRS breakdown recomputed live from profile columns (null when too few fields to estimate). */
   crsBreakdown: CrsBreakdown | null;
+  /** True when the live estimate used IRCC's with-spouse columns (spouse or partner coming to Canada). */
+  crsWithSpouse: boolean;
   /** Real CRS delta from raising each provided CLB ability by one level (null when not computable). */
   crsClbPlusOneDelta: number | null;
 

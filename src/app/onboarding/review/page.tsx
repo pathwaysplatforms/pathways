@@ -4,7 +4,7 @@ import { getProfile } from "@/modules/auth/service";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ReviewClient } from "./review-client";
 import { ParticleField } from "@/components/fx/ParticleField";
-import { buildPathwayInput, computeCrsEstimate } from "@/lib/pathway-input";
+import { buildPathwayInput } from "@/lib/pathway-input";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 
 /** Review and confirm the extracted profile from the voice/chat/form session. */
@@ -33,7 +33,9 @@ export default async function ReviewPage() {
   const voiceSessionId = (session as { id: string } | null)?.id ?? null;
 
   const pathwayInput = buildPathwayInput(profile.id, extracted, voiceSessionId);
-  const crsEstimate = computeCrsEstimate(pathwayInput);
+  const { range_low: crsLow, range_high: crsHigh } = pathwayInput.crs_estimate;
+  // A zero range means the profile is too sparse to estimate.
+  const crsEstimate = crsHigh > 0 ? { low: crsLow, high: crsHigh } : null;
 
   return (
     <main

@@ -4,13 +4,13 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { EDUCATION_OPTIONS, NOC_TEER_OPTIONS } from "@/modules/voice/types";
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
-import type { CrsEstimate } from "@/lib/pathway-input";
 
 interface ReviewClientProps {
   profileId: string;
   extracted: Partial<VoiceExtractedProfile>;
   voiceSessionId: string | null;
-  crsEstimate: CrsEstimate;
+  /** Onboarding CRS range from the shared estimator; null when the profile is too sparse to estimate. */
+  crsEstimate: { low: number; high: number } | null;
 }
 
 type ProfileFieldKey = Extract<keyof Omit<VoiceExtractedProfile, "requires_review">, string>;
@@ -244,21 +244,29 @@ export function ReviewClient({ profileId, extracted, voiceSessionId, crsEstimate
     router.push("/onboarding/voice");
   };
 
-  const midpoint = Math.round((crsEstimate.low + crsEstimate.high) / 2);
-
   return (
     <div className="space-y-6">
       {/* ── CRS Estimate card ──────────────────────────────────────────── */}
       <div className="card p-gutter">
         <p className="label-eyebrow mb-1">Estimated CRS range</p>
-        <div className="flex items-baseline gap-3 mb-1">
-          <span className="text-4xl font-extrabold text-text-primary">~{midpoint}</span>
-          <span className="text-lg text-text-secondary font-medium">points</span>
-        </div>
-        <p className="text-sm text-text-tertiary mb-1">
-          Range: {crsEstimate.low} – {crsEstimate.high}
-        </p>
-        <CrsBar low={crsEstimate.low} high={crsEstimate.high} />
+        {crsEstimate ? (
+          <>
+            <div className="flex items-baseline gap-3 mb-1">
+              <span className="text-4xl font-extrabold text-text-primary">
+                ~{Math.round((crsEstimate.low + crsEstimate.high) / 2)}
+              </span>
+              <span className="text-lg text-text-secondary font-medium">points</span>
+            </div>
+            <p className="text-sm text-text-tertiary mb-1">
+              Range: {crsEstimate.low} – {crsEstimate.high}
+            </p>
+            <CrsBar low={crsEstimate.low} high={crsEstimate.high} />
+          </>
+        ) : (
+          <p className="text-sm text-text-tertiary mb-1">
+            Add your date of birth, education, and language level to see an estimated range.
+          </p>
+        )}
         <div className="mt-8">
           <p className="text-xs text-text-tertiary leading-relaxed">
             Estimate only — complete your full profile on the dashboard for an exact score.{" "}

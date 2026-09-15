@@ -1,5 +1,6 @@
 import type { VoiceExtractedProfile } from "@/modules/voice/types";
 import type { ScoredPathway, VisaType } from "@/modules/voice/matcher-engine";
+import { computeCrsEstimate, type CrsBreakdown } from "@/lib/crs-estimate";
 
 /** Education levels in the canonical Express Entry taxonomy. */
 export type EducationLevel =
@@ -85,13 +86,19 @@ export interface PathwayInput {
   };
 }
 
-/** CRS estimate output with context fields. */
-export interface CrsEstimate {
-  low: number;
-  high: number;
-  midpoint: number;
-  basedOn: string[];
-  missingForExact: string[];
+/** Inputs an onboarding-stage estimate cannot see; an exact score needs them. */
+const MISSING_FOR_EXACT = [
+  "IELTS/CELPIP/TEF scores",
+  "NOC code",
+  "ECA certificate",
+  "Spouse CLB scores",
+];
+
+/** Names of the CRS factors that contributed points to an estimate. */
+function scoredFactors(breakdown: CrsBreakdown): string[] {
+  return Object.entries(breakdown)
+    .filter(([, points]) => points > 0)
+    .map(([factor]) => factor);
 }
 
 /** Map from self-reported education text to normalized EducationLevel. */
@@ -170,81 +177,6 @@ function inferPrimaryLanguage(
 }
 
 /**
- * Compute a conservative rough CRS range estimate from limited profile data.
- *
- * This is intentionally low-confidence — always err toward a lower range
- * to avoid false hope. The exact score requires CLB test results, NOC code,
- * ECA certificate, and spouse details not collected at this stage.
- */
-export function computeCrsEstimate(input: PathwayInput): CrsEstimate {
-  let total = 0;
-  const basedOn: string[] = [];
-  const missingForExact: string[] = [
-    "IELTS/CELPIP/TEF scores",
-    "NOC code",
-    "ECA certificate",
-    "Spouse CLB scores",
-  ];
-
-  const age = input.personal.age;
-  if (age > 0) {
-    let agePts = 0;
-    if (age >= 20 && age <= 29) agePts = 110;
-    else if (age >= 30 && age <= 34) agePts = 95;
-    else if (age >= 35 && age <= 39) agePts = 75;
-    else if (age >= 40 && age <= 44) agePts = 50;
-    else if (age < 20) agePts = 90;
-    else agePts = 0;
-    total += agePts;
-    if (agePts > 0) basedOn.push("age");
-  }
-
-  const eduLevel = input.education.level_normalized;
-  if (eduLevel) {
-    const eduMap: Record<EducationLevel, number> = {
-      phd: 150,
-      masters: 135,
-      two_or_more_credentials: 128,
-      bachelors: 120,
-      two_year_post_secondary: 98,
-      one_year_post_secondary: 84,
-      secondary: 28,
-      less_than_secondary: 0,
-    };
-    total += eduMap[eduLevel];
-    basedOn.push("education");
-  }
-
-  const langLevel = input.language.self_assessed_level;
-  const langMap: Record<typeof langLevel, number> = {
-    native: 120,
-    fluent: 108,
-    advanced: 90,
-    intermediate: 60,
-    basic: 20,
-  };
-  total += langMap[langLevel];
-  basedOn.push("self-assessed language proficiency");
-
-  if (input.work.has_canadian_experience) {
-    total += 40;
-    basedOn.push("Canadian work experience");
-  }
-
-  const capped = Math.min(total, 1200);
-  const low = Math.max(0, capped - 30);
-  const high = Math.min(1200, capped + 30);
-
-  return {
-    low,
-    high,
-    midpoint: Math.round((low + high) / 2),
-    basedOn,
-    missingForExact,
-  };
-}
-
-/**
  * Build the canonical PathwayInput JSON document from a voice session's
  * extracted profile. This is the only interface between the pre-pathway flow
  * and the pathway matching engine.
@@ -265,6 +197,13 @@ export function buildPathwayInput(
   const hasSpouse = spouseStatuses.some((s) =>
     (profile.marital_status ?? "").toLowerCase().replace(/-/g, "_").includes(s.replace(/-/g, "_"))
   );
+
+  // Voice sessions often capture education only as free text, so the
+  // normalized level stands in when no structured level exists.
+  const estimate = computeCrsEstimate({
+    ...profile,
+    education_level: profile.education_level ?? eduNormalized ?? undefined,
+  });
 
   const totalFields = 15;
   const collectedFields = [
@@ -335,20 +274,17 @@ export function buildPathwayInput(
       destination_province: profile.intended_province ?? null,
     },
 
-    crs_estimate: { range_low: 0, range_high: 0, confidence: "low", based_on: [], missing_for_exact: [] },
+    crs_estimate: {
+      range_low: estimate?.low ?? 0,
+      range_high: estimate?.high ?? 0,
+      confidence: "low",
+      based_on: estimate ? scoredFactors(estimate.breakdown) : [],
+      missing_for_exact: [...MISSING_FOR_EXACT],
+    },
 
     data_completeness_pct: Math.round((collectedFields / totalFields) * 100),
     collection_method: method,
     voice_session_id: voiceSessionId,
-  };
-
-  const estimate = computeCrsEstimate(input);
-  input.crs_estimate = {
-    range_low: estimate.low,
-    range_high: estimate.high,
-    confidence: "low",
-    based_on: estimate.basedOn,
-    missing_for_exact: estimate.missingForExact,
   };
 
   if (matcherResult && matcherResult.scores.length > 0) {

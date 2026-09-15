@@ -1,4 +1,4 @@
-import { CRS_FACTOR_CAPS } from '@/lib/crs-estimate';
+import { crsFactorCaps } from '@/lib/crs-estimate';
 import type { FswEstimate } from '@/lib/fsw-points';
 import type {
   DashboardData,
@@ -110,6 +110,7 @@ function deriveJourneyPhase(data: DashboardData, state: MissionControlState): Jo
 function deriveLevers(data: DashboardData): CrsLever[] {
   const breakdown = data.crsBreakdown;
   if (breakdown === null) return [];
+  const caps = crsFactorCaps(data.crsWithSpouse);
 
   const recById = new Map(data.recommendations.map((r) => [r.id, r]));
   const candidates: Array<CrsLever & { headroom: number }> = [];
@@ -126,7 +127,7 @@ function deriveLevers(data: DashboardData): CrsLever[] {
     });
   }
 
-  const languageHeadroom = CRS_FACTOR_CAPS.language - breakdown.language;
+  const languageHeadroom = caps.language - breakdown.language;
   if (languageHeadroom > 0) {
     candidates.push({
       id: 'language',
@@ -138,7 +139,7 @@ function deriveLevers(data: DashboardData): CrsLever[] {
     });
   }
 
-  const educationHeadroom = CRS_FACTOR_CAPS.education - breakdown.education;
+  const educationHeadroom = caps.education - breakdown.education;
   if (educationHeadroom > 0) {
     const eca = recById.get('eca');
     candidates.push({
@@ -150,7 +151,7 @@ function deriveLevers(data: DashboardData): CrsLever[] {
     });
   }
 
-  const experienceHeadroom = CRS_FACTOR_CAPS.experience - breakdown.experience;
+  const experienceHeadroom = caps.experience - breakdown.experience;
   if (experienceHeadroom > 0) {
     const work = recById.get('canadian-work');
     candidates.push({

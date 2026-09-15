@@ -378,12 +378,12 @@ function checkEligibility(
     }
   }
 
-  // CEC TEER-dependent CLB minimum: CLB 7 for TEER 0-2, CLB 5 for TEER 3
+  // CEC TEER-dependent CLB minimum (IRCC): CLB 7 for TEER 0–1, CLB 5 for TEER 2–3
   if (pathway.slug === "canada-cec") {
     const teer = (profile as { noc_teer_category?: number | null }).noc_teer_category;
     const { clb_listening: l, clb_reading: r, clb_writing: w, clb_speaking: s } = profile;
     if (l != null && r != null && w != null && s != null && teer != null) {
-      const cecMinClb = teer <= 2 ? 7 : 5;
+      const cecMinClb = teer <= 1 ? 7 : 5;
       if (Math.min(l, r, w, s) < cecMinClb) return "INELIGIBLE";
     }
   }
